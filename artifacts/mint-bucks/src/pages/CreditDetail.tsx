@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Download, Bell, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Bell, Trash2, Search, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +14,7 @@ import {
   getListCreditsQueryKey,
   getListRedemptionsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -56,11 +57,86 @@ const redeemSchema = z.object({
 });
 type RedeemFormData = z.infer<typeof redeemSchema>;
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface PrintavoOrderSummary {
+  id: string;
+  visualId: string;
+  createdAt: string;
+  total: number | null;
+  customerName: string | null;
+  customerEmail: string | null;
+}
+
+function PrintavoOrderLookup({ orderNumber, onSelect }: {
+  orderNumber: string;
+  onSelect: (orderNumber: string) => void;
+}) {
+  const { data, isLoading, isError, error } = useQuery<PrintavoOrderSummary>({
+    queryKey: ["printavo-order", orderNumber],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/api/printavo/order/${encodeURIComponent(orderNumber)}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<PrintavoOrderSummary>;
+    },
+    enabled: orderNumber.length >= 1,
+    retry: false,
+  });
+
+  if (!orderNumber) return null;
+
+  if (isLoading) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Looking up order in Printavo…
+      </div>
+    );
+  }
+
+  if (isError) {
+    const msg = error instanceof Error ? error.message : "Not found";
+    if (msg.includes("not configured")) return null;
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600">
+        <XCircle className="w-3.5 h-3.5" />
+        {msg}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div
+      className="mt-2 p-3 rounded-md bg-emerald-50 border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition-colors"
+      onClick={() => onSelect(data.visualId)}
+    >
+      <div className="flex items-start gap-2">
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+        <div className="text-xs">
+          <div className="font-semibold text-emerald-800">Order #{data.visualId} found in Printavo</div>
+          {data.customerName && <div className="text-emerald-700 mt-0.5">{data.customerName}</div>}
+          <div className="flex gap-3 mt-1 text-emerald-600">
+            <span>{formatDate(data.createdAt)}</span>
+            {data.total != null && <span>Total: {formatCurrency(data.total)}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CreditDetail() {
   const { id } = useParams<{ id: string }>();
   const creditId = parseInt(id, 10);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [orderLookupValue, setOrderLookupValue] = useState("");
+  const [debouncedOrderNumber, setDebouncedOrderNumber] = useState("");
 
   const { data: credit, isLoading } = useGetCredit(creditId, {
     query: { enabled: !!creditId, queryKey: getGetCreditQueryKey(creditId) },
@@ -96,6 +172,8 @@ export function CreditDetail() {
           queryClient.invalidateQueries({ queryKey: getListRedemptionsQueryKey({ creditId: String(creditId) }) });
           toast({ title: `Redeemed ${formatCurrency(parseFloat(data.amountApplied))}` });
           form.reset();
+          setOrderLookupValue("");
+          setDebouncedOrderNumber("");
         },
         onError: (err: unknown) => {
           const msg = (err as { data?: { error?: string } })?.data?.error ?? "Failed to redeem";
@@ -128,6 +206,15 @@ export function CreditDetail() {
         onError: () => toast({ title: "Failed to cancel credit", variant: "destructive" }),
       }
     );
+  };
+
+  const handleOrderRefChange = (value: string) => {
+    setOrderLookupValue(value);
+    form.setValue("invoiceRef", value);
+    clearTimeout((window as unknown as Record<string, ReturnType<typeof setTimeout>>)["_orderLookupTimer"]);
+    (window as unknown as Record<string, ReturnType<typeof setTimeout>>)["_orderLookupTimer"] = setTimeout(() => {
+      setDebouncedOrderNumber(value.trim());
+    }, 600);
   };
 
   if (isLoading) {
@@ -279,19 +366,37 @@ export function CreditDetail() {
                     </FormItem>
                   )}
                 />
+
+                {/* Printavo Order Ref field with live lookup */}
                 <FormField
                   control={form.control}
                   name="invoiceRef"
-                  render={({ field }) => (
+                  render={() => (
                     <FormItem>
-                      <FormLabel>Invoice / Order Ref (optional)</FormLabel>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground" />
+                        Printavo Order # <span className="text-muted-foreground font-normal">(optional)</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input data-testid="input-invoice-ref" placeholder="e.g. INV-1234" {...field} />
+                        <Input
+                          data-testid="input-invoice-ref"
+                          placeholder="e.g. 1234 or INV-1234"
+                          value={orderLookupValue}
+                          onChange={(e) => handleOrderRefChange(e.target.value)}
+                        />
                       </FormControl>
+                      <PrintavoOrderLookup
+                        orderNumber={debouncedOrderNumber}
+                        onSelect={(num) => {
+                          setOrderLookupValue(num);
+                          form.setValue("invoiceRef", num);
+                        }}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <Button
                   type="submit"
                   data-testid="button-redeem"

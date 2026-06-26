@@ -18,6 +18,10 @@ tags:
     description: Credit redemptions
   - name: reports
     description: Reporting and analytics
+  - name: settings
+    description: App configuration and Printavo credentials
+  - name: printavo
+    description: Printavo integration — customer sync, order lookup, notifications
 
 paths:
   /healthz:
@@ -448,6 +452,120 @@ paths:
                 items:
                   $ref: "#/components/schemas/Credit"
 
+  # ── Settings ────────────────────────────────────────────────────────────────
+  /settings/printavo:
+    get:
+      operationId: getSettingsPrintavo
+      tags: [settings]
+      summary: Get Printavo integration settings
+      responses:
+        "200":
+          description: Current settings (API key is masked)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintavoSettings"
+    put:
+      operationId: updateSettingsPrintavo
+      tags: [settings]
+      summary: Update Printavo integration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintavoSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintavoSettings"
+
+  # ── Printavo ─────────────────────────────────────────────────────────────────
+  /printavo/test:
+    post:
+      operationId: testPrintavoConnection
+      tags: [printavo]
+      summary: Test Printavo API connection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintavoTestInput"
+      responses:
+        "200":
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintavoConnectionResult"
+
+  /printavo/sync-customers:
+    post:
+      operationId: syncPrintavoCustomers
+      tags: [printavo]
+      summary: Pull customers from Printavo and upsert into local table
+      responses:
+        "200":
+          description: Sync summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintavoSyncResult"
+        "400":
+          description: Printavo not configured
+
+  /printavo/poll:
+    post:
+      operationId: triggerPrintavoPoll
+      tags: [printavo]
+      summary: Manually trigger a Printavo order poll
+      responses:
+        "200":
+          description: Poll result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
+
+  /printavo/order/{orderNumber}:
+    get:
+      operationId: lookupPrintavoOrder
+      tags: [printavo]
+      summary: Fetch a Printavo order by order number for reference
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Order summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintavoOrderSummary"
+        "404":
+          description: Order not found
+
+  /printavo/notification-log:
+    get:
+      operationId: getNotificationLog
+      tags: [printavo]
+      summary: List automated Printavo credit notifications sent
+      responses:
+        "200":
+          description: Notification log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationLogItem"
+
   /reports/activity:
     get:
       operationId: getRecentActivity
@@ -709,4 +827,103 @@ components:
         note:
           type: ["string", "null"]
         occurredAt:
+          type: string
+
+    PrintavoSettings:
+      type: object
+      required: [apiKeyConfigured, enabled, pollingIntervalMinutes]
+      properties:
+        apiKeyConfigured:
+          type: boolean
+        email:
+          type: ["string", "null"]
+        shopUrl:
+          type: ["string", "null"]
+        enabled:
+          type: boolean
+        pollingIntervalMinutes:
+          type: integer
+
+    PrintavoTestInput:
+      type: object
+      properties:
+        apiKey:
+          type: string
+        email:
+          type: string
+
+    PrintavoSettingsInput:
+      type: object
+      properties:
+        apiKey:
+          type: string
+        email:
+          type: string
+        shopUrl:
+          type: string
+        enabled:
+          type: boolean
+        pollingIntervalMinutes:
+          type: integer
+
+    PrintavoConnectionResult:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    PrintavoSyncResult:
+      type: object
+      required: [created, matched, skipped, total]
+      properties:
+        created:
+          type: integer
+        matched:
+          type: integer
+        skipped:
+          type: integer
+        total:
+          type: integer
+
+    PrintavoOrderSummary:
+      type: object
+      required: [id, visualId, createdAt]
+      properties:
+        id:
+          type: string
+        visualId:
+          type: string
+        orderId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        total:
+          type: ["number", "null"]
+        customerName:
+          type: ["string", "null"]
+        customerEmail:
+          type: ["string", "null"]
+
+    NotificationLogItem:
+      type: object
+      required: [id, customerId, printavoOrderId, amountAvailable, sentAt]
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        customerName:
+          type: ["string", "null"]
+        customerEmail:
+          type: ["string", "null"]
+        printavoOrderId:
+          type: string
+        printavoOrderNumber:
+          type: ["string", "null"]
+        amountAvailable:
+          type: number
+        sentAt:
           type: string

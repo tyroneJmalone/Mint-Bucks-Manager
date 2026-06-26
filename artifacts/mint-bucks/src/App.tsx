@@ -11,6 +11,7 @@ import { IssueCredit } from "@/pages/IssueCredit";
 import { CreditDetail } from "@/pages/CreditDetail";
 import { Redemptions } from "@/pages/Redemptions";
 import { Reports } from "@/pages/Reports";
+import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -34,6 +35,7 @@ function Router() {
         <Route path="/credits" component={Credits} />
         <Route path="/redemptions" component={Redemptions} />
         <Route path="/reports" component={Reports} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

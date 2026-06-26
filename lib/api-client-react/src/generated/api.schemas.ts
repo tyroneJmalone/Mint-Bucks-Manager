@@ -171,6 +171,69 @@ export interface ActivityItem {
   occurredAt: string;
 }
 
+export interface PrintavoSettings {
+  apiKeyConfigured: boolean;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  shopUrl?: string | null;
+  enabled: boolean;
+  pollingIntervalMinutes: number;
+}
+
+export interface PrintavoTestInput {
+  apiKey?: string;
+  email?: string;
+}
+
+export interface PrintavoSettingsInput {
+  apiKey?: string;
+  email?: string;
+  shopUrl?: string;
+  enabled?: boolean;
+  pollingIntervalMinutes?: number;
+}
+
+export interface PrintavoConnectionResult {
+  success: boolean;
+  message: string;
+}
+
+export interface PrintavoSyncResult {
+  created: number;
+  matched: number;
+  skipped: number;
+  total: number;
+}
+
+export interface PrintavoOrderSummary {
+  id: string;
+  visualId: string;
+  /** @nullable */
+  orderId?: string | null;
+  createdAt: string;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  customerName?: string | null;
+  /** @nullable */
+  customerEmail?: string | null;
+}
+
+export interface NotificationLogItem {
+  id: number;
+  customerId: number;
+  /** @nullable */
+  customerName?: string | null;
+  /** @nullable */
+  customerEmail?: string | null;
+  printavoOrderId: string;
+  /** @nullable */
+  printavoOrderNumber?: string | null;
+  amountAvailable: number;
+  sentAt: string;
+}
+
 export type ListCustomersParams = {
 search?: string;
 hasCredit?: string;

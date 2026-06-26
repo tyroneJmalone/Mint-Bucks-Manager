@@ -469,6 +469,106 @@ export const GetExpiringSoonResponse = zod.array(GetExpiringSoonResponseItem)
 
 
 /**
+ * @summary Get Printavo integration settings
+ */
+export const GetSettingsPrintavoResponse = zod.object({
+  "apiKeyConfigured": zod.boolean(),
+  "email": zod.string().nullish(),
+  "shopUrl": zod.string().nullish(),
+  "enabled": zod.boolean(),
+  "pollingIntervalMinutes": zod.number()
+})
+
+
+/**
+ * @summary Update Printavo integration settings
+ */
+export const UpdateSettingsPrintavoBody = zod.object({
+  "apiKey": zod.string().optional(),
+  "email": zod.string().optional(),
+  "shopUrl": zod.string().optional(),
+  "enabled": zod.boolean().optional(),
+  "pollingIntervalMinutes": zod.number().optional()
+})
+
+export const UpdateSettingsPrintavoResponse = zod.object({
+  "apiKeyConfigured": zod.boolean(),
+  "email": zod.string().nullish(),
+  "shopUrl": zod.string().nullish(),
+  "enabled": zod.boolean(),
+  "pollingIntervalMinutes": zod.number()
+})
+
+
+/**
+ * @summary Test Printavo API connection
+ */
+export const TestPrintavoConnectionBody = zod.object({
+  "apiKey": zod.string().optional(),
+  "email": zod.string().optional()
+})
+
+export const TestPrintavoConnectionResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Pull customers from Printavo and upsert into local table
+ */
+export const SyncPrintavoCustomersResponse = zod.object({
+  "created": zod.number(),
+  "matched": zod.number(),
+  "skipped": zod.number(),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Manually trigger a Printavo order poll
+ */
+export const TriggerPrintavoPollResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Fetch a Printavo order by order number for reference
+ */
+export const LookupPrintavoOrderParams = zod.object({
+  "orderNumber": zod.coerce.string()
+})
+
+export const LookupPrintavoOrderResponse = zod.object({
+  "id": zod.string(),
+  "visualId": zod.string(),
+  "orderId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "total": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish()
+})
+
+
+/**
+ * @summary List automated Printavo credit notifications sent
+ */
+export const GetNotificationLogResponseItem = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "printavoOrderId": zod.string(),
+  "printavoOrderNumber": zod.string().nullish(),
+  "amountAvailable": zod.number(),
+  "sentAt": zod.string()
+})
+export const GetNotificationLogResponse = zod.array(GetNotificationLogResponseItem)
+
+
+/**
  * @summary Recent activity feed (credits + redemptions)
  */
 export const GetRecentActivityQueryParams = zod.object({

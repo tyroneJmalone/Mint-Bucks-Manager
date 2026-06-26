@@ -5,6 +5,7 @@ import {
   CreditCard,
   ArrowDownLeft,
   BarChart3,
+  Settings,
   Leaf,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ const navItems = [
   { href: "/credits", label: "Mint Bucks", icon: CreditCard },
   { href: "/redemptions", label: "Redemptions", icon: ArrowDownLeft },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 interface LayoutProps {

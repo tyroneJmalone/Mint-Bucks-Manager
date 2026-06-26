@@ -14,19 +14,25 @@ import {
   useGetCreditsOverTime,
   useGetTopCustomers,
   useGetExpiringSoon,
+  useGetNotificationLog,
   getGetReportSummaryQueryKey,
   getGetCreditsOverTimeQueryKey,
   getGetTopCustomersQueryKey,
   getGetExpiringSoonQueryKey,
+  getGetNotificationLogQueryKey,
 } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Mail } from "lucide-react";
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function formatDateTime(s: string) {
+  return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function StatPill({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -55,6 +61,9 @@ export function Reports() {
     { days: "30" },
     { query: { queryKey: getGetExpiringSoonQueryKey({ days: "30" }) } }
   );
+  const { data: notifLog, isLoading: nl } = useGetNotificationLog({
+    query: { queryKey: getGetNotificationLogQueryKey() },
+  });
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -118,7 +127,7 @@ export function Reports() {
         )}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-6 mb-6">
         {/* Top customers */}
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
@@ -185,14 +194,73 @@ export function Reports() {
                       <div className="text-[11px] text-muted-foreground">{formatDate(c.expiresAt)}</div>
                     )}
                   </div>
-                  <Link href={`/credits/${c.id}`}>
-                    <a className="text-xs text-primary hover:underline flex-shrink-0">View</a>
-                  </Link>
+                  <Link href={`/credits/${c.id}`} className="text-xs text-primary hover:underline flex-shrink-0">View</Link>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Printavo Notification Log */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Printavo Notification Log</h2>
+          </div>
+          <span className="text-xs text-muted-foreground">{notifLog?.length ?? 0} sent</span>
+        </div>
+
+        {nl ? (
+          <div className="p-5 space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+          </div>
+        ) : !notifLog?.length ? (
+          <div className="px-5 py-10 text-center">
+            <Mail className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">No automated notifications sent yet.</p>
+            <p className="text-xs text-muted-foreground mt-1">Configure Printavo in Settings and enable automation to get started.</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-muted/50">
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Printavo Order</th>
+                <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Credit Available</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Sent At</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {notifLog.map((entry) => (
+                <tr key={entry.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-5 py-3">
+                    <Link href={`/customers/${entry.customerId}`} className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+                      {entry.customerName ?? `Customer #${entry.customerId}`}
+                    </Link>
+                    {entry.customerEmail && (
+                      <div className="text-xs text-muted-foreground">{entry.customerEmail}</div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {entry.printavoOrderNumber ? (
+                      <span className="text-sm font-mono text-foreground">#{entry.printavoOrderNumber}</span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground font-mono">{entry.printavoOrderId.slice(0, 12)}…</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <span className="text-sm font-semibold text-primary">{formatCurrency(entry.amountAvailable)}</span>
+                  </td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground">
+                    {formatDateTime(entry.sentAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

@@ -38,6 +38,13 @@ import type {
   ListCustomersParams,
   ListRedemptionsParams,
   MessageResult,
+  NotificationLogItem,
+  PrintavoConnectionResult,
+  PrintavoOrderSummary,
+  PrintavoSettings,
+  PrintavoSettingsInput,
+  PrintavoSyncResult,
+  PrintavoTestInput,
   Redemption,
   RedemptionInput,
   RedemptionResult,
@@ -1742,6 +1749,517 @@ export function useGetExpiringSoon<TData = Awaited<ReturnType<typeof getExpiring
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetExpiringSoonQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSettingsPrintavoUrl = () => {
+
+
+
+
+  return `/api/settings/printavo`
+}
+
+/**
+ * @summary Get Printavo integration settings
+ */
+export const getSettingsPrintavo = async ( options?: RequestInit): Promise<PrintavoSettings> => {
+
+  return customFetch<PrintavoSettings>(getGetSettingsPrintavoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSettingsPrintavoQueryKey = () => {
+    return [
+    `/api/settings/printavo`
+    ] as const;
+    }
+
+
+export const getGetSettingsPrintavoQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsPrintavo>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettingsPrintavo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSettingsPrintavoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSettingsPrintavo>>> = ({ signal }) => getSettingsPrintavo({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSettingsPrintavo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSettingsPrintavoQueryResult = NonNullable<Awaited<ReturnType<typeof getSettingsPrintavo>>>
+export type GetSettingsPrintavoQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get Printavo integration settings
+ */
+
+export function useGetSettingsPrintavo<TData = Awaited<ReturnType<typeof getSettingsPrintavo>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSettingsPrintavo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSettingsPrintavoQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSettingsPrintavoUrl = () => {
+
+
+
+
+  return `/api/settings/printavo`
+}
+
+/**
+ * @summary Update Printavo integration settings
+ */
+export const updateSettingsPrintavo = async (printavoSettingsInput: PrintavoSettingsInput, options?: RequestInit): Promise<PrintavoSettings> => {
+
+  return customFetch<PrintavoSettings>(getUpdateSettingsPrintavoUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(printavoSettingsInput)
+  }
+);}
+
+
+
+
+export const getUpdateSettingsPrintavoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSettingsPrintavo>>, TError,{data: BodyType<PrintavoSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSettingsPrintavo>>, TError,{data: BodyType<PrintavoSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateSettingsPrintavo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSettingsPrintavo>>, {data: BodyType<PrintavoSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateSettingsPrintavo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSettingsPrintavoMutationResult = NonNullable<Awaited<ReturnType<typeof updateSettingsPrintavo>>>
+    export type UpdateSettingsPrintavoMutationBody = BodyType<PrintavoSettingsInput>
+    export type UpdateSettingsPrintavoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update Printavo integration settings
+ */
+export const useUpdateSettingsPrintavo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSettingsPrintavo>>, TError,{data: BodyType<PrintavoSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSettingsPrintavo>>,
+        TError,
+        {data: BodyType<PrintavoSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateSettingsPrintavoMutationOptions(options));
+    }
+
+export const getTestPrintavoConnectionUrl = () => {
+
+
+
+
+  return `/api/printavo/test`
+}
+
+/**
+ * @summary Test Printavo API connection
+ */
+export const testPrintavoConnection = async (printavoTestInput?: PrintavoTestInput, options?: RequestInit): Promise<PrintavoConnectionResult> => {
+
+  return customFetch<PrintavoConnectionResult>(getTestPrintavoConnectionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(printavoTestInput)
+  }
+);}
+
+
+
+
+export const getTestPrintavoConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testPrintavoConnection>>, TError,{data?: BodyType<PrintavoTestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testPrintavoConnection>>, TError,{data?: BodyType<PrintavoTestInput>}, TContext> => {
+
+const mutationKey = ['testPrintavoConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testPrintavoConnection>>, {data?: BodyType<PrintavoTestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  testPrintavoConnection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestPrintavoConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof testPrintavoConnection>>>
+    export type TestPrintavoConnectionMutationBody = BodyType<PrintavoTestInput> | undefined
+    export type TestPrintavoConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Test Printavo API connection
+ */
+export const useTestPrintavoConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testPrintavoConnection>>, TError,{data?: BodyType<PrintavoTestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testPrintavoConnection>>,
+        TError,
+        {data?: BodyType<PrintavoTestInput>},
+        TContext
+      > => {
+      return useMutation(getTestPrintavoConnectionMutationOptions(options));
+    }
+
+export const getSyncPrintavoCustomersUrl = () => {
+
+
+
+
+  return `/api/printavo/sync-customers`
+}
+
+/**
+ * @summary Pull customers from Printavo and upsert into local table
+ */
+export const syncPrintavoCustomers = async ( options?: RequestInit): Promise<PrintavoSyncResult> => {
+
+  return customFetch<PrintavoSyncResult>(getSyncPrintavoCustomersUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncPrintavoCustomersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPrintavoCustomers>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncPrintavoCustomers>>, TError,void, TContext> => {
+
+const mutationKey = ['syncPrintavoCustomers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncPrintavoCustomers>>, void> = () => {
+
+
+          return  syncPrintavoCustomers(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncPrintavoCustomersMutationResult = NonNullable<Awaited<ReturnType<typeof syncPrintavoCustomers>>>
+
+    export type SyncPrintavoCustomersMutationError = ErrorType<void>
+
+    /**
+ * @summary Pull customers from Printavo and upsert into local table
+ */
+export const useSyncPrintavoCustomers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPrintavoCustomers>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncPrintavoCustomers>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncPrintavoCustomersMutationOptions(options));
+    }
+
+export const getTriggerPrintavoPollUrl = () => {
+
+
+
+
+  return `/api/printavo/poll`
+}
+
+/**
+ * @summary Manually trigger a Printavo order poll
+ */
+export const triggerPrintavoPoll = async ( options?: RequestInit): Promise<MessageResult> => {
+
+  return customFetch<MessageResult>(getTriggerPrintavoPollUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getTriggerPrintavoPollMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerPrintavoPoll>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof triggerPrintavoPoll>>, TError,void, TContext> => {
+
+const mutationKey = ['triggerPrintavoPoll'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof triggerPrintavoPoll>>, void> = () => {
+
+
+          return  triggerPrintavoPoll(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TriggerPrintavoPollMutationResult = NonNullable<Awaited<ReturnType<typeof triggerPrintavoPoll>>>
+
+    export type TriggerPrintavoPollMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Manually trigger a Printavo order poll
+ */
+export const useTriggerPrintavoPoll = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerPrintavoPoll>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof triggerPrintavoPoll>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getTriggerPrintavoPollMutationOptions(options));
+    }
+
+export const getLookupPrintavoOrderUrl = (orderNumber: string,) => {
+
+
+
+
+  return `/api/printavo/order/${orderNumber}`
+}
+
+/**
+ * @summary Fetch a Printavo order by order number for reference
+ */
+export const lookupPrintavoOrder = async (orderNumber: string, options?: RequestInit): Promise<PrintavoOrderSummary> => {
+
+  return customFetch<PrintavoOrderSummary>(getLookupPrintavoOrderUrl(orderNumber),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getLookupPrintavoOrderQueryKey = (orderNumber: string,) => {
+    return [
+    `/api/printavo/order/${orderNumber}`
+    ] as const;
+    }
+
+
+export const getLookupPrintavoOrderQueryOptions = <TData = Awaited<ReturnType<typeof lookupPrintavoOrder>>, TError = ErrorType<void>>(orderNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof lookupPrintavoOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getLookupPrintavoOrderQueryKey(orderNumber);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof lookupPrintavoOrder>>> = ({ signal }) => lookupPrintavoOrder(orderNumber, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderNumber !== null && orderNumber !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof lookupPrintavoOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type LookupPrintavoOrderQueryResult = NonNullable<Awaited<ReturnType<typeof lookupPrintavoOrder>>>
+export type LookupPrintavoOrderQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch a Printavo order by order number for reference
+ */
+
+export function useLookupPrintavoOrder<TData = Awaited<ReturnType<typeof lookupPrintavoOrder>>, TError = ErrorType<void>>(
+ orderNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof lookupPrintavoOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getLookupPrintavoOrderQueryOptions(orderNumber,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetNotificationLogUrl = () => {
+
+
+
+
+  return `/api/printavo/notification-log`
+}
+
+/**
+ * @summary List automated Printavo credit notifications sent
+ */
+export const getNotificationLog = async ( options?: RequestInit): Promise<NotificationLogItem[]> => {
+
+  return customFetch<NotificationLogItem[]>(getGetNotificationLogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNotificationLogQueryKey = () => {
+    return [
+    `/api/printavo/notification-log`
+    ] as const;
+    }
+
+
+export const getGetNotificationLogQueryOptions = <TData = Awaited<ReturnType<typeof getNotificationLog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotificationLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNotificationLogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotificationLog>>> = ({ signal }) => getNotificationLog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNotificationLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNotificationLogQueryResult = NonNullable<Awaited<ReturnType<typeof getNotificationLog>>>
+export type GetNotificationLogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List automated Printavo credit notifications sent
+ */
+
+export function useGetNotificationLog<TData = Awaited<ReturnType<typeof getNotificationLog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotificationLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNotificationLogQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -333,3 +333,94 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
     return false;
   }
 }
+
+export interface PrintavoNotificationData {
+  customerName: string;
+  customerEmail: string;
+  creditCodes: string[];
+  totalOutstanding: number;
+  orderNumber: string;
+  orderTotal?: number;
+}
+
+export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
+  const transport = createTransport();
+  const codesHtml = data.creditCodes
+    .map(code => `<div style="font-family:monospace;letter-spacing:3px;font-size:18px;font-weight:bold;color:#6fcf97;margin:4px 0">${code}</div>`)
+    .join("");
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; }
+    .header { background: #1a3a2e; padding: 40px 32px; text-align: center; }
+    .header h1 { color: #6fcf97; margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; }
+    .header p { color: #a8c5b8; margin: 8px 0 0; font-size: 14px; }
+    .body { padding: 40px 32px; }
+    .amount-box { background: #f0faf4; border: 2px solid #6fcf97; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0; }
+    .amount { font-size: 48px; font-weight: 800; color: #1a3a2e; }
+    .code-box { background: #1a3a2e; border-radius: 6px; padding: 16px 20px; margin: 16px 0; }
+    p { color: #333; line-height: 1.6; }
+    .order-ref { border-left: 3px solid #6fcf97; padding: 12px 16px; background: #f0faf4; margin: 20px 0; color: #1a3a2e; font-weight: 500; }
+    .footer { background: #f5f5f0; padding: 24px 32px; text-align: center; color: #999; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Mint Bucks Available!</h1>
+      <p>${BUSINESS_NAME}</p>
+    </div>
+    <div class="body">
+      <p>Hi ${data.customerName},</p>
+      <p>Great news! You have <strong>Mint Bucks</strong> store credit available — and you have an order in progress with us. Don't forget to apply it!</p>
+
+      <div class="amount-box">
+        <div class="amount">${formatCurrency(data.totalOutstanding)}</div>
+        <div style="color:#4a7c6a;font-size:13px;margin-top:4px;text-transform:uppercase;letter-spacing:1px">Available Balance</div>
+      </div>
+
+      <div class="code-box">
+        <div style="color:#a8c5b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Credit Code${data.creditCodes.length > 1 ? "s" : ""}</div>
+        ${codesHtml}
+      </div>
+
+      <div class="order-ref">
+        <strong>Order Reference:</strong> #${data.orderNumber}${data.orderTotal ? ` &nbsp;·&nbsp; Total: ${formatCurrency(data.orderTotal)}` : ""}
+      </div>
+
+      <p>To apply your Mint Bucks, simply mention your credit code when you speak with our team about order <strong>#${data.orderNumber}</strong>. We'll deduct it from your balance.</p>
+    </div>
+    <div class="footer">
+      <p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const subject = `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
+
+  if (!transport) {
+    logger.info({ to: data.customerEmail, subject }, "Email (not sent — SMTP not configured)");
+    return true;
+  }
+
+  try {
+    await transport.sendMail({
+      from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+      to: `${data.customerName} <${data.customerEmail}>`,
+      subject,
+      html,
+    });
+    logger.info({ to: data.customerEmail }, "Printavo notification email sent");
+    return true;
+  } catch (err) {
+    logger.error({ err, to: data.customerEmail }, "Failed to send Printavo notification email");
+    return false;
+  }
+}
