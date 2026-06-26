@@ -33,6 +33,27 @@ export interface PrintavoPaginatedResult<T> {
 
 const PRINTAVO_ENDPOINT = "https://www.printavo.com/api/v2";
 
+const ORDERS_FRAGMENT = `
+  records {
+    id
+    visualId
+    orderId
+    createdAt
+    total
+    customer {
+      id
+      fullName
+      email
+      primaryPhone
+    }
+  }
+  metadata {
+    currentPage
+    totalPages
+    totalCount
+  }
+`;
+
 function buildHeaders(config: PrintavoConfig): Record<string, string> {
   return {
     "Content-Type": "application/json",
@@ -111,33 +132,38 @@ export async function fetchAllCustomers(config: PrintavoConfig): Promise<Printav
 }
 
 export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string): Promise<PrintavoOrder[]> {
-  const data = await gql<{ quotes: PrintavoPaginatedResult<PrintavoOrder> }>(config, `
-    query GetRecentOrders($page: Int) {
-      quotes(page: $page, sortOn: CREATED_AT, direction: DESCENDING) {
-        records {
-          id
-          visualId
-          orderId
-          createdAt
-          total
-          customer {
-            id
-            fullName
-            email
-            primaryPhone
-          }
-        }
-        metadata {
-          currentPage
-          totalPages
-          totalCount
+  const since = new Date(sinceIso).getTime();
+  const all: PrintavoOrder[] = [];
+  let page = 1;
+  let totalPages = 1;
+  const PAGE_LIMIT = 20;
+
+  while (page <= totalPages && page <= PAGE_LIMIT) {
+    const data = await gql<{ quotes: PrintavoPaginatedResult<PrintavoOrder> }>(config, `
+      query GetRecentOrders($page: Int) {
+        quotes(page: $page, sortOn: CREATED_AT, direction: DESCENDING) {
+          ${ORDERS_FRAGMENT}
         }
       }
-    }
-  `, { page: 1 });
+    `, { page });
 
-  const since = new Date(sinceIso).getTime();
-  return data.quotes.records.filter(o => new Date(o.createdAt).getTime() >= since);
+    const { records, metadata } = data.quotes;
+    totalPages = metadata.totalPages;
+
+    let reachedOlder = false;
+    for (const order of records) {
+      if (new Date(order.createdAt).getTime() >= since) {
+        all.push(order);
+      } else {
+        reachedOlder = true;
+      }
+    }
+
+    if (reachedOlder) break;
+    page++;
+  }
+
+  return all;
 }
 
 export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: string): Promise<PrintavoOrder | null> {

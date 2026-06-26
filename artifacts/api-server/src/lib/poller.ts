@@ -1,4 +1,3 @@
-import cron, { type ScheduledTask } from "node-cron";
 import { db } from "@workspace/db";
 import { creditsTable, customersTable, notificationLogTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -7,7 +6,7 @@ import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, getPollin
 import { fetchRecentOrders } from "./printavo";
 import { sendPrintavoNotificationEmail } from "./email";
 
-let currentTask: ScheduledTask | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 export async function runPoll(): Promise<void> {
   const config = await getPrintavoConfig();
@@ -73,7 +72,7 @@ export async function runPoll(): Promise<void> {
 
       if (existing.length > 0) continue;
 
-      await sendPrintavoNotificationEmail({
+      const delivered = await sendPrintavoNotificationEmail({
         customerName: localCustomer.name,
         customerEmail: localCustomer.email,
         creditCodes: credits.map(c => c.code),
@@ -82,16 +81,22 @@ export async function runPoll(): Promise<void> {
         orderTotal: order.total ?? undefined,
       });
 
+      if (!delivered) {
+        logger.warn({ customerId: localCustomer.id, orderId: order.id }, "Notification email failed — skipping log entry so next poll can retry");
+        continue;
+      }
+
       await db.insert(notificationLogTable).values({
         customerId: localCustomer.id,
         printavoOrderId: order.id,
         printavoOrderNumber: order.visualId,
         amountAvailable: totalOutstanding.toFixed(2),
+        deliveryStatus: "sent",
       });
 
       logger.info(
         { customerId: localCustomer.id, orderId: order.id, totalOutstanding },
-        "Printavo notification sent"
+        "Printavo notification sent and logged"
       );
     } catch (err) {
       logger.error({ err, orderId: order.id }, "Printavo poll: error processing order");
@@ -111,24 +116,24 @@ export async function startPoller(): Promise<void> {
     return;
   }
 
-  const interval = await getPollingIntervalMinutes();
-  const cronExpr = `*/${interval} * * * *`;
+  const intervalMinutes = await getPollingIntervalMinutes();
+  const intervalMs = intervalMinutes * 60 * 1000;
 
-  logger.info({ interval, cronExpr }, "Starting Printavo poller");
+  logger.info({ intervalMinutes }, "Starting Printavo poller");
 
-  currentTask = cron.schedule(cronExpr, async () => {
+  pollTimer = setInterval(async () => {
     try {
       await runPoll();
     } catch (err) {
       logger.error({ err }, "Printavo poll error");
     }
-  });
+  }, intervalMs);
 }
 
 export function stopPoller(): void {
-  if (currentTask) {
-    currentTask.stop();
-    currentTask = null;
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
     logger.info("Printavo poller stopped");
   }
 }

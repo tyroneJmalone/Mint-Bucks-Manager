@@ -6,6 +6,7 @@ export const notificationLogTable = pgTable("notification_log", {
   printavoOrderId: text("printavo_order_id").notNull(),
   printavoOrderNumber: text("printavo_order_number"),
   amountAvailable: numeric("amount_available", { precision: 10, scale: 2 }).notNull(),
+  deliveryStatus: text("delivery_status").notNull().default("sent"),
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
