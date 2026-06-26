@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Mint Bucks – Mint Printworks"
+version = "1.0.0"
+id = "artifacts/mint-bucks"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21422
+
+[services.development]
+run = "pnpm --filter @workspace/mint-bucks run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mint-bucks", "run", "build" ]
+publicDir = "artifacts/mint-bucks/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21422"
+BASE_PATH = "/"
