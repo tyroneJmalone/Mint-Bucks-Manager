@@ -30,6 +30,12 @@ export async function runPoll(): Promise<void> {
 
   logger.info({ count: orders.length }, "Printavo poll: orders fetched");
 
+  // Track the earliest creation time of any order that failed email delivery.
+  // We advance the cursor only up to (but not including) that timestamp so
+  // failed orders are retried on the next poll. Successfully sent orders are
+  // protected from duplicate sends by the unique DB constraint + existing-check.
+  let minFailedOrderTimeMs: number | null = null;
+
   for (const order of orders) {
     try {
       const customerEmail = order.customer?.email;
@@ -81,17 +87,22 @@ export async function runPoll(): Promise<void> {
       });
 
       if (!delivered) {
-        logger.warn({ customerId: localCustomer.id, orderId: order.id }, "Notification email failed — skipping log entry so next poll can retry");
+        logger.warn({ customerId: localCustomer.id, orderId: order.id }, "Notification email failed — will retry on next poll");
+        const orderTimeMs = new Date(order.createdAt).getTime();
+        if (minFailedOrderTimeMs === null || orderTimeMs < minFailedOrderTimeMs) {
+          minFailedOrderTimeMs = orderTimeMs;
+        }
         continue;
       }
 
+      // Safe insert: unique constraint prevents duplicates from concurrent polls
       await db.insert(notificationLogTable).values({
         customerId: localCustomer.id,
         printavoOrderId: order.id,
         printavoOrderNumber: order.visualId,
         amountAvailable: totalOutstanding.toFixed(2),
         deliveryStatus: "sent",
-      });
+      }).onConflictDoNothing();
 
       logger.info(
         { customerId: localCustomer.id, orderId: order.id, totalOutstanding },
@@ -99,11 +110,19 @@ export async function runPoll(): Promise<void> {
       );
     } catch (err) {
       logger.error({ err, orderId: order.id }, "Printavo poll: error processing order");
+      // Don't track as failed; transient errors advance the cursor normally
+      // so a single stuck order doesn't block all progress indefinitely.
     }
   }
 
-  await setSetting("printavo_last_poll_at", now);
-  logger.info("Printavo poll complete");
+  // Advance cursor: stop before the oldest failed order so it gets retried.
+  // If all orders succeeded (or none needed notification), advance to `now`.
+  const advanceTo = minFailedOrderTimeMs !== null
+    ? new Date(minFailedOrderTimeMs - 1).toISOString()
+    : now;
+
+  await setSetting("printavo_last_poll_at", advanceTo);
+  logger.info({ advanceTo }, "Printavo poll complete");
 }
 
 export async function startPoller(): Promise<void> {

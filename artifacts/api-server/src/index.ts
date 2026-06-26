@@ -21,9 +21,10 @@ if (!process.env.SETTINGS_ENCRYPTION_KEY) {
   const generated = randomBytes(32).toString("hex");
   process.env.SETTINGS_ENCRYPTION_KEY = generated;
   logger.warn(
-    "SETTINGS_ENCRYPTION_KEY not set — using a randomly generated session key. " +
-    "Encrypted settings will be lost on restart. " +
-    `Set SETTINGS_ENCRYPTION_KEY=${generated} to persist them.`
+    "SETTINGS_ENCRYPTION_KEY is not set. A random session key was generated — " +
+    "encrypted settings (Printavo API key) will not persist across server restarts. " +
+    "Set SETTINGS_ENCRYPTION_KEY as a Replit secret to persist them. " +
+    "Generate a value with: openssl rand -hex 32"
   );
 }
 

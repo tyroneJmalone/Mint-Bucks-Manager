@@ -17,12 +17,23 @@ A branded promotional credit system for Mint Printworks. Staff issue Mint Bucks 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string (provided by Replit) |
+| `SETTINGS_ENCRYPTION_KEY` | Strongly recommended | 32-byte hex key used to encrypt the Printavo API key at rest. Generate with `openssl rand -hex 32`. If absent, a random session key is generated each startup (encrypted settings lost on restart). |
 | `SMTP_HOST` | No | SMTP server host (e.g. `smtp.gmail.com`) |
 | `SMTP_PORT` | No | SMTP port (default `587`) |
 | `SMTP_USER` | No | SMTP username / Gmail address |
 | `SMTP_PASS` | No | SMTP password or Gmail App Password |
 | `FROM_EMAIL` | No | Sender address (default `noreply@mintprintworks.com`) |
 | `APP_URL` | No | Public URL of the app — used in email certificate links |
+
+**Printavo Integration** (configure in Settings page or as env var overrides):
+
+| Variable | Description |
+|----------|-------------|
+| `PRINTAVO_API_KEY` | Overrides the DB-stored Printavo API token (env var takes precedence) |
+| `PRINTAVO_EMAIL` | Overrides the DB-stored Printavo account email |
+| `PRINTAVO_SHOP_URL` | Overrides the DB-stored Printavo shop URL |
+| `PRINTAVO_ENABLED` | `"true"` to enable automated polling (overrides DB setting) |
+| `PRINTAVO_POLLING_INTERVAL` | Poll interval in minutes, e.g. `"15"` (overrides DB setting) |
 
 **Note:** Email is fully built but non-blocking. If SMTP vars are not set, email content is logged and the server continues normally. To enable real email sending via Gmail: create a Google App Password at myaccount.google.com/apppasswords and set all five SMTP_* + FROM_EMAIL vars as Replit secrets.
 
