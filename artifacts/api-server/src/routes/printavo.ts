@@ -142,6 +142,7 @@ router.get("/printavo/notification-log", async (_req, res): Promise<void> => {
       printavoOrderId: l.printavoOrderId,
       printavoOrderNumber: l.printavoOrderNumber ?? null,
       amountAvailable: parseFloat(l.amountAvailable as unknown as string),
+      deliveryStatus: l.deliveryStatus,
       sentAt: l.sentAt.toISOString(),
     }))
   );

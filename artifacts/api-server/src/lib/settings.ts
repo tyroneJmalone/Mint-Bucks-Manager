@@ -22,7 +22,11 @@ const ALGORITHM = "aes-256-gcm";
 function getEncryptionKey(): Buffer {
   const raw = process.env.SETTINGS_ENCRYPTION_KEY;
   if (!raw) {
-    return Buffer.alloc(32, 0x42);
+    throw new Error(
+      "SETTINGS_ENCRYPTION_KEY environment variable is not set. " +
+        "This is required to encrypt sensitive settings. " +
+        "Run: openssl rand -hex 32  and set the result as SETTINGS_ENCRYPTION_KEY."
+    );
   }
   return createHash("sha256").update(raw).digest();
 }

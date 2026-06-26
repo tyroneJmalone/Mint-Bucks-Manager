@@ -220,6 +220,14 @@ export interface PrintavoOrderSummary {
   customerEmail?: string | null;
 }
 
+export type NotificationLogItemDeliveryStatus = typeof NotificationLogItemDeliveryStatus[keyof typeof NotificationLogItemDeliveryStatus];
+
+
+export const NotificationLogItemDeliveryStatus = {
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
 export interface NotificationLogItem {
   id: number;
   customerId: number;
@@ -231,6 +239,7 @@ export interface NotificationLogItem {
   /** @nullable */
   printavoOrderNumber?: string | null;
   amountAvailable: number;
+  deliveryStatus: NotificationLogItemDeliveryStatus;
   sentAt: string;
 }
 

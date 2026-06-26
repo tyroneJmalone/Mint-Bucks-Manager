@@ -24,8 +24,7 @@ export async function runPoll(): Promise<void> {
   try {
     orders = await fetchRecentOrders(config, lastPollAt);
   } catch (err) {
-    logger.error({ err }, "Printavo poll: failed to fetch orders");
-    await setSetting("printavo_last_poll_at", now);
+    logger.error({ err }, "Printavo poll: failed to fetch orders — cursor not advanced, will retry next poll");
     return;
   }
 

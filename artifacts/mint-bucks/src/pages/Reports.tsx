@@ -229,6 +229,7 @@ export function Reports() {
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Printavo Order</th>
                 <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Credit Available</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Sent At</th>
               </tr>
             </thead>
@@ -252,6 +253,16 @@ export function Reports() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <span className="text-sm font-semibold text-primary">{formatCurrency(entry.amountAvailable)}</span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                      entry.deliveryStatus === "sent"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-red-100 text-red-700"
+                    )}>
+                      {entry.deliveryStatus === "sent" ? "Sent" : "Failed"}
+                    </span>
                   </td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">
                     {formatDateTime(entry.sentAt)}

@@ -5,6 +5,7 @@
  * Mint Bucks promotional credit system for Mint Printworks
  * OpenAPI spec version: 0.1.0
  */
+import type { NotificationLogItemDeliveryStatus } from './notificationLogItemDeliveryStatus';
 
 export interface NotificationLogItem {
   id: number;
@@ -17,5 +18,6 @@ export interface NotificationLogItem {
   /** @nullable */
   printavoOrderNumber?: string | null;
   amountAvailable: number;
+  deliveryStatus: NotificationLogItemDeliveryStatus;
   sentAt: string;
 }

@@ -563,6 +563,7 @@ export const GetNotificationLogResponseItem = zod.object({
   "printavoOrderId": zod.string(),
   "printavoOrderNumber": zod.string().nullish(),
   "amountAvailable": zod.number(),
+  "deliveryStatus": zod.enum(['sent', 'failed']),
   "sentAt": zod.string()
 })
 export const GetNotificationLogResponse = zod.array(GetNotificationLogResponseItem)

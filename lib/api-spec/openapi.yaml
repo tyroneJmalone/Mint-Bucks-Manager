@@ -909,7 +909,7 @@ components:
 
     NotificationLogItem:
       type: object
-      required: [id, customerId, printavoOrderId, amountAvailable, sentAt]
+      required: [id, customerId, printavoOrderId, amountAvailable, deliveryStatus, sentAt]
       properties:
         id:
           type: integer
@@ -925,5 +925,8 @@ components:
           type: ["string", "null"]
         amountAvailable:
           type: number
+        deliveryStatus:
+          type: string
+          enum: [sent, failed]
         sentAt:
           type: string

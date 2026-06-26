@@ -28,6 +28,7 @@ export * from './listCustomersParams';
 export * from './listRedemptionsParams';
 export * from './messageResult';
 export * from './notificationLogItem';
+export * from './notificationLogItemDeliveryStatus';
 export * from './printavoConnectionResult';
 export * from './printavoOrderSummary';
 export * from './printavoSettings';
