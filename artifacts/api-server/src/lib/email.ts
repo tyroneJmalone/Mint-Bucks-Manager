@@ -158,6 +158,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
 }
 
 export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData): Promise<boolean> {
+  const transport = createTransport();
   const html = `
 <!DOCTYPE html>
 <html>
@@ -253,6 +254,7 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
 }
 
 export async function sendReminderEmail(data: CreditEmailData): Promise<boolean> {
+  const transport = createTransport();
   const certificateUrl = `${APP_URL}/api/credits/${data.creditId}/certificate`;
 
   const html = `
