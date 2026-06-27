@@ -269,7 +269,7 @@ export function CreditDetail() {
             )}
             <a
               data-testid="link-download-certificate"
-              href={`/api/credits/${creditId}/certificate`}
+              href={`${BASE}/api/credits/${creditId}/certificate`}
               download
               className="inline-flex items-center gap-1.5 px-3 h-9 rounded-md border border-border bg-background text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >

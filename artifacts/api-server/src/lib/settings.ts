@@ -64,9 +64,9 @@ export async function getSetting(key: SettingsKey): Promise<string | null> {
   const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
   if (!row) return null;
 
-  const raw = row.value;
-  if (SENSITIVE_KEYS.has(key)) return decryptValue(raw);
-  return raw;
+  const raw = row.value ?? "";
+  if (SENSITIVE_KEYS.has(key)) return decryptValue(raw) || null;
+  return raw || null;
 }
 
 export async function setSetting(key: SettingsKey, value: string | null): Promise<void> {

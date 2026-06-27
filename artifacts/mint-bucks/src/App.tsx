@@ -12,6 +12,7 @@ import { CreditDetail } from "@/pages/CreditDetail";
 import { Redemptions } from "@/pages/Redemptions";
 import { Reports } from "@/pages/Reports";
 import { Settings } from "@/pages/Settings";
+import { CheckCredit } from "@/pages/CheckCredit";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -25,20 +26,30 @@ const queryClient = new QueryClient({
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/customers" component={Customers} />
-        <Route path="/customers/:id" component={CustomerDetail} />
-        <Route path="/credits/new" component={IssueCredit} />
-        <Route path="/credits/:id" component={CreditDetail} />
-        <Route path="/credits" component={Credits} />
-        <Route path="/redemptions" component={Redemptions} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/settings" component={Settings} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/check/:code" component={CheckCredit} />
+      <Route path="/check">
+        {() => <CheckCredit />}
+      </Route>
+      <Route>
+        {() => (
+          <Layout>
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/customers" component={Customers} />
+              <Route path="/customers/:id" component={CustomerDetail} />
+              <Route path="/credits/new" component={IssueCredit} />
+              <Route path="/credits/:id" component={CreditDetail} />
+              <Route path="/credits" component={Credits} />
+              <Route path="/redemptions" component={Redemptions} />
+              <Route path="/reports" component={Reports} />
+              <Route path="/settings" component={Settings} />
+              <Route component={NotFound} />
+            </Switch>
+          </Layout>
+        )}
+      </Route>
+    </Switch>
   );
 }
 

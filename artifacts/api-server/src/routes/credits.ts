@@ -301,6 +301,30 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
   res.json({ success: sent, message: sent ? "Reminder email sent" : "Failed to send reminder" });
 });
 
+router.get("/credits/check/:code", async (req, res): Promise<void> => {
+  const code = (Array.isArray(req.params.code) ? req.params.code[0] : req.params.code)?.toUpperCase();
+  if (!code) {
+    res.status(400).json({ error: "Credit code required" });
+    return;
+  }
+
+  const [credit] = await db.select().from(creditsTable).where(eq(creditsTable.code, code));
+  if (!credit) {
+    res.status(404).json({ error: "Credit not found" });
+    return;
+  }
+
+  res.json({
+    code: credit.code,
+    status: credit.status,
+    amount: parseFloat(credit.amount as unknown as string),
+    amountRemaining: parseFloat(credit.amountRemaining as unknown as string),
+    issuedAt: credit.issuedAt.toISOString(),
+    expiresAt: credit.expiresAt?.toISOString() ?? null,
+    note: credit.note ?? null,
+  });
+});
+
 router.get("/credits/:id/qr", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -315,11 +339,10 @@ router.get("/credits/:id/qr", async (req, res): Promise<void> => {
     return;
   }
 
-  const qrBuffer = await generateQrPng(
-    result.credit.id,
-    result.credit.code,
-    parseFloat(result.credit.amount as unknown as string)
-  );
+  const APP_URL = process.env.APP_URL ?? "";
+  const checkUrl = `${APP_URL}/check/${result.credit.code}`;
+
+  const qrBuffer = await generateQrPng(checkUrl);
 
   res.setHeader("Content-Type", "image/png");
   res.setHeader("Cache-Control", "public, max-age=3600");

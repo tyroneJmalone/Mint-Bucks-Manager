@@ -156,11 +156,9 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     // QR background pill
     doc.roundedRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24 + 36, 8).fill(COLOR_LIGHT_MINT);
 
-    // We'll render the QR synchronously after doc ends — use a placeholder rect with text
-    // The QR bytes are embedded as a PNG buffer
-    const qrUrl = `${APP_URL}/api/credits/${data.creditId}/qr`;
+    const qrUrl = `${APP_URL}/check/${data.code}`;
     QRCode.toBuffer(
-      JSON.stringify({ id: data.creditId, code: data.code, amount: data.amount }),
+      qrUrl,
       {
         type: "png",
         width: qrSize,
@@ -185,14 +183,11 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
   });
 }
 
-export async function generateQrPng(creditId: number, code: string, amount: number): Promise<Buffer> {
-  return QRCode.toBuffer(
-    JSON.stringify({ id: creditId, code, amount }),
-    {
-      type: "png",
-      width: 300,
-      margin: 2,
-      color: { dark: "#1a3a2e", light: "#e8f7ef" },
-    }
-  );
+export async function generateQrPng(url: string): Promise<Buffer> {
+  return QRCode.toBuffer(url, {
+    type: "png",
+    width: 300,
+    margin: 2,
+    color: { dark: "#1a3a2e", light: "#e8f7ef" },
+  });
 }

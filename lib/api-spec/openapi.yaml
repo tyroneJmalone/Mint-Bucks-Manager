@@ -300,6 +300,26 @@ paths:
         "404":
           description: Credit not found
 
+  /credits/check/{code}:
+    get:
+      operationId: checkCreditByCode
+      tags: [credits]
+      summary: Public balance check by credit code (no auth required)
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Credit balance info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditCheckResult"
+        "404":
+          description: Credit not found
+
   /credits/{id}/qr:
     get:
       operationId: getCreditQr
@@ -905,6 +925,26 @@ components:
         customerName:
           type: ["string", "null"]
         customerEmail:
+          type: ["string", "null"]
+
+    CreditCheckResult:
+      type: object
+      required: [code, status, amount, amountRemaining, issuedAt]
+      properties:
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, partially_redeemed, redeemed, expired, cancelled]
+        amount:
+          type: number
+        amountRemaining:
+          type: number
+        issuedAt:
+          type: string
+        expiresAt:
+          type: ["string", "null"]
+        note:
           type: ["string", "null"]
 
     NotificationLogItem:
