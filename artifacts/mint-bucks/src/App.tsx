@@ -13,6 +13,7 @@ import { Redemptions } from "@/pages/Redemptions";
 import { Reports } from "@/pages/Reports";
 import { Settings } from "@/pages/Settings";
 import { CheckCredit } from "@/pages/CheckCredit";
+import { CertificateHistory } from "@/pages/CertificateHistory";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ function Router() {
               <Route path="/credits/:id" component={CreditDetail} />
               <Route path="/credits" component={Credits} />
               <Route path="/redemptions" component={Redemptions} />
+              <Route path="/reports/certificates" component={CertificateHistory} />
               <Route path="/reports" component={Reports} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />

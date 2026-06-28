@@ -1,27 +1,61 @@
 import nodemailer from "nodemailer";
+import type Mail from "nodemailer/lib/mailer";
 import { logger } from "./logger";
 
 const BUSINESS_NAME = "Mint Printworks";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? `noreply@mintprintworks.com`;
-const APP_URL = process.env.APP_URL ?? "https://mintprintworks.com";
 
-function createTransport() {
+function getAppUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return "";
+}
+
+let _transportCache: { transport: ReturnType<typeof nodemailer.createTransport>; ethereal: boolean } | null = null;
+
+async function getTransport(): Promise<{ transport: ReturnType<typeof nodemailer.createTransport>; ethereal: boolean }> {
   const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
+  const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
 
-  if (!host || !user || !pass) {
-    logger.warn("SMTP not fully configured — emails will be logged only");
-    return null;
+  if (host && user && pass) {
+    return {
+      transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } }),
+      ethereal: false,
+    };
   }
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
+  if (_transportCache) return _transportCache;
+
+  logger.info("SMTP not configured — creating Ethereal test account for dev email preview");
+  const testAccount = await nodemailer.createTestAccount();
+  const transport = nodemailer.createTransport({
+    host: "smtp.ethereal.email",
+    port: 587,
+    secure: false,
+    auth: { user: testAccount.user, pass: testAccount.pass },
   });
+  logger.info({ user: testAccount.user }, "Ethereal test account ready — emails sent will appear at https://ethereal.email/messages");
+  _transportCache = { transport, ethereal: true };
+  return _transportCache;
+}
+
+async function send(opts: Mail.Options): Promise<boolean> {
+  try {
+    const { transport, ethereal } = await getTransport();
+    const info = await transport.sendMail(opts);
+    if (ethereal) {
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      logger.info({ to: opts.to, subject: opts.subject, previewUrl }, "Email sent — open preview URL to view it");
+    } else {
+      logger.info({ to: opts.to, subject: opts.subject }, "Email sent");
+    }
+    return true;
+  } catch (err) {
+    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email");
+    return false;
+  }
 }
 
 interface CreditEmailData {
@@ -48,290 +82,121 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+const CSS = `
+  body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:0;background:#f5f5f0}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:8px;overflow:hidden}
+  .hd{background:#1a3a2e;padding:40px 32px;text-align:center}
+  .hd h1{color:#6fcf97;margin:0;font-size:28px;letter-spacing:2px;text-transform:uppercase}
+  .hd p{color:#a8c5b8;margin:8px 0 0;font-size:14px}
+  .bd{padding:40px 32px}
+  .amt{background:#f0faf4;border:2px solid #6fcf97;border-radius:8px;padding:32px;text-align:center;margin:24px 0}
+  .amt .n{font-size:56px;font-weight:800;color:#1a3a2e;margin:0}
+  .amt .l{color:#4a7c6a;font-size:14px;margin:4px 0 0;text-transform:uppercase;letter-spacing:1px}
+  .code{background:#1a3a2e;border-radius:6px;padding:16px;text-align:center;margin:24px 0}
+  .code .c{color:#6fcf97;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px}
+  .code .cl{color:#a8c5b8;font-size:12px;margin-top:6px}
+  p{color:#333;line-height:1.6}
+  .dl{background:#f9f9f7;border-radius:6px;padding:16px;margin:20px 0}
+  .dl dt{color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px}
+  .dl dd{color:#1a3a2e;font-weight:600;margin:2px 0 0}
+  .btn{display:inline-block;background:#1a3a2e;color:#6fcf97!important;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;margin:20px 0;letter-spacing:.5px}
+  .note{border-left:3px solid #6fcf97;padding:12px 16px;background:#f0faf4;margin:20px 0;color:#1a3a2e;font-weight:500}
+  .ft{background:#f5f5f0;padding:24px 32px;text-align:center;color:#999;font-size:12px}
+`;
+
 export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<boolean> {
-  const transport = createTransport();
-  const certificateUrl = `${APP_URL}/api/credits/${data.creditId}/certificate`;
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; }
-    .header { background: #1a3a2e; padding: 40px 32px; text-align: center; }
-    .header h1 { color: #6fcf97; margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; }
-    .header p { color: #a8c5b8; margin: 8px 0 0; font-size: 14px; }
-    .body { padding: 40px 32px; }
-    .amount-box { background: #f0faf4; border: 2px solid #6fcf97; border-radius: 8px; padding: 32px; text-align: center; margin: 24px 0; }
-    .amount-box .amount { font-size: 56px; font-weight: 800; color: #1a3a2e; margin: 0; }
-    .amount-box .label { color: #4a7c6a; font-size: 14px; margin: 4px 0 0; text-transform: uppercase; letter-spacing: 1px; }
-    .code-box { background: #1a3a2e; border-radius: 6px; padding: 16px; text-align: center; margin: 24px 0; }
-    .code-box .code { color: #6fcf97; font-family: monospace; font-size: 22px; font-weight: bold; letter-spacing: 4px; }
-    .code-box .code-label { color: #a8c5b8; font-size: 12px; margin-top: 6px; }
-    p { color: #333; line-height: 1.6; }
-    .details { background: #f9f9f7; border-radius: 6px; padding: 16px; margin: 20px 0; }
-    .details dl { margin: 0; }
-    .details dt { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
-    .details dd { color: #1a3a2e; font-weight: 600; margin: 2px 0 0; }
-    .btn { display: inline-block; background: #1a3a2e; color: #6fcf97 !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; margin: 20px 0; letter-spacing: 0.5px; }
-    .footer { background: #f5f5f0; padding: 24px 32px; text-align: center; color: #999; font-size: 12px; }
-    .instruction { border-left: 3px solid #6fcf97; padding: 12px 16px; background: #f0faf4; margin: 20px 0; color: #1a3a2e; font-weight: 500; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Mint Bucks</h1>
-      <p>${BUSINESS_NAME}</p>
-    </div>
-    <div class="body">
-      <p>Hi ${data.customerName},</p>
-      <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}. Here are your details:</p>
-
-      <div class="amount-box">
-        <div class="amount">${formatCurrency(data.amount)}</div>
-        <div class="label">Mint Bucks Credit</div>
-      </div>
-
-      <div class="code-box">
-        <div class="code">${data.creditCode}</div>
-        <div class="code-label">Your unique credit code</div>
-      </div>
-
-      <div class="details">
-        <dl>
-          <dt>Issued to</dt>
-          <dd>${data.customerName}</dd>
-          ${data.expiresAt ? `<dt>Expires</dt><dd>${formatDate(data.expiresAt)}</dd>` : ""}
-          ${data.note ? `<dt>Note</dt><dd>${data.note}</dd>` : ""}
-        </dl>
-      </div>
-
-      <div class="instruction">
-        To redeem: mention your credit code or present this certificate when placing your next order with ${BUSINESS_NAME}.
-      </div>
-
-      <p style="text-align:center">
-        <a href="${certificateUrl}" class="btn">Download Your Certificate</a>
-      </p>
-
-      <p>Keep this email handy! Your certificate includes a QR code that makes redemption quick and easy.</p>
-    </div>
-    <div class="footer">
-      <p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p>
-      <p>Questions? Reply to this email or contact us directly.</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
+  const appUrl = getAppUrl();
+  const certificateUrl = appUrl ? `${appUrl}/api/credits/${data.creditId}/certificate` : null;
+  const checkUrl = appUrl ? `${appUrl}/check/${data.creditCode}` : null;
 
   const subject = `You've received ${formatCurrency(data.amount)} in Mint Bucks — ${BUSINESS_NAME}`;
 
-  if (!transport) {
-    logger.info({ to: data.customerEmail, subject }, "Email (not sent — SMTP not configured)");
-    return true;
-  }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+<div class="wrap">
+  <div class="hd"><h1>Mint Bucks</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="bd">
+    <p>Hi ${data.customerName},</p>
+    <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>
+    <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Mint Bucks Credit</div></div>
+    <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your unique credit code</div></div>
+    <div class="dl"><dl>
+      <dt>Issued to</dt><dd>${data.customerName}</dd>
+      ${data.expiresAt ? `<dt>Expires</dt><dd>${formatDate(data.expiresAt)}</dd>` : ""}
+      ${data.note ? `<dt>Note</dt><dd>${data.note}</dd>` : ""}
+    </dl></div>
+    <div class="note">To redeem: mention your credit code when placing your next order with ${BUSINESS_NAME}.</div>
+    ${checkUrl ? `<p style="text-align:center"><a href="${checkUrl}" class="btn">Check Your Balance</a></p>` : ""}
+    ${certificateUrl ? `<p style="text-align:center;margin-top:8px"><a href="${certificateUrl}" style="color:#4a7c6a;font-size:13px">Download certificate (PDF)</a></p>` : ""}
+  </div>
+  <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p><p>Questions? Reply to this email or contact us directly.</p></div>
+</div>
+</body></html>`;
 
-  try {
-    await transport.sendMail({
-      from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
-      to: `${data.customerName} <${data.customerEmail}>`,
-      subject,
-      html,
-    });
-    logger.info({ to: data.customerEmail }, "Credit issued email sent");
-    return true;
-  } catch (err) {
-    logger.error({ err, to: data.customerEmail }, "Failed to send credit issued email");
-    return false;
-  }
+  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
 }
 
 export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData): Promise<boolean> {
-  const transport = createTransport();
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; }
-    .header { background: #1a3a2e; padding: 40px 32px; text-align: center; }
-    .header h1 { color: #6fcf97; margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; }
-    .header p { color: #a8c5b8; margin: 8px 0 0; font-size: 14px; }
-    .body { padding: 40px 32px; }
-    .summary { display: flex; gap: 12px; margin: 24px 0; }
-    .stat-box { flex: 1; background: #f9f9f7; border-radius: 8px; padding: 20px; text-align: center; }
-    .stat-box .value { font-size: 32px; font-weight: 800; color: #1a3a2e; }
-    .stat-box .label { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
-    .stat-box.applied .value { color: #2d9c6f; }
-    .stat-box.remaining .value { color: #1a3a2e; }
-    p { color: #333; line-height: 1.6; }
-    .details { background: #f9f9f7; border-radius: 6px; padding: 16px; margin: 20px 0; }
-    .details dl { margin: 0; }
-    .details dt { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
-    .details dd { color: #1a3a2e; font-weight: 600; margin: 2px 0 0; }
-    .footer { background: #f5f5f0; padding: 24px 32px; text-align: center; color: #999; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Mint Bucks</h1>
-      <p>${BUSINESS_NAME} · Redemption Confirmation</p>
-    </div>
-    <div class="body">
-      <p>Hi ${data.customerName},</p>
-      <p>Your Mint Bucks credit has been applied. Here's a summary:</p>
-
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0">
-        <tr>
-          <td width="48%" style="background:#f0faf4;border-radius:8px;padding:20px;text-align:center">
-            <div style="font-size:32px;font-weight:800;color:#2d9c6f">${formatCurrency(data.amountApplied)}</div>
-            <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Applied to Order</div>
-          </td>
-          <td width="4%"></td>
-          <td width="48%" style="background:#f9f9f7;border-radius:8px;padding:20px;text-align:center">
-            <div style="font-size:32px;font-weight:800;color:#1a3a2e">${formatCurrency(data.amountRemaining)}</div>
-            <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Remaining Balance</div>
-          </td>
-        </tr>
-      </table>
-
-      <div class="details">
-        <dl>
-          <dt>Credit Code</dt>
-          <dd style="font-family:monospace;letter-spacing:2px">${data.creditCode}</dd>
-          ${data.invoiceRef ? `<dt>Invoice / Order Reference</dt><dd>${data.invoiceRef}</dd>` : ""}
-        </dl>
-      </div>
-
-      ${
-        data.amountRemaining > 0
-          ? `<p>You still have <strong>${formatCurrency(data.amountRemaining)}</strong> in Mint Bucks remaining — use it on your next order!</p>`
-          : `<p>Your Mint Bucks credit has been fully redeemed. Thank you for your business with ${BUSINESS_NAME}!</p>`
-      }
-    </div>
-    <div class="footer">
-      <p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
   const subject = `Mint Bucks redeemed: ${formatCurrency(data.amountApplied)} applied${data.amountRemaining > 0 ? ` · ${formatCurrency(data.amountRemaining)} remaining` : ""}`;
 
-  if (!transport) {
-    logger.info({ to: data.customerEmail, subject }, "Email (not sent — SMTP not configured)");
-    return true;
-  }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+<div class="wrap">
+  <div class="hd"><h1>Mint Bucks</h1><p>${BUSINESS_NAME} · Redemption Confirmation</p></div>
+  <div class="bd">
+    <p>Hi ${data.customerName},</p>
+    <p>Your Mint Bucks credit has been applied. Here's a summary:</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0">
+      <tr>
+        <td width="48%" style="background:#f0faf4;border-radius:8px;padding:20px;text-align:center">
+          <div style="font-size:32px;font-weight:800;color:#2d9c6f">${formatCurrency(data.amountApplied)}</div>
+          <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Applied to Order</div>
+        </td>
+        <td width="4%"></td>
+        <td width="48%" style="background:#f9f9f7;border-radius:8px;padding:20px;text-align:center">
+          <div style="font-size:32px;font-weight:800;color:#1a3a2e">${formatCurrency(data.amountRemaining)}</div>
+          <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Remaining Balance</div>
+        </td>
+      </tr>
+    </table>
+    <div class="dl"><dl>
+      <dt>Credit Code</dt><dd style="font-family:monospace;letter-spacing:2px">${data.creditCode}</dd>
+      ${data.invoiceRef ? `<dt>Invoice / Order Reference</dt><dd>${data.invoiceRef}</dd>` : ""}
+    </dl></div>
+    ${data.amountRemaining > 0
+      ? `<p>You still have <strong>${formatCurrency(data.amountRemaining)}</strong> in Mint Bucks remaining — use it on your next order!</p>`
+      : `<p>Your Mint Bucks credit has been fully redeemed. Thank you for your business with ${BUSINESS_NAME}!</p>`}
+  </div>
+  <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
+</div>
+</body></html>`;
 
-  try {
-    await transport.sendMail({
-      from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
-      to: `${data.customerName} <${data.customerEmail}>`,
-      subject,
-      html,
-    });
-    logger.info({ to: data.customerEmail }, "Redemption confirmation email sent");
-    return true;
-  } catch (err) {
-    logger.error({ err, to: data.customerEmail }, "Failed to send redemption confirmation email");
-    return false;
-  }
+  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
 }
 
 export async function sendReminderEmail(data: CreditEmailData): Promise<boolean> {
-  const transport = createTransport();
-  const certificateUrl = `${APP_URL}/api/credits/${data.creditId}/certificate`;
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; }
-    .header { background: #1a3a2e; padding: 40px 32px; text-align: center; }
-    .header h1 { color: #6fcf97; margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; }
-    .body { padding: 40px 32px; }
-    .amount-box { background: #f0faf4; border: 2px solid #6fcf97; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0; }
-    .amount { font-size: 48px; font-weight: 800; color: #1a3a2e; }
-    .code-box { background: #1a3a2e; border-radius: 6px; padding: 14px; text-align: center; margin: 16px 0; }
-    .code { color: #6fcf97; font-family: monospace; font-size: 20px; font-weight: bold; letter-spacing: 4px; }
-    p { color: #333; line-height: 1.6; }
-    .btn { display: inline-block; background: #1a3a2e; color: #6fcf97 !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; margin: 20px 0; }
-    .footer { background: #f5f5f0; padding: 24px 32px; text-align: center; color: #999; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Reminder: Mint Bucks Available</h1>
-    </div>
-    <div class="body">
-      <p>Hi ${data.customerName},</p>
-      <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available at ${BUSINESS_NAME}. Don't forget to use it on your next order!</p>
-
-      <div class="amount-box">
-        <div class="amount">${formatCurrency(data.amount)}</div>
-        <div style="color:#4a7c6a;font-size:13px;margin-top:4px">Available Balance</div>
-      </div>
-
-      <div class="code-box">
-        <div class="code">${data.creditCode}</div>
-        <div style="color:#a8c5b8;font-size:12px;margin-top:4px">Your credit code</div>
-      </div>
-
-      ${data.expiresAt ? `<p><strong>Expires:</strong> ${formatDate(data.expiresAt)} — don't let it go to waste!</p>` : ""}
-
-      <p style="text-align:center">
-        <a href="${certificateUrl}" class="btn">View Your Certificate</a>
-      </p>
-
-      <p>Mention your credit code when you place your next order with us.</p>
-    </div>
-    <div class="footer">
-      <p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
+  const appUrl = getAppUrl();
+  const checkUrl = appUrl ? `${appUrl}/check/${data.creditCode}` : null;
   const subject = `Reminder: You have ${formatCurrency(data.amount)} in Mint Bucks waiting — ${BUSINESS_NAME}`;
 
-  if (!transport) {
-    logger.info({ to: data.customerEmail, subject }, "Email (not sent — SMTP not configured)");
-    return true;
-  }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+<div class="wrap">
+  <div class="hd"><h1>Reminder: Mint Bucks Available</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="bd">
+    <p>Hi ${data.customerName},</p>
+    <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>
+    <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Available Balance</div></div>
+    <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your credit code</div></div>
+    ${data.expiresAt ? `<p><strong>Expires:</strong> ${formatDate(data.expiresAt)} — don't let it go to waste!</p>` : ""}
+    ${checkUrl ? `<p style="text-align:center"><a href="${checkUrl}" class="btn">Check Your Balance</a></p>` : ""}
+    <p>Mention your credit code when you place your next order with us.</p>
+  </div>
+  <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
+</div>
+</body></html>`;
 
-  try {
-    await transport.sendMail({
-      from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
-      to: `${data.customerName} <${data.customerEmail}>`,
-      subject,
-      html,
-    });
-    logger.info({ to: data.customerEmail }, "Reminder email sent");
-    return true;
-  } catch (err) {
-    logger.error({ err, to: data.customerEmail }, "Failed to send reminder email");
-    return false;
-  }
+  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
 }
 
 export interface PrintavoNotificationData {
@@ -344,83 +209,29 @@ export interface PrintavoNotificationData {
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
-  const transport = createTransport();
   const codesHtml = data.creditCodes
     .map(code => `<div style="font-family:monospace;letter-spacing:3px;font-size:18px;font-weight:bold;color:#6fcf97;margin:4px 0">${code}</div>`)
     .join("");
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; }
-    .header { background: #1a3a2e; padding: 40px 32px; text-align: center; }
-    .header h1 { color: #6fcf97; margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; }
-    .header p { color: #a8c5b8; margin: 8px 0 0; font-size: 14px; }
-    .body { padding: 40px 32px; }
-    .amount-box { background: #f0faf4; border: 2px solid #6fcf97; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0; }
-    .amount { font-size: 48px; font-weight: 800; color: #1a3a2e; }
-    .code-box { background: #1a3a2e; border-radius: 6px; padding: 16px 20px; margin: 16px 0; }
-    p { color: #333; line-height: 1.6; }
-    .order-ref { border-left: 3px solid #6fcf97; padding: 12px 16px; background: #f0faf4; margin: 20px 0; color: #1a3a2e; font-weight: 500; }
-    .footer { background: #f5f5f0; padding: 24px 32px; text-align: center; color: #999; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Mint Bucks Available!</h1>
-      <p>${BUSINESS_NAME}</p>
-    </div>
-    <div class="body">
-      <p>Hi ${data.customerName},</p>
-      <p>Great news! You have <strong>Mint Bucks</strong> store credit available — and you have an order in progress with us. Don't forget to apply it!</p>
-
-      <div class="amount-box">
-        <div class="amount">${formatCurrency(data.totalOutstanding)}</div>
-        <div style="color:#4a7c6a;font-size:13px;margin-top:4px;text-transform:uppercase;letter-spacing:1px">Available Balance</div>
-      </div>
-
-      <div class="code-box">
-        <div style="color:#a8c5b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Credit Code${data.creditCodes.length > 1 ? "s" : ""}</div>
-        ${codesHtml}
-      </div>
-
-      <div class="order-ref">
-        <strong>Order Reference:</strong> #${data.orderNumber}${data.orderTotal ? ` &nbsp;·&nbsp; Total: ${formatCurrency(data.orderTotal)}` : ""}
-      </div>
-
-      <p>To apply your Mint Bucks, simply mention your credit code when you speak with our team about order <strong>#${data.orderNumber}</strong>. We'll deduct it from your balance.</p>
-    </div>
-    <div class="footer">
-      <p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
   const subject = `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
 
-  if (!transport) {
-    logger.info({ to: data.customerEmail, subject }, "Email (not sent — SMTP not configured)");
-    return true;
-  }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+<div class="wrap">
+  <div class="hd"><h1>Mint Bucks Available!</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="bd">
+    <p>Hi ${data.customerName},</p>
+    <p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>
+    <div class="amt"><div class="n">${formatCurrency(data.totalOutstanding)}</div><div class="l">Available Balance</div></div>
+    <div class="code">
+      <div style="color:#a8c5b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Credit Code${data.creditCodes.length > 1 ? "s" : ""}</div>
+      ${codesHtml}
+    </div>
+    <div class="note"><strong>Order Reference:</strong> #${data.orderNumber}${data.orderTotal ? ` &nbsp;·&nbsp; Total: ${formatCurrency(data.orderTotal)}` : ""}</div>
+    <p>To apply your Mint Bucks, mention your credit code when you speak with our team about order <strong>#${data.orderNumber}</strong>.</p>
+  </div>
+  <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
+</div>
+</body></html>`;
 
-  try {
-    await transport.sendMail({
-      from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
-      to: `${data.customerName} <${data.customerEmail}>`,
-      subject,
-      html,
-    });
-    logger.info({ to: data.customerEmail }, "Printavo notification email sent");
-    return true;
-  } catch (err) {
-    logger.error({ err, to: data.customerEmail }, "Failed to send Printavo notification email");
-    return false;
-  }
+  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
 }

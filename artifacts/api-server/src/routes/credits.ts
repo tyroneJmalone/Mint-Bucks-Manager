@@ -339,8 +339,8 @@ router.get("/credits/:id/qr", async (req, res): Promise<void> => {
     return;
   }
 
-  const APP_URL = process.env.APP_URL ?? "";
-  const checkUrl = `${APP_URL}/check/${result.credit.code}`;
+  const appUrl = process.env.APP_URL ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+  const checkUrl = `${appUrl}/check/${result.credit.code}`;
 
   const qrBuffer = await generateQrPng(checkUrl);
 

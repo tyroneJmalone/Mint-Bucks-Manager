@@ -2,7 +2,12 @@ import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 
 const BUSINESS_NAME = "Mint Printworks";
-const APP_URL = process.env.APP_URL ?? "https://mintprintworks.com";
+
+function getAppUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return "";
+}
 
 // Deep forest green / mint palette
 const COLOR_DARK = "#1a3a2e";
@@ -156,7 +161,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     // QR background pill
     doc.roundedRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24 + 36, 8).fill(COLOR_LIGHT_MINT);
 
-    const qrUrl = `${APP_URL}/check/${data.code}`;
+    const qrUrl = `${getAppUrl()}/check/${data.code}`;
     QRCode.toBuffer(
       qrUrl,
       {

@@ -5,6 +5,7 @@ import {
   CreditCard,
   ArrowDownLeft,
   BarChart3,
+  FileText,
   Settings,
   Leaf,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const navItems = [
   { href: "/credits", label: "Mint Bucks", icon: CreditCard },
   { href: "/redemptions", label: "Redemptions", icon: ArrowDownLeft },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/reports/certificates", label: "Cert. History", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
