@@ -47,21 +47,21 @@ function CreditCard({ data }: { data: CreditCheckResult }) {
           <span className={cn("font-semibold text-sm", cfg.color)}>{cfg.label}</span>
         </div>
 
-        <div className="font-mono text-2xl font-bold text-[#1a3a2e] tracking-widest mb-1">{data.code}</div>
-        <div className="text-xs text-[#4a7c6a] mb-5">Mint Bucks · Mint Printworks</div>
+        <div className="font-mono text-2xl font-bold text-[#1d3a12] tracking-widest mb-1">{data.code}</div>
+        <div className="text-xs text-[#536d2b] mb-5">Mint Bucks · Mint Printworks</div>
 
         {canRedeem ? (
           <div className="mb-5">
-            <div className="text-xs text-[#4a7c6a] uppercase tracking-widest mb-1">Balance Available</div>
-            <div className="text-5xl font-bold text-[#1a3a2e]">{formatCurrency(data.amountRemaining)}</div>
+            <div className="text-xs text-[#536d2b] uppercase tracking-widest mb-1">Balance Available</div>
+            <div className="text-5xl font-bold text-[#1d3a12]">{formatCurrency(data.amountRemaining)}</div>
             {data.amountRemaining < data.amount && (
-              <div className="text-xs text-[#4a7c6a] mt-1">of {formatCurrency(data.amount)} original</div>
+              <div className="text-xs text-[#536d2b] mt-1">of {formatCurrency(data.amount)} original</div>
             )}
           </div>
         ) : (
           <div className="mb-5">
-            <div className="text-xs text-[#4a7c6a] uppercase tracking-widest mb-1">Original Value</div>
-            <div className="text-5xl font-bold text-[#1a3a2e] line-through opacity-50">{formatCurrency(data.amount)}</div>
+            <div className="text-xs text-[#536d2b] uppercase tracking-widest mb-1">Original Value</div>
+            <div className="text-5xl font-bold text-[#1d3a12] line-through opacity-50">{formatCurrency(data.amount)}</div>
           </div>
         )}
 
@@ -69,24 +69,24 @@ function CreditCard({ data }: { data: CreditCheckResult }) {
           <div className="mb-5">
             <div className="w-full h-2 bg-white/60 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#6fcf97] rounded-full transition-all"
+                className="h-full bg-[#7CC24D] rounded-full transition-all"
                 style={{ width: `${100 - pct}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-[#4a7c6a] mt-1">
+            <div className="flex justify-between text-xs text-[#536d2b] mt-1">
               <span>{formatCurrency(data.amount - data.amountRemaining)} used</span>
               <span>{formatCurrency(data.amountRemaining)} left</span>
             </div>
           </div>
         )}
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#4a7c6a]">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#536d2b]">
           <span>Issued {formatDate(data.issuedAt)}</span>
           {data.expiresAt && <span>Expires {formatDate(data.expiresAt)}</span>}
         </div>
 
         {data.note && (
-          <div className="mt-3 text-xs text-[#4a7c6a] italic border-t border-current/20 pt-3">
+          <div className="mt-3 text-xs text-[#536d2b] italic border-t border-current/20 pt-3">
             "{data.note}"
           </div>
         )}
@@ -95,7 +95,7 @@ function CreditCard({ data }: { data: CreditCheckResult }) {
       {canRedeem && (
         <div className={cn("rounded-lg border p-4 text-sm text-center", cfg.bg, cfg.border)}>
           <p className={cn("font-medium mb-1", cfg.color)}>Ready to redeem?</p>
-          <p className="text-xs text-[#4a7c6a]">
+          <p className="text-xs text-[#536d2b]">
             Mention your code <strong className="font-mono">{data.code}</strong> when placing your next order with Mint Printworks.
           </p>
         </div>
@@ -104,7 +104,7 @@ function CreditCard({ data }: { data: CreditCheckResult }) {
       <div className="mt-4 text-center">
         <Link
           href={`/credits`}
-          className="inline-flex items-center gap-1.5 text-xs text-[#4a7c6a] hover:text-[#1a3a2e] transition-colors font-medium"
+          className="inline-flex items-center gap-1.5 text-xs text-[#536d2b] hover:text-[#1d3a12] transition-colors font-medium"
         >
           <ExternalLink className="w-3.5 h-3.5" />
           Staff: manage this credit
@@ -154,7 +154,7 @@ function CheckForm({ initialCode }: { initialCode?: string }) {
       </form>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-sm text-[#4a7c6a]">
+        <div className="flex items-center gap-2 text-sm text-[#536d2b]">
           <Loader2 className="w-4 h-4 animate-spin" />
           Looking up credit…
         </div>
@@ -192,29 +192,30 @@ export function CheckCredit() {
   });
 
   return (
-    <div className="min-h-screen bg-[#f0f9f4] flex flex-col">
-      <header className="bg-[#1a3a2e] px-6 py-4">
+    <div className="min-h-screen bg-[#f5faee] flex flex-col">
+      <header className="bg-[#16261c] px-6 py-4">
         <div className="max-w-md mx-auto flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-md bg-[#6fcf97] flex items-center justify-center">
-            <Leaf className="w-4.5 h-4.5 text-[#1a3a2e]" />
+          <div className="w-9 h-9 rounded-xl bg-[#7CC24D] flex items-center justify-center shadow-sm">
+            <Leaf className="w-5 h-5 text-[#16261c]" />
           </div>
           <div>
-            <div className="text-white font-bold text-sm tracking-tight leading-none">Mint Bucks</div>
-            <div className="text-[#6fcf97] text-[10px] mt-0.5 tracking-wide uppercase">Mint Printworks</div>
+            <div className="text-white font-display text-2xl leading-none">Mint Bucks</div>
+            <div className="text-[#7CC24D] text-[10px] mt-1 tracking-[0.15em] uppercase font-medium">Mint Printworks</div>
           </div>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 py-10">
         <div className="w-full max-w-md mb-8 text-center">
-          <h1 className="text-2xl font-bold text-[#1a3a2e] mb-2">Check Your Balance</h1>
-          <p className="text-[#4a7c6a] text-sm">Enter your Mint Bucks code to see your available credit.</p>
+          <p className="font-display text-3xl text-[#3a6e1a] mb-1">Look fresh. Be happy.</p>
+          <h1 className="text-2xl font-bold text-[#1d3a12] mb-2">Check Your Balance</h1>
+          <p className="text-[#536d2b] text-sm">Enter your Mint Bucks code to see your available credit.</p>
         </div>
 
         {upperCode ? (
           <>
             {isLoading && (
-              <div className="flex items-center gap-2 text-sm text-[#4a7c6a]">
+              <div className="flex items-center gap-2 text-sm text-[#536d2b]">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Looking up credit…
               </div>
@@ -235,7 +236,7 @@ export function CheckCredit() {
         )}
       </main>
 
-      <footer className="py-6 text-center text-xs text-[#4a7c6a]">
+      <footer className="py-6 text-center text-xs text-[#536d2b]">
         © {new Date().getFullYear()} Mint Printworks · Mint Bucks promotional credit
       </footer>
     </div>

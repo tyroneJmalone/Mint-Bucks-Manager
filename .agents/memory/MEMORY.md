@@ -1,3 +1,1 @@
-- [Mint Bucks system architecture](mint-bucks-architecture.md) — credit codes use MB-XXXXXXXX format, @swc/helpers must be a runtime dep of api-server (pdfkit→fontkit→brotli needs it)
-- [Drizzle ORM array queries](drizzle-array-queries.md) — use inArray() not raw sql ANY() template for filtering by id arrays; raw sql ANY with arrays fails at runtime
-- [API server externals](api-server-externals.md) — @swc/* is externalized in build.mjs but pdfkit/fontkit require @swc/helpers at runtime; must install as explicit dep
+- [pdfkit + esbuild bundling](pdfkit-esbuild-bundling.md) — esbuild won't bundle pdfkit's runtime .afm font-metric files; must copy its data dir into dist or PDF gen 500s.

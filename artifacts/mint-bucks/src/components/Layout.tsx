@@ -35,12 +35,12 @@ export function Layout({ children }: LayoutProps) {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-              <Leaf className="w-4 h-4 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center shadow-sm">
+              <Leaf className="w-5 h-5 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <div className="text-sidebar-foreground font-bold text-sm tracking-tight leading-none">Mint Bucks</div>
-              <div className="text-sidebar-foreground/50 text-[10px] mt-0.5 tracking-wide uppercase">Mint Printworks</div>
+              <div className="text-sidebar-foreground font-display text-2xl leading-none">Mint Bucks</div>
+              <div className="text-sidebar-primary text-[10px] mt-1 tracking-[0.15em] uppercase font-medium">Mint Printworks</div>
             </div>
           </div>
         </div>
@@ -69,7 +69,8 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="px-5 py-4 border-t border-sidebar-border">
-          <p className="text-sidebar-foreground/30 text-[10px] uppercase tracking-widest">Staff Portal</p>
+          <p className="text-sidebar-primary font-display text-base leading-none">Look fresh. Be happy.</p>
+          <p className="text-sidebar-foreground/30 text-[10px] uppercase tracking-widest mt-1.5">Staff Portal</p>
         </div>
       </aside>
 

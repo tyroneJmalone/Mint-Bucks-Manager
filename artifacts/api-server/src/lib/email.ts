@@ -88,22 +88,22 @@ function formatDate(dateStr: string): string {
 const CSS = `
   body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:0;background:#f5f5f0}
   .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:8px;overflow:hidden}
-  .hd{background:#1a3a2e;padding:40px 32px;text-align:center}
-  .hd h1{color:#6fcf97;margin:0;font-size:28px;letter-spacing:2px;text-transform:uppercase}
+  .hd{background:#16261c;padding:40px 32px;text-align:center}
+  .hd h1{color:#7CC24D;margin:0;font-size:28px;letter-spacing:2px;text-transform:uppercase}
   .hd p{color:#a8c5b8;margin:8px 0 0;font-size:14px}
   .bd{padding:40px 32px}
-  .amt{background:#f0faf4;border:2px solid #6fcf97;border-radius:8px;padding:32px;text-align:center;margin:24px 0}
-  .amt .n{font-size:56px;font-weight:800;color:#1a3a2e;margin:0}
-  .amt .l{color:#4a7c6a;font-size:14px;margin:4px 0 0;text-transform:uppercase;letter-spacing:1px}
-  .code{background:#1a3a2e;border-radius:6px;padding:16px;text-align:center;margin:24px 0}
-  .code .c{color:#6fcf97;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px}
+  .amt{background:#f5faee;border:2px solid #7CC24D;border-radius:8px;padding:32px;text-align:center;margin:24px 0}
+  .amt .n{font-size:56px;font-weight:800;color:#16261c;margin:0}
+  .amt .l{color:#5f7c44;font-size:14px;margin:4px 0 0;text-transform:uppercase;letter-spacing:1px}
+  .code{background:#16261c;border-radius:6px;padding:16px;text-align:center;margin:24px 0}
+  .code .c{color:#7CC24D;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px}
   .code .cl{color:#a8c5b8;font-size:12px;margin-top:6px}
   p{color:#333;line-height:1.6}
   .dl{background:#f9f9f7;border-radius:6px;padding:16px;margin:20px 0}
   .dl dt{color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px}
-  .dl dd{color:#1a3a2e;font-weight:600;margin:2px 0 0}
-  .btn{display:inline-block;background:#1a3a2e;color:#6fcf97!important;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;margin:20px 0;letter-spacing:.5px}
-  .note{border-left:3px solid #6fcf97;padding:12px 16px;background:#f0faf4;margin:20px 0;color:#1a3a2e;font-weight:500}
+  .dl dd{color:#16261c;font-weight:600;margin:2px 0 0}
+  .btn{display:inline-block;background:#16261c;color:#7CC24D!important;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;margin:20px 0;letter-spacing:.5px}
+  .note{border-left:3px solid #7CC24D;padding:12px 16px;background:#f5faee;margin:20px 0;color:#16261c;font-weight:500}
   .ft{background:#f5f5f0;padding:24px 32px;text-align:center;color:#999;font-size:12px}
 `;
 
@@ -129,7 +129,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     </dl></div>
     <div class="note">To redeem: mention your credit code when placing your next order with ${BUSINESS_NAME}.</div>
     ${checkUrl ? `<p style="text-align:center"><a href="${checkUrl}" class="btn">Check Your Balance</a></p>` : ""}
-    ${certificateUrl ? `<p style="text-align:center;margin-top:8px"><a href="${certificateUrl}" style="color:#4a7c6a;font-size:13px">Download certificate (PDF)</a></p>` : ""}
+    ${certificateUrl ? `<p style="text-align:center;margin-top:8px"><a href="${certificateUrl}" style="color:#5f7c44;font-size:13px">Download certificate (PDF)</a></p>` : ""}
   </div>
   <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p><p>Questions? Reply to this email or contact us directly.</p></div>
 </div>
@@ -149,13 +149,13 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
     <p>Your Mint Bucks credit has been applied. Here's a summary:</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0">
       <tr>
-        <td width="48%" style="background:#f0faf4;border-radius:8px;padding:20px;text-align:center">
+        <td width="48%" style="background:#f5faee;border-radius:8px;padding:20px;text-align:center">
           <div style="font-size:32px;font-weight:800;color:#2d9c6f">${formatCurrency(data.amountApplied)}</div>
           <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Applied to Order</div>
         </td>
         <td width="4%"></td>
         <td width="48%" style="background:#f9f9f7;border-radius:8px;padding:20px;text-align:center">
-          <div style="font-size:32px;font-weight:800;color:#1a3a2e">${formatCurrency(data.amountRemaining)}</div>
+          <div style="font-size:32px;font-weight:800;color:#16261c">${formatCurrency(data.amountRemaining)}</div>
           <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Remaining Balance</div>
         </td>
       </tr>
@@ -210,7 +210,7 @@ export interface PrintavoNotificationData {
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
   const codesHtml = data.creditCodes
-    .map(code => `<div style="font-family:monospace;letter-spacing:3px;font-size:18px;font-weight:bold;color:#6fcf97;margin:4px 0">${code}</div>`)
+    .map(code => `<div style="font-family:monospace;letter-spacing:3px;font-size:18px;font-weight:bold;color:#7CC24D;margin:4px 0">${code}</div>`)
     .join("");
 
   const subject = `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;

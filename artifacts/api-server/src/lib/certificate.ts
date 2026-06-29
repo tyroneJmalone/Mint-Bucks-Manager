@@ -10,10 +10,10 @@ function getAppUrl(): string {
 }
 
 // Deep forest green / mint palette
-const COLOR_DARK = "#1a3a2e";
-const COLOR_MINT = "#6fcf97";
-const COLOR_LIGHT_MINT = "#e8f7ef";
-const COLOR_MUTED = "#4a7c6a";
+const COLOR_DARK = "#16261c";
+const COLOR_MINT = "#7CC24D";
+const COLOR_LIGHT_MINT = "#eef7e0";
+const COLOR_MUTED = "#5f7c44";
 const COLOR_WHITE = "#ffffff";
 
 function formatCurrency(amount: number): string {
@@ -168,7 +168,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
         type: "png",
         width: qrSize,
         margin: 0,
-        color: { dark: "#1a3a2e", light: "#e8f7ef" },
+        color: { dark: "#16261c", light: "#eef7e0" },
       },
       (err, qrBuffer) => {
         if (!err && qrBuffer) {
@@ -193,6 +193,6 @@ export async function generateQrPng(url: string): Promise<Buffer> {
     type: "png",
     width: 300,
     margin: 2,
-    color: { dark: "#1a3a2e", light: "#e8f7ef" },
+    color: { dark: "#16261c", light: "#eef7e0" },
   });
 }
