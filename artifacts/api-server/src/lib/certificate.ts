@@ -69,14 +69,32 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     const pad = 24;
     doc.roundedRect(pad, pad, W - pad * 2, H - pad * 2, 6).fill(COLOR_WHITE);
 
-    const leftX = pad + 32;
-    const rightX = W - 240;
-    const topY = pad + 32;
+    const leftX = pad + 32;   // 56
+    const rightX = W - 240;   // 372
+    const topY = pad + 32;    // 56
 
-    // Mint Printworks logo (replaces text header)
+    // ── Header: logo + "MINT BUCKS" wordmark ─────────────────────────────
+    // Logo image (~95×70px)
     doc.image(LOGO_PATH, leftX, topY, { width: 95 });
 
-    // Divider line (below logo, ~70px tall)
+    // "MINT BUCKS" text — vertically centred with the logo (logo mid ≈ topY+35)
+    doc
+      .fillColor(COLOR_DARK)
+      .font("Helvetica-Bold")
+      .fontSize(20)
+      .text("MINT BUCKS", leftX + 105, topY + 27, { width: rightX - leftX - 120, characterSpacing: 1 });
+
+    // ── Contact info — top-right column, above QR ─────────────────────────
+    const contactX = rightX + 4;
+    const contactW = 148;
+
+    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(7);
+    doc.text("p:  603-718-1000",           contactX, topY,      { width: contactW });
+    doc.text("a:  125 Northeastern Blvd,", contactX, topY + 12, { width: contactW });
+    doc.text("    Nashua NH 03062",        contactX, topY + 22, { width: contactW });
+    doc.text("w:  mintprintworks.com",     contactX, topY + 34, { width: contactW });
+
+    // ── Divider ───────────────────────────────────────────────────────────
     doc
       .moveTo(leftX, topY + 80)
       .lineTo(rightX - 20, topY + 80)
@@ -84,7 +102,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
       .lineWidth(1)
       .stroke();
 
-    // Amount — large
+    // ── Amount ────────────────────────────────────────────────────────────
     doc
       .fillColor(COLOR_DARK)
       .font("Helvetica-Bold")
@@ -105,8 +123,8 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
       .fontSize(14)
       .text(data.customerName, leftX, topY + 172, { width: rightX - leftX - 20 });
 
-    // Details row
-    let detailY = topY + 195;
+    // ── Details row ───────────────────────────────────────────────────────
+    const detailY = topY + 195;
 
     doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(8).text("ISSUED", leftX, detailY, { characterSpacing: 1 });
     doc
@@ -124,7 +142,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
         .text(formatDate(data.expiresAt) ?? data.expiresAt, leftX + 130, detailY + 10, { width: 120 });
     }
 
-    // Credit code box
+    // ── Credit code box ───────────────────────────────────────────────────
     const codeBoxY = detailY + 30;
     doc.roundedRect(leftX, codeBoxY, rightX - leftX - 20, 32, 4).fill(COLOR_DARK);
     doc
@@ -134,6 +152,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
       .text(data.code, leftX + 8, codeBoxY + 10, { width: rightX - leftX - 36, align: "center", characterSpacing: 3 });
 
     // Instruction text
+    // instrY = codeBoxY + 42; bottom ≈ instrY + 10 = 333; card bottom = 372 → 39px margin
     const instrY = codeBoxY + 42;
     doc
       .fillColor(COLOR_MUTED)
@@ -141,11 +160,14 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
       .fontSize(8)
       .text("Present this certificate when placing your order", leftX, instrY, { width: rightX - leftX - 20 });
 
-    // ── QR code on the right ──────────────────────────────────────────────
-    const qrX = rightX;
+    // ── QR code — right column, bottom-aligned with instruction text ───────
+    // Target: bottom of "Scan to verify" label (qrY + qrSize + 8 + 10) = 333
+    // → qrY = 333 − 140 − 18 = 175
     const qrSize = 140;
-    const qrY = topY + 10;
+    const qrX = rightX;
+    const qrY = 175;
 
+    // QR background pill
     doc.roundedRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24 + 36, 8).fill(COLOR_LIGHT_MINT);
 
     const qrUrl = `${getAppUrl()}/check/${data.code}`;
