@@ -1,5 +1,7 @@
-import nodemailer from "nodemailer";
-import type Mail from "nodemailer/lib/mailer";
+// Email delivery via Resend — uses @replit/connectors-sdk to proxy through the
+// Replit-managed Resend connection (handles auth automatically).
+// FROM_EMAIL must be an address on a domain verified in your Resend account.
+import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
 
 const BUSINESS_NAME = "Mint Printworks";
@@ -11,49 +13,26 @@ function getAppUrl(): string {
   return "";
 }
 
-let _transportCache: { transport: ReturnType<typeof nodemailer.createTransport>; ethereal: boolean } | null = null;
-
-async function getTransport(): Promise<{ transport: ReturnType<typeof nodemailer.createTransport>; ethereal: boolean }> {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
-
-  if (host && user && pass) {
-    return {
-      transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } }),
-      ethereal: false,
-    };
-  }
-
-  if (_transportCache) return _transportCache;
-
-  logger.info("SMTP not configured — creating Ethereal test account for dev email preview");
-  const testAccount = await nodemailer.createTestAccount();
-  const transport = nodemailer.createTransport({
-    host: "smtp.ethereal.email",
-    port: 587,
-    secure: false,
-    auth: { user: testAccount.user, pass: testAccount.pass },
-  });
-  logger.info({ user: testAccount.user }, "Ethereal test account ready — emails sent will appear at https://ethereal.email/messages");
-  _transportCache = { transport, ethereal: true };
-  return _transportCache;
-}
-
-async function send(opts: Mail.Options): Promise<boolean> {
+async function send(opts: { from: string; to: string; subject: string; html: string }): Promise<boolean> {
   try {
-    const { transport, ethereal } = await getTransport();
-    const info = await transport.sendMail(opts);
-    if (ethereal) {
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      logger.info({ to: opts.to, subject: opts.subject, previewUrl }, "Email sent — open preview URL to view it");
-    } else {
-      logger.info({ to: opts.to, subject: opts.subject }, "Email sent");
+    const connectors = new ReplitConnectors();
+    const response = await connectors.proxy("resend", "/emails", {
+      method: "POST",
+      body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "(unreadable)");
+      logger.error({ to: opts.to, subject: opts.subject, status: response.status, body }, "Resend API error");
+      return false;
     }
+
+    const result = await response.json() as { id?: string };
+    logger.info({ to: opts.to, subject: opts.subject, id: result.id }, "Email sent via Resend");
     return true;
   } catch (err) {
-    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email");
+    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email via Resend");
     return false;
   }
 }
