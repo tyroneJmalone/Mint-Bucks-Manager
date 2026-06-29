@@ -132,6 +132,11 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 
   await copyPdfkitData(distDir);
+
+  // Copy static assets (logo, etc.) needed by PDF generation at runtime
+  const srcAssets = path.resolve(artifactDir, "src", "assets");
+  const destAssets = path.resolve(distDir, "assets");
+  await cp(srcAssets, destAssets, { recursive: true });
 }
 
 buildAll().catch((err) => {

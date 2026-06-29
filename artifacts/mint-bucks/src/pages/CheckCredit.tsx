@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { Leaf, CheckCircle2, XCircle, Clock, AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import logoSrc from "@assets/MINT_Scripty_1782772632177.png";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -193,15 +194,9 @@ export function CheckCredit() {
 
   return (
     <div className="min-h-screen bg-[#f5faee] flex flex-col">
-      <header className="bg-[#16261c] px-6 py-4">
-        <div className="max-w-md mx-auto flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#7CC24D] flex items-center justify-center shadow-sm">
-            <Leaf className="w-5 h-5 text-[#16261c]" />
-          </div>
-          <div>
-            <div className="text-white font-display text-2xl leading-none">Mint Bucks</div>
-            <div className="text-[#7CC24D] text-[10px] mt-1 tracking-[0.15em] uppercase font-medium">Mint Printworks</div>
-          </div>
+      <header className="bg-[#16261c] px-6 py-3">
+        <div className="max-w-md mx-auto flex items-center">
+          <img src={logoSrc} alt="Mint Printworks" className="h-14 w-auto" />
         </div>
       </header>
 

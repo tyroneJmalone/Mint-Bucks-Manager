@@ -1,7 +1,11 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
+import path from "path";
 
 const BUSINESS_NAME = "Mint Printworks";
+
+// Logo is copied into dist/assets/ by build.mjs
+const LOGO_PATH = path.join(__dirname, "assets", "logo.png");
 
 function getAppUrl(): string {
   if (process.env.APP_URL) return process.env.APP_URL;
@@ -9,7 +13,6 @@ function getAppUrl(): string {
   return "";
 }
 
-// Deep forest green / mint palette
 const COLOR_DARK = "#16261c";
 const COLOR_MINT = "#7CC24D";
 const COLOR_LIGHT_MINT = "#eef7e0";
@@ -44,7 +47,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const doc = new PDFDocument({
-      size: [612, 396], // Landscape letter-ish
+      size: [612, 396],
       margin: 0,
     });
 
@@ -58,38 +61,25 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     // Background
     doc.rect(0, 0, W, H).fill(COLOR_DARK);
 
-    // Mint accent strip on left
+    // Mint accent strips
     doc.rect(0, 0, 6, H).fill(COLOR_MINT);
-    // Mint accent strip on right
     doc.rect(W - 6, 0, 6, H).fill(COLOR_MINT);
 
-    // Inner white card area
+    // Inner white card
     const pad = 24;
     doc.roundedRect(pad, pad, W - pad * 2, H - pad * 2, 6).fill(COLOR_WHITE);
 
-    // Left content area
     const leftX = pad + 32;
     const rightX = W - 240;
     const topY = pad + 32;
 
-    // "MINT BUCKS" header
-    doc
-      .fillColor(COLOR_DARK)
-      .font("Helvetica-Bold")
-      .fontSize(32)
-      .text("MINT BUCKS", leftX, topY, { width: rightX - leftX - 20 });
+    // Mint Printworks logo (replaces text header)
+    doc.image(LOGO_PATH, leftX, topY, { width: 95 });
 
-    // Business name
+    // Divider line (below logo, ~70px tall)
     doc
-      .fillColor(COLOR_MUTED)
-      .font("Helvetica")
-      .fontSize(11)
-      .text(BUSINESS_NAME.toUpperCase(), leftX, topY + 40, { width: rightX - leftX - 20, characterSpacing: 2 });
-
-    // Divider line
-    doc
-      .moveTo(leftX, topY + 62)
-      .lineTo(rightX - 20, topY + 62)
+      .moveTo(leftX, topY + 80)
+      .lineTo(rightX - 20, topY + 80)
       .strokeColor(COLOR_LIGHT_MINT)
       .lineWidth(1)
       .stroke();
@@ -98,39 +88,37 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     doc
       .fillColor(COLOR_DARK)
       .font("Helvetica-Bold")
-      .fontSize(60)
-      .text(formatCurrency(data.amount), leftX, topY + 72, { width: rightX - leftX - 20 });
+      .fontSize(52)
+      .text(formatCurrency(data.amount), leftX, topY + 90, { width: rightX - leftX - 20 });
 
     // "STORE CREDIT" label
     doc
       .fillColor(COLOR_MUTED)
       .font("Helvetica")
       .fontSize(10)
-      .text("STORE CREDIT", leftX, topY + 140, { width: rightX - leftX - 20, characterSpacing: 2 });
+      .text("STORE CREDIT", leftX, topY + 150, { width: rightX - leftX - 20, characterSpacing: 2 });
 
     // Customer name
     doc
       .fillColor(COLOR_DARK)
       .font("Helvetica-Bold")
       .fontSize(14)
-      .text(data.customerName, leftX, topY + 162, { width: rightX - leftX - 20 });
+      .text(data.customerName, leftX, topY + 172, { width: rightX - leftX - 20 });
 
     // Details row
-    let detailY = topY + 185;
-    const detailLabelColor = COLOR_MUTED;
-    const detailValueColor = COLOR_DARK;
+    let detailY = topY + 195;
 
-    doc.fillColor(detailLabelColor).font("Helvetica").fontSize(8).text("ISSUED", leftX, detailY, { characterSpacing: 1 });
+    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(8).text("ISSUED", leftX, detailY, { characterSpacing: 1 });
     doc
-      .fillColor(detailValueColor)
+      .fillColor(COLOR_DARK)
       .font("Helvetica-Bold")
       .fontSize(9)
       .text(formatDate(data.issuedAt) ?? data.issuedAt, leftX, detailY + 10, { width: 120 });
 
     if (data.expiresAt) {
-      doc.fillColor(detailLabelColor).font("Helvetica").fontSize(8).text("EXPIRES", leftX + 130, detailY, { characterSpacing: 1 });
+      doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(8).text("EXPIRES", leftX + 130, detailY, { characterSpacing: 1 });
       doc
-        .fillColor(detailValueColor)
+        .fillColor(COLOR_DARK)
         .font("Helvetica-Bold")
         .fontSize(9)
         .text(formatDate(data.expiresAt) ?? data.expiresAt, leftX + 130, detailY + 10, { width: 120 });
@@ -158,7 +146,6 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     const qrSize = 140;
     const qrY = topY + 10;
 
-    // QR background pill
     doc.roundedRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24 + 36, 8).fill(COLOR_LIGHT_MINT);
 
     const qrUrl = `${getAppUrl()}/check/${data.code}`;
@@ -175,7 +162,6 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
           doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
         }
 
-        // QR label
         doc
           .fillColor(COLOR_MUTED)
           .font("Helvetica")

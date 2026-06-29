@@ -13,6 +13,12 @@ function getAppUrl(): string {
   return "";
 }
 
+function logoImgTag(): string {
+  const url = getAppUrl();
+  if (!url) return `<div style="font-size:22px;font-weight:bold;color:#16261c;letter-spacing:2px">MINT PRINTWORKS</div>`;
+  return `<img src="${url}/logo.png" alt="Mint Printworks" style="height:68px;width:auto">`;
+}
+
 async function send(opts: { from: string; to: string; subject: string; html: string }): Promise<boolean> {
   try {
     const connectors = new ReplitConnectors();
@@ -67,9 +73,8 @@ function formatDate(dateStr: string): string {
 const CSS = `
   body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:0;background:#f5f5f0}
   .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:8px;overflow:hidden}
-  .hd{background:#16261c;padding:40px 32px;text-align:center}
-  .hd h1{color:#7CC24D;margin:0;font-size:28px;letter-spacing:2px;text-transform:uppercase}
-  .hd p{color:#a8c5b8;margin:8px 0 0;font-size:14px}
+  .hd{background:#fff;padding:20px 32px;text-align:center;border-bottom:3px solid #7CC24D}
+  .hd img{height:68px;width:auto}
   .bd{padding:40px 32px}
   .amt{background:#f5faee;border:2px solid #7CC24D;border-radius:8px;padding:32px;text-align:center;margin:24px 0}
   .amt .n{font-size:56px;font-weight:800;color:#16261c;margin:0}
@@ -95,7 +100,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
-  <div class="hd"><h1>Mint Bucks</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>
@@ -122,7 +127,7 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
-  <div class="hd"><h1>Mint Bucks</h1><p>${BUSINESS_NAME} · Redemption Confirmation</p></div>
+  <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>Your Mint Bucks credit has been applied. Here's a summary:</p>
@@ -161,7 +166,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
-  <div class="hd"><h1>Reminder: Mint Bucks Available</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>
@@ -196,7 +201,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
-  <div class="hd"><h1>Mint Bucks Available!</h1><p>${BUSINESS_NAME}</p></div>
+  <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>
