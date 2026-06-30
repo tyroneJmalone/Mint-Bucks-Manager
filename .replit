@@ -26,4 +26,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-FROM_EMAIL = "info@mingprintworks.com"
+FROM_EMAIL = "info@mintprintworks.com"

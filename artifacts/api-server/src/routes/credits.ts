@@ -298,7 +298,11 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     creditId: credit.id,
   });
 
-  res.json({ success: sent, message: sent ? "Reminder email sent" : "Failed to send reminder" });
+  if (!sent) {
+    res.status(500).json({ error: "Failed to send reminder email. Check that your FROM_EMAIL domain is verified in Resend." });
+    return;
+  }
+  res.json({ success: true, message: "Reminder email sent" });
 });
 
 router.get("/credits/check/:code", async (req, res): Promise<void> => {
