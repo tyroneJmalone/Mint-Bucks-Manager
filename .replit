@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11"]
+modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -27,3 +27,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 FROM_EMAIL = "info@mintprintworks.com"
+SETTINGS_ENCRYPTION_KEY = "2659bbb0a7515d6385b54a2074bb2d43aa1a85e8072ed9b34ee521567ee10949"
