@@ -1,1 +1,3 @@
 - [pdfkit + esbuild bundling](pdfkit-esbuild-bundling.md) — esbuild won't bundle pdfkit's runtime .afm font-metric files; must copy its data dir into dist or PDF gen 500s.
+- [Printavo API v2 quirks](printavo-api-v2.md) — real schema: cursor pagination (page cap 25), contacts≠customers, invoices=orders, no created-at sort (use VISUAL_ID DESC), probe from bash not code_execution.
+- [Sensitive env vars → Secrets](sensitive-env-vars.md) — never setEnvVars a key/token; shared env lands in git-tracked .replit. Use requestEnvVar so it becomes a non-committed Secret.

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   customersTable,
@@ -50,29 +50,34 @@ router.post("/printavo/sync-customers", async (_req, res): Promise<void> => {
     return;
   }
 
-  let created = 0;
-  let matched = 0;
+  // Dedupe incoming contacts by email; drop any without a usable email.
+  const byEmail = new Map<string, { name: string; email: string; phone: string | null }>();
   let skipped = 0;
-
   for (const pc of printavoCustomers) {
-    if (!pc.email) { skipped++; continue; }
-
-    const email = pc.email.toLowerCase().trim();
-    const [existing] = await db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.email, email));
-
-    if (existing) {
-      matched++;
-    } else {
-      await db.insert(customersTable).values({
-        name: pc.fullName || "Unknown",
-        email,
-        phone: pc.primaryPhone ?? null,
-      });
-      created++;
+    const email = (pc.email ?? "").toLowerCase().trim();
+    if (!email) { skipped++; continue; }
+    if (!byEmail.has(email)) {
+      byEmail.set(email, { name: pc.fullName || "Unknown", email, phone: pc.primaryPhone ?? null });
     }
+  }
+
+  // Load existing emails once, then bulk-insert only the new contacts.
+  const existingRows = await db.select({ email: customersTable.email }).from(customersTable);
+  const existingSet = new Set(existingRows.map(r => r.email));
+
+  const toInsert = [...byEmail.values()].filter(c => !existingSet.has(c.email));
+  const matched = byEmail.size - toInsert.length;
+
+  let created = 0;
+  const BATCH = 500;
+  for (let i = 0; i < toInsert.length; i += BATCH) {
+    const chunk = toInsert.slice(i, i + BATCH);
+    const inserted = await db
+      .insert(customersTable)
+      .values(chunk)
+      .onConflictDoNothing()
+      .returning({ id: customersTable.id });
+    created += inserted.length;
   }
 
   logger.info({ created, matched, skipped, total: printavoCustomers.length }, "Printavo customer sync complete");

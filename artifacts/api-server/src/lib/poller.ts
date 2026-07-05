@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { creditsTable, customersTable, notificationLogTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, lt } from "drizzle-orm";
 import { logger } from "./logger";
 import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, getPollingIntervalMinutes } from "./settings";
 import { fetchRecentOrders } from "./printavo";
@@ -14,6 +14,25 @@ export async function runPoll(): Promise<void> {
   if (!config) {
     logger.debug("Printavo not configured — skipping poll");
     return;
+  }
+
+  // Sweep stale "pending" claims left behind if the server died between claiming
+  // a notification slot and resolving it. Without this, that (customer, order)
+  // pair would be blocked forever (the unique claim always conflicts) and would
+  // surface as a permanent "pending" row. A normal send resolves in seconds, so
+  // anything older than a few minutes is stale and safe to release for retry.
+  const STALE_PENDING_MS = 10 * 60 * 1000;
+  const swept = await db
+    .delete(notificationLogTable)
+    .where(
+      and(
+        eq(notificationLogTable.deliveryStatus, "pending"),
+        lt(notificationLogTable.createdAt, new Date(Date.now() - STALE_PENDING_MS))
+      )
+    )
+    .returning({ id: notificationLogTable.id });
+  if (swept.length) {
+    logger.warn({ count: swept.length }, "Released stale pending notification claims for retry");
   }
 
   const lastPollAt = await getSetting("printavo_last_poll_at") ?? new Date(Date.now() - 15 * 60 * 1000).toISOString();
