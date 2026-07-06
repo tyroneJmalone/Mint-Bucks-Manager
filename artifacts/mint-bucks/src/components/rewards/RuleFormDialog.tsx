@@ -60,6 +60,12 @@ function fromCsv(s: string): string[] {
     .map((v) => v.trim())
     .filter(Boolean);
 }
+function toDateInput(s?: string | null): string {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
 export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps) {
   const { toast } = useToast();
@@ -73,11 +79,18 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
   const [percent, setPercent] = useState("");
   const [tiers, setTiers] = useState<TierRow[]>([{ minAmount: "", rewardAmount: "" }]);
 
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+
   const [showConditions, setShowConditions] = useState(false);
   const [totalMin, setTotalMin] = useState("");
   const [totalMax, setTotalMax] = useState("");
   const [statusNameAny, setStatusNameAny] = useState("");
   const [tagAny, setTagAny] = useState("");
+  const [invoiceDateFrom, setInvoiceDateFrom] = useState("");
+  const [invoiceDateTo, setInvoiceDateTo] = useState("");
+  const [productionDateFrom, setProductionDateFrom] = useState("");
+  const [productionDateTo, setProductionDateTo] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -95,13 +108,26 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
             }))
           : [{ minAmount: "", rewardAmount: "" }],
       );
+      setStartsAt(toDateInput(rule.startsAt));
+      setEndsAt(toDateInput(rule.endsAt));
       const c = rule.conditions ?? {};
       setTotalMin(c.totalMin != null ? String(c.totalMin) : "");
       setTotalMax(c.totalMax != null ? String(c.totalMax) : "");
       setStatusNameAny(toCsv(c.statusNameAny));
       setTagAny(toCsv(c.tagAny));
+      setInvoiceDateFrom(toDateInput(c.invoiceDateFrom));
+      setInvoiceDateTo(toDateInput(c.invoiceDateTo));
+      setProductionDateFrom(toDateInput(c.productionDateFrom));
+      setProductionDateTo(toDateInput(c.productionDateTo));
       setShowConditions(
-        c.totalMin != null || c.totalMax != null || !!c.statusNameAny?.length || !!c.tagAny?.length,
+        c.totalMin != null ||
+          c.totalMax != null ||
+          !!c.statusNameAny?.length ||
+          !!c.tagAny?.length ||
+          !!c.invoiceDateFrom ||
+          !!c.invoiceDateTo ||
+          !!c.productionDateFrom ||
+          !!c.productionDateTo,
       );
     } else {
       setName("");
@@ -110,11 +136,17 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       setFlatAmount("");
       setPercent("");
       setTiers([{ minAmount: "", rewardAmount: "" }]);
+      setStartsAt("");
+      setEndsAt("");
       setShowConditions(false);
       setTotalMin("");
       setTotalMax("");
       setStatusNameAny("");
       setTagAny("");
+      setInvoiceDateFrom("");
+      setInvoiceDateTo("");
+      setProductionDateFrom("");
+      setProductionDateTo("");
     }
   }, [open, rule]);
 
@@ -142,6 +174,10 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       if (s.length) c.statusNameAny = s;
       const t = fromCsv(tagAny);
       if (t.length) c.tagAny = t;
+      if (invoiceDateFrom) c.invoiceDateFrom = invoiceDateFrom;
+      if (invoiceDateTo) c.invoiceDateTo = invoiceDateTo;
+      if (productionDateFrom) c.productionDateFrom = productionDateFrom;
+      if (productionDateTo) c.productionDateTo = productionDateTo;
     }
     return c;
   }
@@ -158,6 +194,8 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       rewardType,
       rewardParams: buildParams(),
       conditions: buildConditions(),
+      startsAt: startsAt || null,
+      endsAt: endsAt || null,
     };
 
     const onSuccess = () => {
@@ -326,6 +364,41 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
             <Switch checked={enabled} onCheckedChange={setEnabled} data-testid="switch-rule-enabled" />
           </div>
 
+          <div className="rounded-md border border-border p-3 space-y-3">
+            <div>
+              <Label className="text-sm">Active window (optional)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Only award while this rule is within its schedule. Leave blank to always apply.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="starts-at" className="text-xs">
+                  Starts
+                </Label>
+                <Input
+                  id="starts-at"
+                  type="date"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  data-testid="input-starts-at"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ends-at" className="text-xs">
+                  Ends
+                </Label>
+                <Input
+                  id="ends-at"
+                  type="date"
+                  value={endsAt}
+                  onChange={(e) => setEndsAt(e.target.value)}
+                  data-testid="input-ends-at"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-md border border-border">
             <button
               type="button"
@@ -394,6 +467,58 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
                     onChange={(e) => setTagAny(e.target.value)}
                     data-testid="input-tag-any"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invoice-date-from" className="text-xs">
+                      Invoice created from
+                    </Label>
+                    <Input
+                      id="invoice-date-from"
+                      type="date"
+                      value={invoiceDateFrom}
+                      onChange={(e) => setInvoiceDateFrom(e.target.value)}
+                      data-testid="input-invoice-date-from"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invoice-date-to" className="text-xs">
+                      Invoice created to
+                    </Label>
+                    <Input
+                      id="invoice-date-to"
+                      type="date"
+                      value={invoiceDateTo}
+                      onChange={(e) => setInvoiceDateTo(e.target.value)}
+                      data-testid="input-invoice-date-to"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="production-date-from" className="text-xs">
+                      Production due from
+                    </Label>
+                    <Input
+                      id="production-date-from"
+                      type="date"
+                      value={productionDateFrom}
+                      onChange={(e) => setProductionDateFrom(e.target.value)}
+                      data-testid="input-production-date-from"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="production-date-to" className="text-xs">
+                      Production due to
+                    </Label>
+                    <Input
+                      id="production-date-to"
+                      type="date"
+                      value={productionDateTo}
+                      onChange={(e) => setProductionDateTo(e.target.value)}
+                      data-testid="input-production-date-to"
+                    />
+                  </div>
                 </div>
               </div>
             )}

@@ -19,6 +19,7 @@ import {
   useListRewardRules,
   getListRewardRulesQueryKey,
   useDeleteRewardRule,
+  useUpdateRewardRule,
   useListRewardAwards,
   getListRewardAwardsQueryKey,
   useApproveRewardAward,
@@ -31,8 +32,16 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -146,6 +155,19 @@ export function Rewards() {
   }
 
   const deleteRule = useDeleteRewardRule();
+  const updateRule = useUpdateRewardRule();
+  function toggleRuleEnabled(rule: RewardRule, enabled: boolean) {
+    updateRule.mutate(
+      { id: String(rule.id), data: { enabled } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListRewardRulesQueryKey() });
+          toast({ title: enabled ? "Rule enabled" : "Rule disabled" });
+        },
+        onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+      },
+    );
+  }
   const approveAward = useApproveRewardAward();
   const rejectAward = useRejectRewardAward();
   const triggerScan = useTriggerRewardsScan();
@@ -407,14 +429,22 @@ export function Rewards() {
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{rewardTypeLabels[rule.rewardType]}</td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{describeRule(rule)}</td>
                       <td className="px-5 py-3.5">
-                        <span
-                          className={cn(
-                            "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
-                            rule.enabled ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600",
-                          )}
-                        >
-                          {rule.enabled ? "Enabled" : "Disabled"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={rule.enabled}
+                            onCheckedChange={(v) => toggleRuleEnabled(rule, v)}
+                            disabled={updateRule.isPending}
+                            data-testid={`switch-rule-enabled-${rule.id}`}
+                          />
+                          <span
+                            className={cn(
+                              "text-[11px] font-medium",
+                              rule.enabled ? "text-emerald-700" : "text-muted-foreground",
+                            )}
+                          >
+                            {rule.enabled ? "Enabled" : "Disabled"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-3 py-3.5">
                         <div className="flex items-center justify-end gap-1">
@@ -561,36 +591,12 @@ export function Rewards() {
           </div>
 
           {settings && (
-            <div className="bg-card border border-border rounded-lg p-6">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Program rules</h3>
-              <dl className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
-                <div>
-                  <dt className="text-xs text-muted-foreground uppercase tracking-wider">Earning starts</dt>
-                  <dd className="text-foreground mt-0.5">
-                    {new Date(settings.startDate).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground uppercase tracking-wider">Credits expire</dt>
-                  <dd className="text-foreground mt-0.5">{settings.expiryMonths} months after issue</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground uppercase tracking-wider">Scan lookback</dt>
-                  <dd className="text-foreground mt-0.5">{settings.lookbackDays} days</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground uppercase tracking-wider">Timezone</dt>
-                  <dd className="text-foreground mt-0.5">{settings.timezone}</dd>
-                </div>
-              </dl>
-              <p className="text-xs text-muted-foreground mt-4">
-                Rewards only apply to invoices fully paid on or after the earning start date.
-              </p>
-            </div>
+            <ProgramRulesForm
+              key={`prog-${settings.startDate}-${settings.expiryMonths}-${settings.lookbackDays}-${settings.timezone}`}
+              settings={settings}
+              pending={updateSettings.isPending}
+              onSave={(data) => saveSettings(data, "Program rules updated")}
+            />
           )}
         </TabsContent>
       </Tabs>
@@ -665,6 +671,126 @@ function AnnualLimitField({
         </div>
         <Button variant="outline" onClick={save} disabled={pending} data-testid="button-save-limit">
           {pending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function toDateInputValue(s?: string | null): string {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+const TIMEZONE_OPTIONS = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Phoenix",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+];
+
+function ProgramRulesForm({
+  settings,
+  pending,
+  onSave,
+}: {
+  settings: { startDate: string; expiryMonths: number; lookbackDays: number; timezone: string };
+  pending: boolean;
+  onSave: (data: RewardsSettingsInput) => void;
+}) {
+  const [startDate, setStartDate] = useState(toDateInputValue(settings.startDate));
+  const [expiryMonths, setExpiryMonths] = useState(String(settings.expiryMonths));
+  const [lookbackDays, setLookbackDays] = useState(String(settings.lookbackDays));
+  const [timezone, setTimezone] = useState(settings.timezone);
+
+  const timezoneOptions = TIMEZONE_OPTIONS.includes(settings.timezone)
+    ? TIMEZONE_OPTIONS
+    : [settings.timezone, ...TIMEZONE_OPTIONS];
+
+  function save() {
+    const data: RewardsSettingsInput = {};
+    if (startDate) data.startDate = startDate;
+    const months = parseInt(expiryMonths, 10);
+    if (!Number.isNaN(months) && months >= 1) data.expiryMonths = months;
+    const lookback = parseInt(lookbackDays, 10);
+    if (!Number.isNaN(lookback) && lookback >= 1) data.lookbackDays = lookback;
+    if (timezone) data.timezone = timezone;
+    onSave(data);
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-6">
+      <h3 className="text-sm font-semibold text-foreground mb-1">Program rules</h3>
+      <p className="text-xs text-muted-foreground mb-4">
+        Rewards only apply to invoices fully paid on or after the earning start date.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="start-date" className="text-xs">
+            Earning start date
+          </Label>
+          <Input
+            id="start-date"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            data-testid="input-start-date"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="expiry-months" className="text-xs">
+            Credits expire after (months)
+          </Label>
+          <Input
+            id="expiry-months"
+            type="number"
+            min={1}
+            step="1"
+            value={expiryMonths}
+            onChange={(e) => setExpiryMonths(e.target.value)}
+            data-testid="input-expiry-months"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="lookback-days" className="text-xs">
+            Scan lookback (days)
+          </Label>
+          <Input
+            id="lookback-days"
+            type="number"
+            min={1}
+            step="1"
+            value={lookbackDays}
+            onChange={(e) => setLookbackDays(e.target.value)}
+            data-testid="input-lookback-days"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="timezone" className="text-xs">
+            Timezone
+          </Label>
+          <Select value={timezone} onValueChange={setTimezone}>
+            <SelectTrigger id="timezone" data-testid="select-timezone">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {timezoneOptions.map((tz) => (
+                <SelectItem key={tz} value={tz}>
+                  {tz}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <Button variant="outline" onClick={save} disabled={pending} data-testid="button-save-program-rules">
+          {pending ? "Saving…" : "Save program rules"}
         </Button>
       </div>
     </div>
