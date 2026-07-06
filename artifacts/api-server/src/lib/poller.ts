@@ -2,12 +2,14 @@ import { db } from "@workspace/db";
 import { creditsTable, customersTable, notificationLogTable } from "@workspace/db";
 import { eq, and, inArray, lt } from "drizzle-orm";
 import { logger } from "./logger";
-import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, getPollingIntervalMinutes } from "./settings";
+import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, isRewardsEnabled, getPollingIntervalMinutes } from "./settings";
 import { fetchRecentOrders } from "./printavo";
 import { sendPrintavoNotificationEmail } from "./email";
+import { runRewardsScan, type RewardsScanResult } from "./rewards";
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let isPolling = false;
+let isScanning = false;
 
 export async function runPoll(): Promise<void> {
   const config = await getPrintavoConfig();
@@ -157,34 +159,79 @@ export async function runPoll(): Promise<void> {
   logger.info({ advanceTo }, "Printavo poll complete");
 }
 
+// Rewards evaluation pass. Runs in the same tick as the notification poll but
+// with its own single-flight guard and error boundary so a failure in one never
+// affects the other. Gated by the rewards master switch.
+export async function runRewardsPoll(): Promise<RewardsScanResult | null> {
+  const config = await getPrintavoConfig();
+  if (!config) {
+    logger.debug("Printavo not configured — skipping rewards scan");
+    return null;
+  }
+  return runRewardsScan(config);
+}
+
 export async function startPoller(): Promise<void> {
   stopPoller();
 
-  const enabled = await isPrintavoEnabled();
-  if (!enabled) {
-    logger.info("Printavo automation disabled — poller not started");
+  const [printavoEnabled, rewardsEnabled] = await Promise.all([
+    isPrintavoEnabled(),
+    isRewardsEnabled(),
+  ]);
+
+  if (!printavoEnabled && !rewardsEnabled) {
+    logger.info("Automation disabled — poller not started");
     return;
   }
 
   const intervalMinutes = await getPollingIntervalMinutes();
   const intervalMs = intervalMinutes * 60 * 1000;
 
-  logger.info({ intervalMinutes }, "Starting Printavo poller");
+  logger.info({ intervalMinutes, printavoEnabled, rewardsEnabled }, "Starting poller");
 
-  pollTimer = setInterval(async () => {
+  pollTimer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+}
+
+// A single interval tick runs the notification poll and the rewards scan
+// independently. Each re-checks its own enabled flag (so toggling a switch takes
+// effect without restarting the timer) and each has its own overlap guard.
+async function tick(): Promise<void> {
+  const [printavoEnabled, rewardsEnabled] = await Promise.all([
+    isPrintavoEnabled(),
+    isRewardsEnabled(),
+  ]);
+
+  if (printavoEnabled) {
     if (isPolling) {
       logger.warn("Previous poll still running — skipping this tick to prevent overlap");
-      return;
+    } else {
+      isPolling = true;
+      try {
+        await runPoll();
+      } catch (err) {
+        logger.error({ err }, "Printavo poll error");
+      } finally {
+        isPolling = false;
+      }
     }
-    isPolling = true;
-    try {
-      await runPoll();
-    } catch (err) {
-      logger.error({ err }, "Printavo poll error");
-    } finally {
-      isPolling = false;
+  }
+
+  if (rewardsEnabled) {
+    if (isScanning) {
+      logger.warn("Previous rewards scan still running — skipping this tick to prevent overlap");
+    } else {
+      isScanning = true;
+      try {
+        await runRewardsPoll();
+      } catch (err) {
+        logger.error({ err }, "Rewards scan error");
+      } finally {
+        isScanning = false;
+      }
     }
-  }, intervalMs);
+  }
 }
 
 export function stopPoller(): void {

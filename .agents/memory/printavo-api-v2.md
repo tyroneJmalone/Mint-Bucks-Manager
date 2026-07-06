@@ -42,6 +42,22 @@ fields, `page: Int` args, polling `quotes`). None of that exists. The real API:
 - **Auth headers:** `email` + `token` (not Authorization). Rate limit ~10 req / 5s per
   email/IP; serialize requests through a single throttle (~550ms spacing) to avoid 429s.
 
+## Invoices query (payment polling — Rewards)
+The `invoices` query supports server-side filters: `paymentStatus` (enum
+`UNPAID` | `PARTIAL_PAYMENT` | `PAID`), `tags`, `statusIds`, `inProductionAfter` /
+`inProductionBefore`. Confirmed-live invoice fields: `total`, `amountPaid`, `tags`,
+`status { id name }`, `timestamps { createdAt }`, `dueAt`, `customerDueAt`,
+`contact { ... email }`.
+- **No `paidAt` field and no created/updated sort** (same `OrderSortField` limitation).
+  You cannot page invoices in payment-time order. To find newly-PAID invoices, filter
+  `paymentStatus: PAID`, sort `VISUAL_ID` desc (≈ creation order), and stop paging past a
+  creation-time cutoff.
+- **Why lookback + dedup:** an invoice can be paid long after it was created, so a pure
+  creation-time window misses late payments. Mitigate with a generous lookback window and an
+  idempotent dedup ledger so overlapping re-scans are harmless. "Paid on/after <date>" is only
+  approximable via `createdAt` — there is no true paid-at timestamp.
+- Page size still capped at 25 regardless of `first`.
+
 ## Environment quirk for probing
 The `code_execution` (JS notebook) sandbox does **not** have `PRINTAVO_EMAIL` /
 `PRINTAVO_API_KEY` in its env, but the **bash shell does**. Run live API probe scripts

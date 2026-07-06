@@ -1,3 +1,6 @@
-- [pdfkit + esbuild bundling](pdfkit-esbuild-bundling.md) — esbuild won't bundle pdfkit's runtime .afm font-metric files; must copy its data dir into dist or PDF gen 500s.
-- [Printavo API v2 quirks](printavo-api-v2.md) — real schema: cursor pagination (page cap 25), contacts≠customers, poll the `orders` union (Quote|Invoice) NOT invoices, no created-at sort (use VISUAL_ID DESC), probe from bash not code_execution.
-- [Sensitive env vars → Secrets](sensitive-env-vars.md) — never setEnvVars a key/token; shared env lands in git-tracked .replit. Use requestEnvVar so it becomes a non-committed Secret.
+- [Mint Bucks architecture](mint-bucks-architecture.md) — credit code MB-{8hex}; @swc/helpers explicit runtime dep; email non-blocking; gen mutation hooks take {data}; rewards concurrency invariants.
+- [Printavo API v2 quirks](printavo-api-v2.md) — 25/page cap, poll orders union (Quote|Invoice), invoices paymentStatus filter; no created-at/paidAt sort → VISUAL_ID desc proxy; email+token auth.
+- [Monorepo build & dep gotchas](monorepo-build-deps.md) — @workspace/db consumed via built dist/*.d.ts; run pnpm run typecheck:libs after schema edits; add zod: catalog: + import zod/v4.
+- [pdfkit + esbuild bundling](pdfkit-esbuild-bundling.md) — bundling pdfkit drops its data/*.afm fonts → runtime 500; copy pdfkit data/ into dist as a fatal post-build step (see build.mjs).
+- [Drizzle array queries](drizzle-array-queries.md) — filter by array of IDs with inArray(col, ids), NOT sql`= ANY(...)` (throws at runtime); guard the empty-array case.
+- [Sensitive env vars](sensitive-env-vars.md) — keys/tokens/encryption keys must be Replit Secrets (requestEnvVar secret), NEVER setEnvVars shared (writes git-tracked .replit → leaks).

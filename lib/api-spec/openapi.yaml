@@ -605,6 +605,205 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  # ── Rewards ──────────────────────────────────────────────────────────────────
+  /rewards/settings:
+    get:
+      operationId: getRewardsSettings
+      tags: [rewards]
+      summary: Get rewards engine configuration
+      responses:
+        "200":
+          description: Current rewards configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardsSettings"
+    put:
+      operationId: updateRewardsSettings
+      tags: [rewards]
+      summary: Update rewards engine configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardsSettingsInput"
+      responses:
+        "200":
+          description: Updated configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardsSettings"
+
+  /rewards/summary:
+    get:
+      operationId: getRewardsSummary
+      tags: [rewards]
+      summary: Rewards engine status and annual budget usage
+      responses:
+        "200":
+          description: Rewards summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardsSummary"
+
+  /rewards/rules:
+    get:
+      operationId: listRewardRules
+      tags: [rewards]
+      summary: List reward rules
+      responses:
+        "200":
+          description: Reward rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RewardRule"
+    post:
+      operationId: createRewardRule
+      tags: [rewards]
+      summary: Create a reward rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardRuleInput"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardRule"
+        "400":
+          description: Invalid rule
+
+  /rewards/rules/{id}:
+    patch:
+      operationId: updateRewardRule
+      tags: [rewards]
+      summary: Update a reward rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardRuleUpdate"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardRule"
+        "400":
+          description: Invalid rule
+        "404":
+          description: Rule not found
+    delete:
+      operationId: deleteRewardRule
+      tags: [rewards]
+      summary: Delete a reward rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Rule not found
+
+  /rewards/awards:
+    get:
+      operationId: listRewardAwards
+      tags: [rewards]
+      summary: List reward awards (optionally filtered by status)
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reward awards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RewardAward"
+
+  /rewards/awards/{id}/approve:
+    post:
+      operationId: approveRewardAward
+      tags: [rewards]
+      summary: Approve a pending award and issue its credit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Approval result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
+        "400":
+          description: Award cannot be approved
+        "404":
+          description: Award not found
+
+  /rewards/awards/{id}/reject:
+    post:
+      operationId: rejectRewardAward
+      tags: [rewards]
+      summary: Reject a pending award
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rejection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
+        "404":
+          description: Award not found
+
+  /rewards/scan:
+    post:
+      operationId: triggerRewardsScan
+      tags: [rewards]
+      summary: Manually run a rewards evaluation pass
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardsScanResult"
+        "400":
+          description: Printavo not configured
+
 components:
   schemas:
     HealthStatus:
@@ -970,3 +1169,221 @@ components:
           enum: [sent, failed]
         sentAt:
           type: string
+
+    RewardTier:
+      type: object
+      required: [minAmount, rewardAmount]
+      properties:
+        minAmount:
+          type: number
+        rewardAmount:
+          type: number
+
+    RewardParams:
+      type: object
+      properties:
+        flatAmount:
+          type: number
+        percent:
+          type: number
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RewardTier"
+
+    RewardConditions:
+      type: object
+      properties:
+        tagAny:
+          type: array
+          items:
+            type: string
+        statusNameAny:
+          type: array
+          items:
+            type: string
+        totalMin:
+          type: number
+        totalMax:
+          type: number
+        invoiceDateFrom:
+          type: string
+        invoiceDateTo:
+          type: string
+        productionDateFrom:
+          type: string
+        productionDateTo:
+          type: string
+
+    RewardRule:
+      type: object
+      required: [id, name, enabled, rewardType, rewardParams, conditions, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        enabled:
+          type: boolean
+        rewardType:
+          type: string
+          enum: [flat, percent_paid, percent_total, tiered]
+        rewardParams:
+          $ref: "#/components/schemas/RewardParams"
+        conditions:
+          $ref: "#/components/schemas/RewardConditions"
+        startsAt:
+          type: ["string", "null"]
+        endsAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    RewardRuleInput:
+      type: object
+      required: [name, rewardType, rewardParams]
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+        rewardType:
+          type: string
+          enum: [flat, percent_paid, percent_total, tiered]
+        rewardParams:
+          $ref: "#/components/schemas/RewardParams"
+        conditions:
+          $ref: "#/components/schemas/RewardConditions"
+        startsAt:
+          type: ["string", "null"]
+        endsAt:
+          type: ["string", "null"]
+
+    RewardRuleUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+        rewardType:
+          type: string
+          enum: [flat, percent_paid, percent_total, tiered]
+        rewardParams:
+          $ref: "#/components/schemas/RewardParams"
+        conditions:
+          $ref: "#/components/schemas/RewardConditions"
+        startsAt:
+          type: ["string", "null"]
+        endsAt:
+          type: ["string", "null"]
+
+    RewardAward:
+      type: object
+      required: [id, ruleId, customerId, printavoInvoiceId, amount, status, awardedAt]
+      properties:
+        id:
+          type: integer
+        ruleId:
+          type: integer
+        ruleName:
+          type: ["string", "null"]
+        customerId:
+          type: integer
+        customerName:
+          type: ["string", "null"]
+        customerEmail:
+          type: ["string", "null"]
+        printavoInvoiceId:
+          type: string
+        printavoVisualId:
+          type: ["string", "null"]
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [processing, pending, issued, rejected]
+        creditId:
+          type: ["integer", "null"]
+        note:
+          type: ["string", "null"]
+        awardedAt:
+          type: string
+        issuedAt:
+          type: ["string", "null"]
+
+    RewardsSettings:
+      type: object
+      required: [enabled, mode, expiryMonths, startDate, lookbackDays, timezone]
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [auto, approve]
+        annualLimit:
+          type: ["number", "null"]
+        expiryMonths:
+          type: integer
+        startDate:
+          type: string
+        lookbackDays:
+          type: integer
+        timezone:
+          type: string
+
+    RewardsSettingsInput:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [auto, approve]
+        annualLimit:
+          type: ["number", "null"]
+        expiryMonths:
+          type: integer
+        startDate:
+          type: string
+        lookbackDays:
+          type: integer
+        timezone:
+          type: string
+
+    RewardsSummary:
+      type: object
+      required: [enabled, mode, annualAwarded, pendingCount, issuedCount]
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [auto, approve]
+        annualLimit:
+          type: ["number", "null"]
+        annualAwarded:
+          type: number
+        pendingCount:
+          type: integer
+        issuedCount:
+          type: integer
+        lastScanAt:
+          type: ["string", "null"]
+
+    RewardsScanResult:
+      type: object
+      required: [scanned, issued, pending, skippedNoCustomer, limitReached]
+      properties:
+        scanned:
+          type: integer
+        issued:
+          type: integer
+        pending:
+          type: integer
+        skippedNoCustomer:
+          type: integer
+        limitReached:
+          type: boolean

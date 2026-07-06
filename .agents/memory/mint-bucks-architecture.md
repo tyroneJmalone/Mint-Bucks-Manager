@@ -24,3 +24,16 @@ QR code and certificate are binary responses — frontend uses `<img src="/api/c
 
 ## DB status flow
 credits.status: `active` → `partially_redeemed` (first partial use) → `redeemed` (balance reaches 0). Void sets `voided`. Expired credits become `expired` (manual process, not yet automated).
+
+## Rewards engine concurrency (auto-award from paid invoices)
+Each (rule, invoice) awards at most once: UNIQUE(rule_id, printavo_invoice_id) on `reward_awards` + `onConflictDoNothing` at claim. Claiming runs inside a `pg_advisory_xact_lock` (key 782311) that also sums the annual budget **in-lock**, so the limit check and the claim are one critical section — no overrun, no duplicate claim, and no row is written when the limit blocks (future years stay clean).
+
+**Budget is reserved at CLAIM time, released on reject.** The annual sum counts `processing + pending + issued`, so approval does NOT (and must not) re-check budget — the slot was already reserved. Edge case: an award claimed in Dec year N but approved in year N+1 consumes no year-N+1 budget — acceptable.
+
+**Issue is atomic + claim-guarded.** Credit insert and award→`issued` update run in ONE `db.transaction`; the update is guarded on `status="processing"` and `.returning()`-checked, so a lost claim rolls back the credit (never a dangling credit). Applies to both auto-issue and manual approve.
+
+**sweepStaleProcessing filters on `updatedAt`, NOT `createdAt`.**
+**Why:** `updatedAt` is refreshed via `$onUpdate` at every claim (scan insert AND pending→processing approval flip); filtering on `createdAt` lets the sweep delete an old pending row mid-approval → orphaned claim → double-award. This was a real bug caught in review — do not revert it.
+
+## Paid-date requirement is approximated
+"Only award invoices paid on/after the start date" is enforced via invoice `createdAt`, because Printavo exposes no paid-at timestamp (see printavo-api-v2.md). Invoices created before the start date but paid after will never earn. Documented deviation from the "locked" requirement, accepted due to API limits.

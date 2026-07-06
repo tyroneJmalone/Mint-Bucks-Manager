@@ -14,7 +14,15 @@ export type SettingsKey =
   | "printavo_shop_url"
   | "printavo_enabled"
   | "printavo_polling_interval"
-  | "printavo_last_poll_at";
+  | "printavo_last_poll_at"
+  | "rewards_enabled"
+  | "rewards_mode"
+  | "rewards_annual_limit"
+  | "rewards_expiry_months"
+  | "rewards_start_date"
+  | "rewards_lookback_days"
+  | "rewards_shop_timezone"
+  | "rewards_last_scan_at";
 
 const SENSITIVE_KEYS: Set<SettingsKey> = new Set(["printavo_api_key"]);
 const ALGORITHM = "aes-256-gcm";
@@ -102,4 +110,51 @@ export async function getPollingIntervalMinutes(): Promise<number> {
   const val = await getSetting("printavo_polling_interval");
   const n = parseInt(val ?? "15", 10);
   return isNaN(n) || n < 1 ? 15 : n;
+}
+
+export type RewardsMode = "auto" | "approve";
+
+export interface RewardsConfig {
+  enabled: boolean;
+  mode: RewardsMode;
+  annualLimit: number | null;
+  expiryMonths: number;
+  startDate: string;
+  lookbackDays: number;
+  timezone: string;
+}
+
+export const DEFAULT_REWARDS_START_DATE = "2026-07-01T00:00:00-04:00";
+export const DEFAULT_REWARDS_TIMEZONE = "America/New_York";
+
+export async function getRewardsConfig(): Promise<RewardsConfig> {
+  const [enabled, mode, annualLimit, expiryMonths, startDate, lookbackDays, timezone] =
+    await Promise.all([
+      getSetting("rewards_enabled"),
+      getSetting("rewards_mode"),
+      getSetting("rewards_annual_limit"),
+      getSetting("rewards_expiry_months"),
+      getSetting("rewards_start_date"),
+      getSetting("rewards_lookback_days"),
+      getSetting("rewards_shop_timezone"),
+    ]);
+
+  const limit = annualLimit != null ? parseFloat(annualLimit) : NaN;
+  const months = parseInt(expiryMonths ?? "12", 10);
+  const lookback = parseInt(lookbackDays ?? "150", 10);
+
+  return {
+    enabled: enabled === "true",
+    mode: mode === "auto" ? "auto" : "approve",
+    annualLimit: isNaN(limit) || limit < 0 ? null : limit,
+    expiryMonths: isNaN(months) || months < 1 ? 12 : months,
+    startDate: startDate ?? DEFAULT_REWARDS_START_DATE,
+    lookbackDays: isNaN(lookback) || lookback < 1 ? 150 : lookback,
+    timezone: timezone ?? DEFAULT_REWARDS_TIMEZONE,
+  };
+}
+
+export async function isRewardsEnabled(): Promise<boolean> {
+  const val = await getSetting("rewards_enabled");
+  return val === "true";
 }

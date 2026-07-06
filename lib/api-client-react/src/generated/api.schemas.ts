@@ -220,6 +220,29 @@ export interface PrintavoOrderSummary {
   customerEmail?: string | null;
 }
 
+export type CreditCheckResultStatus = typeof CreditCheckResultStatus[keyof typeof CreditCheckResultStatus];
+
+
+export const CreditCheckResultStatus = {
+  active: 'active',
+  partially_redeemed: 'partially_redeemed',
+  redeemed: 'redeemed',
+  expired: 'expired',
+  cancelled: 'cancelled',
+} as const;
+
+export interface CreditCheckResult {
+  code: string;
+  status: CreditCheckResultStatus;
+  amount: number;
+  amountRemaining: number;
+  issuedAt: string;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  note?: string | null;
+}
+
 export type NotificationLogItemDeliveryStatus = typeof NotificationLogItemDeliveryStatus[keyof typeof NotificationLogItemDeliveryStatus];
 
 
@@ -241,6 +264,197 @@ export interface NotificationLogItem {
   amountAvailable: number;
   deliveryStatus: NotificationLogItemDeliveryStatus;
   sentAt: string;
+}
+
+export interface RewardTier {
+  minAmount: number;
+  rewardAmount: number;
+}
+
+export interface RewardParams {
+  flatAmount?: number;
+  percent?: number;
+  tiers?: RewardTier[];
+}
+
+export interface RewardConditions {
+  tagAny?: string[];
+  statusNameAny?: string[];
+  totalMin?: number;
+  totalMax?: number;
+  invoiceDateFrom?: string;
+  invoiceDateTo?: string;
+  productionDateFrom?: string;
+  productionDateTo?: string;
+}
+
+export type RewardRuleRewardType = typeof RewardRuleRewardType[keyof typeof RewardRuleRewardType];
+
+
+export const RewardRuleRewardType = {
+  flat: 'flat',
+  percent_paid: 'percent_paid',
+  percent_total: 'percent_total',
+  tiered: 'tiered',
+} as const;
+
+export interface RewardRule {
+  id: number;
+  name: string;
+  enabled: boolean;
+  rewardType: RewardRuleRewardType;
+  rewardParams: RewardParams;
+  conditions: RewardConditions;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  endsAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RewardRuleInputRewardType = typeof RewardRuleInputRewardType[keyof typeof RewardRuleInputRewardType];
+
+
+export const RewardRuleInputRewardType = {
+  flat: 'flat',
+  percent_paid: 'percent_paid',
+  percent_total: 'percent_total',
+  tiered: 'tiered',
+} as const;
+
+export interface RewardRuleInput {
+  name: string;
+  enabled?: boolean;
+  rewardType: RewardRuleInputRewardType;
+  rewardParams: RewardParams;
+  conditions?: RewardConditions;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  endsAt?: string | null;
+}
+
+export type RewardRuleUpdateRewardType = typeof RewardRuleUpdateRewardType[keyof typeof RewardRuleUpdateRewardType];
+
+
+export const RewardRuleUpdateRewardType = {
+  flat: 'flat',
+  percent_paid: 'percent_paid',
+  percent_total: 'percent_total',
+  tiered: 'tiered',
+} as const;
+
+export interface RewardRuleUpdate {
+  name?: string;
+  enabled?: boolean;
+  rewardType?: RewardRuleUpdateRewardType;
+  rewardParams?: RewardParams;
+  conditions?: RewardConditions;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  endsAt?: string | null;
+}
+
+export type RewardAwardStatus = typeof RewardAwardStatus[keyof typeof RewardAwardStatus];
+
+
+export const RewardAwardStatus = {
+  processing: 'processing',
+  pending: 'pending',
+  issued: 'issued',
+  rejected: 'rejected',
+} as const;
+
+export interface RewardAward {
+  id: number;
+  ruleId: number;
+  /** @nullable */
+  ruleName?: string | null;
+  customerId: number;
+  /** @nullable */
+  customerName?: string | null;
+  /** @nullable */
+  customerEmail?: string | null;
+  printavoInvoiceId: string;
+  /** @nullable */
+  printavoVisualId?: string | null;
+  amount: number;
+  status: RewardAwardStatus;
+  /** @nullable */
+  creditId?: number | null;
+  /** @nullable */
+  note?: string | null;
+  awardedAt: string;
+  /** @nullable */
+  issuedAt?: string | null;
+}
+
+export type RewardsSettingsMode = typeof RewardsSettingsMode[keyof typeof RewardsSettingsMode];
+
+
+export const RewardsSettingsMode = {
+  auto: 'auto',
+  approve: 'approve',
+} as const;
+
+export interface RewardsSettings {
+  enabled: boolean;
+  mode: RewardsSettingsMode;
+  /** @nullable */
+  annualLimit?: number | null;
+  expiryMonths: number;
+  startDate: string;
+  lookbackDays: number;
+  timezone: string;
+}
+
+export type RewardsSettingsInputMode = typeof RewardsSettingsInputMode[keyof typeof RewardsSettingsInputMode];
+
+
+export const RewardsSettingsInputMode = {
+  auto: 'auto',
+  approve: 'approve',
+} as const;
+
+export interface RewardsSettingsInput {
+  enabled?: boolean;
+  mode?: RewardsSettingsInputMode;
+  /** @nullable */
+  annualLimit?: number | null;
+  expiryMonths?: number;
+  startDate?: string;
+  lookbackDays?: number;
+  timezone?: string;
+}
+
+export type RewardsSummaryMode = typeof RewardsSummaryMode[keyof typeof RewardsSummaryMode];
+
+
+export const RewardsSummaryMode = {
+  auto: 'auto',
+  approve: 'approve',
+} as const;
+
+export interface RewardsSummary {
+  enabled: boolean;
+  mode: RewardsSummaryMode;
+  /** @nullable */
+  annualLimit?: number | null;
+  annualAwarded: number;
+  pendingCount: number;
+  issuedCount: number;
+  /** @nullable */
+  lastScanAt?: string | null;
+}
+
+export interface RewardsScanResult {
+  scanned: number;
+  issued: number;
+  pending: number;
+  skippedNoCustomer: number;
+  limitReached: boolean;
 }
 
 export type ListCustomersParams = {
@@ -272,6 +486,11 @@ days?: string;
 };
 
 export type GetRecentActivityParams = {
+limit?: string;
+};
+
+export type ListRewardAwardsParams = {
+status?: string;
 limit?: string;
 };
 

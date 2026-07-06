@@ -22,6 +22,20 @@ export interface PrintavoOrder {
   customer: PrintavoCustomer;
 }
 
+export interface PrintavoPaidInvoice {
+  id: string;
+  visualId: string;
+  createdAt: string;
+  total: number | null;
+  amountPaid: number | null;
+  tags: string[];
+  statusId: string | null;
+  statusName: string | null;
+  productionDueAt: string | null;
+  customerDueAt: string | null;
+  customer: PrintavoCustomer;
+}
+
 const PRINTAVO_ENDPOINT = "https://www.printavo.com/api/v2";
 
 // Printavo caps connection page size at 25 regardless of the `first` argument.
@@ -61,6 +75,19 @@ interface RawOrder {
   nickname: string | null;
   total: number | null;
   timestamps: { createdAt: string } | null;
+  contact: RawContact | null;
+}
+
+interface RawInvoice {
+  id: string;
+  visualId: string | null;
+  total: number | null;
+  amountPaid: number | null;
+  tags: string[] | null;
+  status: { id: string; name: string } | null;
+  timestamps: { createdAt: string } | null;
+  dueAt: string | null;
+  customerDueAt: string | null;
   contact: RawContact | null;
 }
 
@@ -215,6 +242,79 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
 
     pages++;
     const { hasNextPage, endCursor } = data.orders.pageInfo;
+    if (reachedOlder || !hasNextPage || !endCursor) break;
+    after = endCursor;
+  }
+
+  return all;
+}
+
+function mapInvoice(inv: RawInvoice): PrintavoPaidInvoice {
+  return {
+    id: inv.id,
+    visualId: inv.visualId ?? inv.id,
+    createdAt: inv.timestamps?.createdAt ?? new Date(0).toISOString(),
+    total: inv.total ?? null,
+    amountPaid: inv.amountPaid ?? null,
+    tags: Array.isArray(inv.tags) ? inv.tags : [],
+    statusId: inv.status?.id ?? null,
+    statusName: inv.status?.name ?? null,
+    productionDueAt: inv.dueAt ?? null,
+    customerDueAt: inv.customerDueAt ?? null,
+    customer: mapContact(inv.contact ?? { id: "", fullName: null, email: null, phone: null }),
+  };
+}
+
+const PAID_INVOICE_FIELDS = `
+  id
+  visualId
+  total
+  amountPaid
+  tags
+  status { id name }
+  timestamps { createdAt }
+  dueAt
+  customerDueAt
+  contact { ${CONTACT_FIELDS} }
+`;
+
+// Fetch invoices that are fully paid (paymentStatus: PAID), newest first. Printavo
+// exposes no "paidAt" and no created/updated sort, so we page by VISUAL_ID desc
+// (≈ creation order) and stop once we reach invoices created before `sinceMs`.
+// The rewards ledger dedups by (ruleId, invoiceId), so re-scanning overlapping
+// windows each poll is harmless. Invoices paid long after creation (older than the
+// caller's lookback window) are intentionally not revisited.
+export async function fetchPaidInvoices(
+  config: PrintavoConfig,
+  sinceMs: number,
+  maxPages = 80,
+): Promise<PrintavoPaidInvoice[]> {
+  const all: PrintavoPaidInvoice[] = [];
+  let after: string | undefined;
+  let pages = 0;
+
+  while (pages < maxPages) {
+    const data = await gql<{ invoices: { nodes: RawInvoice[]; pageInfo: PageInfo } }>(config, `
+      query GetPaidInvoices($first: Int!, $after: String) {
+        invoices(first: $first, after: $after, paymentStatus: PAID, sortOn: VISUAL_ID, sortDescending: true) {
+          nodes { ${PAID_INVOICE_FIELDS} }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `, { first: PAGE_SIZE, after });
+
+    let reachedOlder = false;
+    for (const node of data.invoices.nodes) {
+      const createdMs = node.timestamps?.createdAt ? new Date(node.timestamps.createdAt).getTime() : 0;
+      if (createdMs >= sinceMs) {
+        all.push(mapInvoice(node));
+      } else {
+        reachedOlder = true;
+      }
+    }
+
+    pages++;
+    const { hasNextPage, endCursor } = data.invoices.pageInfo;
     if (reachedOlder || !hasNextPage || !endCursor) break;
     after = endCursor;
   }

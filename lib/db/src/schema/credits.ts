@@ -13,6 +13,7 @@ export const creditsTable = pgTable("credits", {
   amountRemaining: numeric("amount_remaining", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("active"),
   note: text("note"),
+  sourceRuleId: integer("source_rule_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -331,6 +331,24 @@ export const SendCreditReminderResponse = zod.object({
 
 
 /**
+ * @summary Public balance check by credit code (no auth required)
+ */
+export const CheckCreditByCodeParams = zod.object({
+  "code": zod.coerce.string()
+})
+
+export const CheckCreditByCodeResponse = zod.object({
+  "code": zod.string(),
+  "status": zod.enum(['active', 'partially_redeemed', 'redeemed', 'expired', 'cancelled']),
+  "amount": zod.number(),
+  "amountRemaining": zod.number(),
+  "issuedAt": zod.string(),
+  "expiresAt": zod.string().nullish(),
+  "note": zod.string().nullish()
+})
+
+
+/**
  * @summary Get QR code PNG for a credit
  */
 export const GetCreditQrParams = zod.object({
@@ -588,5 +606,288 @@ export const GetRecentActivityResponseItem = zod.object({
   "occurredAt": zod.string()
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
+
+
+/**
+ * @summary Get rewards engine configuration
+ */
+export const GetRewardsSettingsResponse = zod.object({
+  "enabled": zod.boolean(),
+  "mode": zod.enum(['auto', 'approve']),
+  "annualLimit": zod.number().nullish(),
+  "expiryMonths": zod.number(),
+  "startDate": zod.string(),
+  "lookbackDays": zod.number(),
+  "timezone": zod.string()
+})
+
+
+/**
+ * @summary Update rewards engine configuration
+ */
+export const UpdateRewardsSettingsBody = zod.object({
+  "enabled": zod.boolean().optional(),
+  "mode": zod.enum(['auto', 'approve']).optional(),
+  "annualLimit": zod.number().nullish(),
+  "expiryMonths": zod.number().optional(),
+  "startDate": zod.string().optional(),
+  "lookbackDays": zod.number().optional(),
+  "timezone": zod.string().optional()
+})
+
+export const UpdateRewardsSettingsResponse = zod.object({
+  "enabled": zod.boolean(),
+  "mode": zod.enum(['auto', 'approve']),
+  "annualLimit": zod.number().nullish(),
+  "expiryMonths": zod.number(),
+  "startDate": zod.string(),
+  "lookbackDays": zod.number(),
+  "timezone": zod.string()
+})
+
+
+/**
+ * @summary Rewards engine status and annual budget usage
+ */
+export const GetRewardsSummaryResponse = zod.object({
+  "enabled": zod.boolean(),
+  "mode": zod.enum(['auto', 'approve']),
+  "annualLimit": zod.number().nullish(),
+  "annualAwarded": zod.number(),
+  "pendingCount": zod.number(),
+  "issuedCount": zod.number(),
+  "lastScanAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary List reward rules
+ */
+export const ListRewardRulesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean(),
+  "rewardType": zod.enum(['flat', 'percent_paid', 'percent_total', 'tiered']),
+  "rewardParams": zod.object({
+  "flatAmount": zod.number().optional(),
+  "percent": zod.number().optional(),
+  "tiers": zod.array(zod.object({
+  "minAmount": zod.number(),
+  "rewardAmount": zod.number()
+})).optional()
+}),
+  "conditions": zod.object({
+  "tagAny": zod.array(zod.string()).optional(),
+  "statusNameAny": zod.array(zod.string()).optional(),
+  "totalMin": zod.number().optional(),
+  "totalMax": zod.number().optional(),
+  "invoiceDateFrom": zod.string().optional(),
+  "invoiceDateTo": zod.string().optional(),
+  "productionDateFrom": zod.string().optional(),
+  "productionDateTo": zod.string().optional()
+}),
+  "startsAt": zod.string().nullish(),
+  "endsAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListRewardRulesResponse = zod.array(ListRewardRulesResponseItem)
+
+
+/**
+ * @summary Create a reward rule
+ */
+export const CreateRewardRuleBody = zod.object({
+  "name": zod.string(),
+  "enabled": zod.boolean().optional(),
+  "rewardType": zod.enum(['flat', 'percent_paid', 'percent_total', 'tiered']),
+  "rewardParams": zod.object({
+  "flatAmount": zod.number().optional(),
+  "percent": zod.number().optional(),
+  "tiers": zod.array(zod.object({
+  "minAmount": zod.number(),
+  "rewardAmount": zod.number()
+})).optional()
+}),
+  "conditions": zod.object({
+  "tagAny": zod.array(zod.string()).optional(),
+  "statusNameAny": zod.array(zod.string()).optional(),
+  "totalMin": zod.number().optional(),
+  "totalMax": zod.number().optional(),
+  "invoiceDateFrom": zod.string().optional(),
+  "invoiceDateTo": zod.string().optional(),
+  "productionDateFrom": zod.string().optional(),
+  "productionDateTo": zod.string().optional()
+}).optional(),
+  "startsAt": zod.string().nullish(),
+  "endsAt": zod.string().nullish()
+})
+
+export const CreateRewardRuleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean(),
+  "rewardType": zod.enum(['flat', 'percent_paid', 'percent_total', 'tiered']),
+  "rewardParams": zod.object({
+  "flatAmount": zod.number().optional(),
+  "percent": zod.number().optional(),
+  "tiers": zod.array(zod.object({
+  "minAmount": zod.number(),
+  "rewardAmount": zod.number()
+})).optional()
+}),
+  "conditions": zod.object({
+  "tagAny": zod.array(zod.string()).optional(),
+  "statusNameAny": zod.array(zod.string()).optional(),
+  "totalMin": zod.number().optional(),
+  "totalMax": zod.number().optional(),
+  "invoiceDateFrom": zod.string().optional(),
+  "invoiceDateTo": zod.string().optional(),
+  "productionDateFrom": zod.string().optional(),
+  "productionDateTo": zod.string().optional()
+}),
+  "startsAt": zod.string().nullish(),
+  "endsAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a reward rule
+ */
+export const UpdateRewardRuleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateRewardRuleBody = zod.object({
+  "name": zod.string().optional(),
+  "enabled": zod.boolean().optional(),
+  "rewardType": zod.enum(['flat', 'percent_paid', 'percent_total', 'tiered']).optional(),
+  "rewardParams": zod.object({
+  "flatAmount": zod.number().optional(),
+  "percent": zod.number().optional(),
+  "tiers": zod.array(zod.object({
+  "minAmount": zod.number(),
+  "rewardAmount": zod.number()
+})).optional()
+}).optional(),
+  "conditions": zod.object({
+  "tagAny": zod.array(zod.string()).optional(),
+  "statusNameAny": zod.array(zod.string()).optional(),
+  "totalMin": zod.number().optional(),
+  "totalMax": zod.number().optional(),
+  "invoiceDateFrom": zod.string().optional(),
+  "invoiceDateTo": zod.string().optional(),
+  "productionDateFrom": zod.string().optional(),
+  "productionDateTo": zod.string().optional()
+}).optional(),
+  "startsAt": zod.string().nullish(),
+  "endsAt": zod.string().nullish()
+})
+
+export const UpdateRewardRuleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean(),
+  "rewardType": zod.enum(['flat', 'percent_paid', 'percent_total', 'tiered']),
+  "rewardParams": zod.object({
+  "flatAmount": zod.number().optional(),
+  "percent": zod.number().optional(),
+  "tiers": zod.array(zod.object({
+  "minAmount": zod.number(),
+  "rewardAmount": zod.number()
+})).optional()
+}),
+  "conditions": zod.object({
+  "tagAny": zod.array(zod.string()).optional(),
+  "statusNameAny": zod.array(zod.string()).optional(),
+  "totalMin": zod.number().optional(),
+  "totalMax": zod.number().optional(),
+  "invoiceDateFrom": zod.string().optional(),
+  "invoiceDateTo": zod.string().optional(),
+  "productionDateFrom": zod.string().optional(),
+  "productionDateTo": zod.string().optional()
+}),
+  "startsAt": zod.string().nullish(),
+  "endsAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a reward rule
+ */
+export const DeleteRewardRuleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteRewardRuleResponse = zod.void()
+
+
+/**
+ * @summary List reward awards (optionally filtered by status)
+ */
+export const ListRewardAwardsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "limit": zod.coerce.string().optional()
+})
+
+export const ListRewardAwardsResponseItem = zod.object({
+  "id": zod.number(),
+  "ruleId": zod.number(),
+  "ruleName": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "printavoInvoiceId": zod.string(),
+  "printavoVisualId": zod.string().nullish(),
+  "amount": zod.number(),
+  "status": zod.enum(['processing', 'pending', 'issued', 'rejected']),
+  "creditId": zod.number().nullish(),
+  "note": zod.string().nullish(),
+  "awardedAt": zod.string(),
+  "issuedAt": zod.string().nullish()
+})
+export const ListRewardAwardsResponse = zod.array(ListRewardAwardsResponseItem)
+
+
+/**
+ * @summary Approve a pending award and issue its credit
+ */
+export const ApproveRewardAwardParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApproveRewardAwardResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Reject a pending award
+ */
+export const RejectRewardAwardParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RejectRewardAwardResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Manually run a rewards evaluation pass
+ */
+export const TriggerRewardsScanResponse = zod.object({
+  "scanned": zod.number(),
+  "issued": zod.number(),
+  "pending": zod.number(),
+  "skippedNoCustomer": zod.number(),
+  "limitReached": zod.boolean()
+})
 
 
