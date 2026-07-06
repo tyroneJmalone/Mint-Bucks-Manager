@@ -55,7 +55,7 @@ interface RawContact {
   phone: string | null;
 }
 
-interface RawInvoice {
+interface RawOrder {
   id: string;
   visualId: string | null;
   nickname: string | null;
@@ -104,14 +104,14 @@ function mapContact(c: RawContact): PrintavoCustomer {
   };
 }
 
-function mapInvoice(inv: RawInvoice): PrintavoOrder {
+function mapOrder(o: RawOrder): PrintavoOrder {
   return {
-    id: inv.id,
-    visualId: inv.visualId ?? inv.id,
-    orderId: inv.nickname ?? null,
-    createdAt: inv.timestamps?.createdAt ?? new Date(0).toISOString(),
-    total: inv.total ?? null,
-    customer: mapContact(inv.contact ?? { id: "", fullName: null, email: null, phone: null }),
+    id: o.id,
+    visualId: o.visualId ?? o.id,
+    orderId: o.nickname ?? null,
+    createdAt: o.timestamps?.createdAt ?? new Date(0).toISOString(),
+    total: o.total ?? null,
+    customer: mapContact(o.contact ?? { id: "", fullName: null, email: null, phone: null }),
   };
 }
 
@@ -157,13 +157,30 @@ export async function fetchAllCustomers(config: PrintavoConfig): Promise<Printav
   return all;
 }
 
-const INVOICE_FIELDS = `
-  id
-  visualId
-  nickname
-  total
-  timestamps { createdAt }
-  contact { ${CONTACT_FIELDS} }
+// Printavo's `orders` field is a union (OrderUnion) of Quote and Invoice. A job
+// enters Printavo as a Quote and becomes an Invoice once approved. Polling the
+// union means we notify a customer as soon as the order is created (at quote
+// stage), not only after approval — polling `invoices` alone sent nothing for a
+// brand-new quote. You cannot select fields directly on the union, so both
+// members are spread with inline fragments below.
+const ORDER_FIELDS = `
+  __typename
+  ... on Quote {
+    id
+    visualId
+    nickname
+    total
+    timestamps { createdAt }
+    contact { ${CONTACT_FIELDS} }
+  }
+  ... on Invoice {
+    id
+    visualId
+    nickname
+    total
+    timestamps { createdAt }
+    contact { ${CONTACT_FIELDS} }
+  }
 `;
 
 export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string): Promise<PrintavoOrder[]> {
@@ -174,21 +191,21 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
   const MAX_PAGES = 40;
 
   // Sort by VISUAL_ID descending — visual IDs increment sequentially, so this
-  // surfaces the newest invoices first. We stop paging once we reach invoices
-  // created before `since`.
+  // surfaces the newest orders (quotes and invoices) first. We stop paging once
+  // we reach orders created before `since`.
   while (pages < MAX_PAGES) {
-    const data = await gql<{ invoices: { nodes: RawInvoice[]; pageInfo: PageInfo } }>(config, `
+    const data = await gql<{ orders: { nodes: RawOrder[]; pageInfo: PageInfo } }>(config, `
       query GetRecentOrders($first: Int!, $after: String) {
-        invoices(first: $first, after: $after, sortOn: VISUAL_ID, sortDescending: true) {
-          nodes { ${INVOICE_FIELDS} }
+        orders(first: $first, after: $after, sortOn: VISUAL_ID, sortDescending: true) {
+          nodes { ${ORDER_FIELDS} }
           pageInfo { hasNextPage endCursor }
         }
       }
     `, { first: PAGE_SIZE, after });
 
     let reachedOlder = false;
-    for (const inv of data.invoices.nodes) {
-      const order = mapInvoice(inv);
+    for (const node of data.orders.nodes) {
+      const order = mapOrder(node);
       if (new Date(order.createdAt).getTime() >= since) {
         all.push(order);
       } else {
@@ -197,7 +214,7 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
     }
 
     pages++;
-    const { hasNextPage, endCursor } = data.invoices.pageInfo;
+    const { hasNextPage, endCursor } = data.orders.pageInfo;
     if (reachedOlder || !hasNextPage || !endCursor) break;
     after = endCursor;
   }
@@ -207,10 +224,10 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
 
 export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: string): Promise<PrintavoOrder | null> {
   try {
-    const data = await gql<{ invoices: { nodes: RawInvoice[] } }>(config, `
+    const data = await gql<{ orders: { nodes: RawOrder[] } }>(config, `
       query GetOrderByNumber($query: String, $first: Int!) {
-        invoices(query: $query, first: $first) {
-          nodes { ${INVOICE_FIELDS} }
+        orders(query: $query, first: $first) {
+          nodes { ${ORDER_FIELDS} }
         }
       }
     `, { query: orderNumber, first: 10 });
@@ -218,8 +235,8 @@ export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: st
     // Only return an exact visualId match. A `query` search can also match on
     // nickname/PO, so falling back to the first result could present the wrong
     // order as if it were the requested one.
-    const exact = data.invoices.nodes.find(n => n.visualId === orderNumber);
-    return exact ? mapInvoice(exact) : null;
+    const exact = data.orders.nodes.find(n => n.visualId === orderNumber);
+    return exact ? mapOrder(exact) : null;
   } catch (err) {
     logger.warn({ err, orderNumber }, "Failed to fetch Printavo order by number");
     return null;

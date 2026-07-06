@@ -15,19 +15,29 @@ fields, `page: Int` args, polling `quotes`). None of that exists. The real API:
   paginate with the cursor.
 - **`contacts`** hold person-level `email` / `fullName` / `phone`. **`customers` are
   company-level and have no email** — use `contacts` for customer sync.
-- **`invoices` are real placed orders**; `quotes` are unapproved estimates. Notifications
-  key off `invoices`. An invoice's `contact` is non-null; `timestamps { createdAt updatedAt }`
-  are full datetimes.
+- **A job enters Printavo as a `Quote`, then becomes an `Invoice` when approved.** The shop's
+  real workflow creates quotes first, so notifications MUST fire at quote stage — polling
+  `invoices` only would miss brand-new orders and send no email at all.
+- **Poll the `orders` union field (OrderUnion = Quote | Invoice)**, NOT `invoices`. This
+  surfaces an order at creation (quote) time and also covers orders created directly as
+  invoices.
+  - **Union query syntax:** you CANNOT select fields directly on `orders` — use inline
+    fragments `... on Quote { ... } ... on Invoice { ... }` with identical field sets.
+    `totalNodes` does NOT exist on `OrderUnionConnection` (it exists on typed connections),
+    but `first`/`after`/`sortOn`/`sortDescending`/`pageInfo`/`query` all work on the union.
 - **`OrderSortField` has NO created-at option** (only `VISUAL_ID`, `TOTAL`, etc.). To get
-  "recent" invoices we sort `VISUAL_ID` descending and filter `timestamps.createdAt >= since`
+  "recent" orders we sort `VISUAL_ID` descending and filter `timestamps.createdAt >= since`
   client-side, stopping once we page past `since`.
   - **Why this is valid:** live probe confirmed `visualId` is monotonic with `createdAt`
     (higher visualId ⇒ later creation), so VISUAL_ID DESC is a sound recency proxy.
-  - **Known edge case (untested):** if Printavo keeps `createdAt` from the quote when a
-    quote converts to an invoice, an old quote approved today would have an old
-    visualId + old createdAt and be missed. Not observed in probes; revisit detection
-    (status/`updatedAt`) if customers report missed notifications.
-- **Lookup by order number:** `invoices(query: "22374")` does a fuzzy search (also matches
+- **Notification dedup keys on (customer_id, printavo_order_id) = Printavo internal `id`**
+  (unique index + ON CONFLICT DO NOTHING). **UNVERIFIED:** whether a quote→invoice conversion
+  reuses the same `id`/`visualId`/`createdAt` or mints a new record. A probe hint (a quote and
+  an invoice for the same contact had adjacent but DIFFERENT visualIds) suggests it may mint a
+  new record — in which case a customer could get a second reminder email when their quote is
+  approved. Bounded (duplicate reminder, not data corruption). To confirm: approve a quote and
+  re-poll; if it dupes, add a per-customer suppression window.
+- **Lookup by order number:** `orders(query: "<number>")` does a fuzzy search (also matches
   nickname/PO), so filter results to an exact `visualId` match — never trust `nodes[0]`.
 - **Auth headers:** `email` + `token` (not Authorization). Rate limit ~10 req / 5s per
   email/IP; serialize requests through a single throttle (~550ms spacing) to avoid 429s.
