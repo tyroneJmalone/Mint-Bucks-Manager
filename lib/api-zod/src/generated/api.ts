@@ -29,6 +29,7 @@ export const ListCustomersResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "phone": zod.string().nullish(),
+  "companyName": zod.string().nullish(),
   "outstandingBalance": zod.number().optional(),
   "totalIssued": zod.number().optional(),
   "totalRedeemed": zod.number().optional(),
@@ -47,7 +48,8 @@ export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
 export const CreateCustomerBody = zod.object({
   "name": zod.string().min(1),
   "email": zod.string().email(),
-  "phone": zod.string().optional()
+  "phone": zod.string().optional(),
+  "companyName": zod.string().optional()
 })
 
 export const CreateCustomerResponse = zod.object({
@@ -55,6 +57,7 @@ export const CreateCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "phone": zod.string().nullish(),
+  "companyName": zod.string().nullish(),
   "outstandingBalance": zod.number().optional(),
   "totalIssued": zod.number().optional(),
   "totalRedeemed": zod.number().optional(),
@@ -75,6 +78,7 @@ export const GetCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "phone": zod.string().nullish(),
+  "companyName": zod.string().nullish(),
   "outstandingBalance": zod.number().optional(),
   "totalIssued": zod.number().optional(),
   "totalRedeemed": zod.number().optional(),
@@ -96,7 +100,8 @@ export const UpdateCustomerParams = zod.object({
 export const UpdateCustomerBody = zod.object({
   "name": zod.string().min(1).optional(),
   "email": zod.string().email().optional(),
-  "phone": zod.string().optional()
+  "phone": zod.string().nullish(),
+  "companyName": zod.string().nullish()
 })
 
 export const UpdateCustomerResponse = zod.object({
@@ -104,6 +109,7 @@ export const UpdateCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "phone": zod.string().nullish(),
+  "companyName": zod.string().nullish(),
   "outstandingBalance": zod.number().optional(),
   "totalIssued": zod.number().optional(),
   "totalRedeemed": zod.number().optional(),
@@ -888,6 +894,28 @@ export const TriggerRewardsScanResponse = zod.object({
   "pending": zod.number(),
   "skippedNoCustomer": zod.number(),
   "limitReached": zod.boolean()
+})
+
+
+/**
+ * @summary Preview potential Mint Bucks for unpaid/in-pipeline invoices
+ */
+export const GetRewardsPipelineResponse = zod.object({
+  "items": zod.array(zod.object({
+  "printavoInvoiceId": zod.string(),
+  "printavoVisualId": zod.string(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "customerLinked": zod.boolean(),
+  "total": zod.number().nullish(),
+  "amountPaid": zod.number().nullish(),
+  "ruleId": zod.number(),
+  "ruleName": zod.string(),
+  "potentialAmount": zod.number(),
+  "createdAt": zod.string()
+})),
+  "totalPotential": zod.number(),
+  "fetchedAt": zod.string()
 })
 
 

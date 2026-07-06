@@ -52,6 +52,8 @@ export * from './rewardRuleInputRewardType';
 export * from './rewardRuleRewardType';
 export * from './rewardRuleUpdate';
 export * from './rewardRuleUpdateRewardType';
+export * from './rewardsPipelineItem';
+export * from './rewardsPipelineResult';
 export * from './rewardsScanResult';
 export * from './rewardsSettings';
 export * from './rewardsSettingsInput';

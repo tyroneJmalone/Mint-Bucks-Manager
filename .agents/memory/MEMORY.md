@@ -1,4 +1,4 @@
-- [Mint Bucks architecture](mint-bucks-architecture.md) — credit code MB-{8hex}; @swc/helpers explicit runtime dep; email non-blocking; gen mutation hooks take {data}; rewards concurrency invariants.
+- [Mint Bucks architecture](mint-bucks-architecture.md) — @swc/helpers explicit runtime dep; email non-blocking; gen mutation hook shapes; clear nullable field on PATCH = send null not undefined; rewards concurrency invariants.
 - [Printavo API v2 quirks](printavo-api-v2.md) — 25/page cap, poll orders union (Quote|Invoice), invoices paymentStatus filter; no created-at/paidAt sort → VISUAL_ID desc proxy; email+token auth.
 - [Monorepo build & dep gotchas](monorepo-build-deps.md) — @workspace/db consumed via built dist/*.d.ts; run pnpm run typecheck:libs after schema edits; add zod: catalog: + import zod/v4.
 - [pdfkit + esbuild bundling](pdfkit-esbuild-bundling.md) — bundling pdfkit drops its data/*.afm fonts → runtime 500; copy pdfkit data/ into dist as a fatal post-build step (see build.mjs).

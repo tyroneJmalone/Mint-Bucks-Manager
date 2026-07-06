@@ -278,14 +278,16 @@ const PAID_INVOICE_FIELDS = `
   contact { ${CONTACT_FIELDS} }
 `;
 
-// Fetch invoices that are fully paid (paymentStatus: PAID), newest first. Printavo
-// exposes no "paidAt" and no created/updated sort, so we page by VISUAL_ID desc
-// (≈ creation order) and stop once we reach invoices created before `sinceMs`.
-// The rewards ledger dedups by (ruleId, invoiceId), so re-scanning overlapping
-// windows each poll is harmless. Invoices paid long after creation (older than the
-// caller's lookback window) are intentionally not revisited.
-export async function fetchPaidInvoices(
+// Printavo's server-side payment filter. `PARTIAL_PAYMENT` covers invoices with a
+// deposit but an outstanding balance (see printavo-api-v2.md).
+export type PrintavoPaymentStatus = "UNPAID" | "PARTIAL_PAYMENT" | "PAID";
+
+// Fetch invoices with a given payment status, newest first. Printavo exposes no
+// "paidAt" and no created/updated sort, so we page by VISUAL_ID desc (≈ creation
+// order) and stop once we reach invoices created before `sinceMs`.
+export async function fetchInvoicesByPaymentStatus(
   config: PrintavoConfig,
+  paymentStatus: PrintavoPaymentStatus,
   sinceMs: number,
   maxPages = 80,
 ): Promise<PrintavoPaidInvoice[]> {
@@ -295,8 +297,8 @@ export async function fetchPaidInvoices(
 
   while (pages < maxPages) {
     const data = await gql<{ invoices: { nodes: RawInvoice[]; pageInfo: PageInfo } }>(config, `
-      query GetPaidInvoices($first: Int!, $after: String) {
-        invoices(first: $first, after: $after, paymentStatus: PAID, sortOn: VISUAL_ID, sortDescending: true) {
+      query GetInvoicesByPaymentStatus($first: Int!, $after: String) {
+        invoices(first: $first, after: $after, paymentStatus: ${paymentStatus}, sortOn: VISUAL_ID, sortDescending: true) {
           nodes { ${PAID_INVOICE_FIELDS} }
           pageInfo { hasNextPage endCursor }
         }
@@ -320,6 +322,33 @@ export async function fetchPaidInvoices(
   }
 
   return all;
+}
+
+// Fetch invoices that are fully paid, newest first. The rewards ledger dedups by
+// (ruleId, invoiceId), so re-scanning overlapping windows each poll is harmless.
+// Invoices paid long after creation (older than the caller's lookback window) are
+// intentionally not revisited.
+export async function fetchPaidInvoices(
+  config: PrintavoConfig,
+  sinceMs: number,
+  maxPages = 80,
+): Promise<PrintavoPaidInvoice[]> {
+  return fetchInvoicesByPaymentStatus(config, "PAID", sinceMs, maxPages);
+}
+
+// Fetch invoices that are in the pipeline (not yet fully paid) — i.e. unpaid or
+// partially paid — for the rewards forecast. Two paged queries, merged. Capped at
+// a smaller page budget since this runs on-demand behind the shared request gate.
+export async function fetchPipelineInvoices(
+  config: PrintavoConfig,
+  sinceMs: number,
+  maxPages = 40,
+): Promise<PrintavoPaidInvoice[]> {
+  const [unpaid, partial] = await Promise.all([
+    fetchInvoicesByPaymentStatus(config, "UNPAID", sinceMs, maxPages),
+    fetchInvoicesByPaymentStatus(config, "PARTIAL_PAYMENT", sinceMs, maxPages),
+  ]);
+  return [...unpaid, ...partial];
 }
 
 export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: string): Promise<PrintavoOrder | null> {

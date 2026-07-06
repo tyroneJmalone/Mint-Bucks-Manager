@@ -804,6 +804,23 @@ paths:
         "400":
           description: Printavo not configured
 
+  /rewards/pipeline:
+    get:
+      operationId: getRewardsPipeline
+      tags: [rewards]
+      summary: Preview potential Mint Bucks for unpaid/in-pipeline invoices
+      responses:
+        "200":
+          description: Pipeline preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardsPipelineResult"
+        "400":
+          description: Printavo not configured
+        "502":
+          description: Failed to fetch from Printavo
+
 components:
   schemas:
     HealthStatus:
@@ -824,6 +841,8 @@ components:
         email:
           type: string
         phone:
+          type: ["string", "null"]
+        companyName:
           type: ["string", "null"]
         outstandingBalance:
           type: number
@@ -848,6 +867,8 @@ components:
           format: email
         phone:
           type: string
+        companyName:
+          type: string
 
     CustomerUpdate:
       type: object
@@ -859,7 +880,9 @@ components:
           type: string
           format: email
         phone:
-          type: string
+          type: ["string", "null"]
+        companyName:
+          type: ["string", "null"]
 
     Credit:
       type: object
@@ -1387,3 +1410,43 @@ components:
           type: integer
         limitReached:
           type: boolean
+
+    RewardsPipelineItem:
+      type: object
+      required: [printavoInvoiceId, printavoVisualId, customerName, customerEmail, customerLinked, ruleId, ruleName, potentialAmount, createdAt]
+      properties:
+        printavoInvoiceId:
+          type: string
+        printavoVisualId:
+          type: string
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerLinked:
+          type: boolean
+        total:
+          type: ["number", "null"]
+        amountPaid:
+          type: ["number", "null"]
+        ruleId:
+          type: integer
+        ruleName:
+          type: string
+        potentialAmount:
+          type: number
+        createdAt:
+          type: string
+
+    RewardsPipelineResult:
+      type: object
+      required: [items, totalPotential, fetchedAt]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RewardsPipelineItem"
+        totalPotential:
+          type: number
+        fetchedAt:
+          type: string

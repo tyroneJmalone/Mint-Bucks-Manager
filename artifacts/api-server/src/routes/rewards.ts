@@ -16,6 +16,7 @@ import {
   getRewardsConfig,
   setSetting,
   getSetting,
+  getPrintavoConfig,
   type RewardsConfig,
 } from "../lib/settings";
 import {
@@ -24,6 +25,7 @@ import {
   approveAward,
   rejectAward,
   getRewardsStats,
+  computePipelinePreview,
   type RewardTypeValue,
 } from "../lib/rewards";
 import { runRewardsPoll, startPoller } from "../lib/poller";
@@ -335,6 +337,24 @@ router.post("/rewards/scan", async (_req, res): Promise<void> => {
     return;
   }
   res.json(result);
+});
+
+// ── Pipeline preview ─────────────────────────────────────────────────────────
+// Forecast (read-only) of Mint Bucks that not-yet-fully-paid invoices would earn.
+// Hits Printavo synchronously, so it's on-demand only (not on the poll schedule).
+router.get("/rewards/pipeline", async (_req, res): Promise<void> => {
+  const config = await getPrintavoConfig();
+  if (!config) {
+    res.status(400).json({ error: "Printavo is not configured" });
+    return;
+  }
+  try {
+    const result = await computePipelinePreview(config);
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "Rewards: pipeline preview failed");
+    res.status(502).json({ error: "Failed to fetch pipeline from Printavo" });
+  }
 });
 
 export default router;

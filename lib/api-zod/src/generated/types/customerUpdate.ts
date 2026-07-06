@@ -10,5 +10,8 @@ export interface CustomerUpdate {
   /** @minLength 1 */
   name?: string;
   email?: string;
-  phone?: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  companyName?: string | null;
 }

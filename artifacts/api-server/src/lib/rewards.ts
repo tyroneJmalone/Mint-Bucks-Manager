@@ -12,7 +12,12 @@ import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "./logger";
 import { getRewardsConfig, setSetting, type RewardsConfig } from "./settings";
-import { fetchPaidInvoices, type PrintavoConfig, type PrintavoPaidInvoice } from "./printavo";
+import {
+  fetchPaidInvoices,
+  fetchPipelineInvoices,
+  type PrintavoConfig,
+  type PrintavoPaidInvoice,
+} from "./printavo";
 import { sendCreditIssuedEmail } from "./email";
 
 // A single fixed advisory-lock key serializes every reward issuance (scan +
@@ -469,6 +474,108 @@ export async function runRewardsScan(config: PrintavoConfig): Promise<RewardsSca
   await setSetting("rewards_last_scan_at", new Date().toISOString()).catch(() => {});
   logger.info(result, "Rewards scan complete");
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline preview (forecast — no writes)
+// ---------------------------------------------------------------------------
+
+export interface PipelinePreviewItem {
+  printavoInvoiceId: string;
+  printavoVisualId: string;
+  customerName: string;
+  customerEmail: string;
+  customerLinked: boolean;
+  total: number | null;
+  amountPaid: number | null;
+  ruleId: number;
+  ruleName: string;
+  potentialAmount: number;
+  createdAt: string;
+}
+
+export interface PipelinePreviewResult {
+  items: PipelinePreviewItem[];
+  totalPotential: number;
+  fetchedAt: string;
+}
+
+/**
+ * Forecast the Mint Bucks that not-yet-fully-paid invoices would earn if paid in
+ * full. Read-only: fetches unpaid/partially-paid invoices, applies the same start
+ * date + rule matching as the real scan, and computes each potential award as if
+ * amountPaid === total (so percent_paid rules reflect full payment). One row per
+ * (invoice, rule) pair — mirroring the scan, which awards every matching rule.
+ * The annual limit is intentionally NOT applied (this is gross upcoming liability).
+ */
+export async function computePipelinePreview(config: PrintavoConfig): Promise<PipelinePreviewResult> {
+  const fetchedAt = new Date().toISOString();
+  const cfg = await getRewardsConfig();
+
+  const rules = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.enabled, true));
+  if (!rules.length) return { items: [], totalPotential: 0, fetchedAt };
+
+  const startMs = new Date(cfg.startDate).getTime();
+  const lookbackMs = Date.now() - cfg.lookbackDays * 24 * 60 * 60 * 1000;
+  const cutoffMs = Math.max(startMs, lookbackMs);
+
+  const invoices = await fetchPipelineInvoices(config, cutoffMs);
+
+  // Resolve customer linkage in one query rather than per-invoice lookups.
+  const emails = [
+    ...new Set(
+      invoices
+        .map((inv) => inv.customer.email?.toLowerCase())
+        .filter((e): e is string => !!e),
+    ),
+  ];
+  const linkedEmails = new Set<string>();
+  if (emails.length) {
+    const rows = await db
+      .select({ email: customersTable.email })
+      .from(customersTable)
+      .where(inArray(customersTable.email, emails));
+    for (const r of rows) linkedEmails.add(r.email.toLowerCase());
+  }
+
+  const items: PipelinePreviewItem[] = [];
+  let totalPotential = 0;
+
+  for (const inv of invoices) {
+    if (new Date(inv.createdAt).getTime() < startMs) continue;
+
+    for (const rule of rules) {
+      if (!invoiceMatchesRule(inv, rule)) continue;
+
+      // Forecast as if the invoice is paid in full, so percent_paid reflects the
+      // full potential rather than the (near-zero) amount paid so far.
+      const potential = computeAward({ ...inv, amountPaid: inv.total }, rule);
+      if (potential <= 0) continue;
+
+      const email = inv.customer.email?.toLowerCase() ?? "";
+      items.push({
+        printavoInvoiceId: inv.id,
+        printavoVisualId: inv.visualId,
+        customerName: inv.customer.fullName || "",
+        customerEmail: inv.customer.email || "",
+        customerLinked: email ? linkedEmails.has(email) : false,
+        total: inv.total,
+        amountPaid: inv.amountPaid,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        potentialAmount: potential,
+        createdAt: new Date(inv.createdAt).toISOString(),
+      });
+      totalPotential += potential;
+    }
+  }
+
+  items.sort((a, b) => b.potentialAmount - a.potentialAmount);
+  return {
+    items,
+    totalPotential: Math.round(totalPotential * 100) / 100,
+    fetchedAt,
+  };
 }
 
 /** Aggregate stats for the rewards summary endpoint. */

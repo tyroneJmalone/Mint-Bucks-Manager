@@ -15,6 +15,8 @@ export interface Customer {
   email: string;
   /** @nullable */
   phone?: string | null;
+  /** @nullable */
+  companyName?: string | null;
   outstandingBalance?: number;
   totalIssued?: number;
   totalRedeemed?: number;
@@ -27,13 +29,17 @@ export interface CustomerInput {
   name: string;
   email: string;
   phone?: string;
+  companyName?: string;
 }
 
 export interface CustomerUpdate {
   /** @minLength 1 */
   name?: string;
   email?: string;
-  phone?: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  companyName?: string | null;
 }
 
 export type CreditStatus = typeof CreditStatus[keyof typeof CreditStatus];
@@ -455,6 +461,28 @@ export interface RewardsScanResult {
   pending: number;
   skippedNoCustomer: number;
   limitReached: boolean;
+}
+
+export interface RewardsPipelineItem {
+  printavoInvoiceId: string;
+  printavoVisualId: string;
+  customerName: string;
+  customerEmail: string;
+  customerLinked: boolean;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  amountPaid?: number | null;
+  ruleId: number;
+  ruleName: string;
+  potentialAmount: number;
+  createdAt: string;
+}
+
+export interface RewardsPipelineResult {
+  items: RewardsPipelineItem[];
+  totalPotential: number;
+  fetchedAt: string;
 }
 
 export type ListCustomersParams = {

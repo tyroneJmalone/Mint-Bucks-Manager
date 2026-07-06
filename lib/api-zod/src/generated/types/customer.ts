@@ -12,6 +12,8 @@ export interface Customer {
   email: string;
   /** @nullable */
   phone?: string | null;
+  /** @nullable */
+  companyName?: string | null;
   outstandingBalance?: number;
   totalIssued?: number;
   totalRedeemed?: number;

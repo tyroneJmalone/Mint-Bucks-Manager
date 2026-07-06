@@ -55,6 +55,7 @@ import type {
   RewardRule,
   RewardRuleInput,
   RewardRuleUpdate,
+  RewardsPipelineResult,
   RewardsScanResult,
   RewardsSettings,
   RewardsSettingsInput,
@@ -3248,4 +3249,81 @@ export const useTriggerRewardsScan = <TError = ErrorType<void>,
       > => {
       return useMutation(getTriggerRewardsScanMutationOptions(options));
     }
+
+export const getGetRewardsPipelineUrl = () => {
+
+
+
+
+  return `/api/rewards/pipeline`
+}
+
+/**
+ * @summary Preview potential Mint Bucks for unpaid/in-pipeline invoices
+ */
+export const getRewardsPipeline = async ( options?: RequestInit): Promise<RewardsPipelineResult> => {
+
+  return customFetch<RewardsPipelineResult>(getGetRewardsPipelineUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRewardsPipelineQueryKey = () => {
+    return [
+    `/api/rewards/pipeline`
+    ] as const;
+    }
+
+
+export const getGetRewardsPipelineQueryOptions = <TData = Awaited<ReturnType<typeof getRewardsPipeline>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRewardsPipeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRewardsPipelineQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRewardsPipeline>>> = ({ signal }) => getRewardsPipeline({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRewardsPipeline>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRewardsPipelineQueryResult = NonNullable<Awaited<ReturnType<typeof getRewardsPipeline>>>
+export type GetRewardsPipelineQueryError = ErrorType<void>
+
+
+/**
+ * @summary Preview potential Mint Bucks for unpaid/in-pipeline invoices
+ */
+
+export function useGetRewardsPipeline<TData = Awaited<ReturnType<typeof getRewardsPipeline>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRewardsPipeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRewardsPipelineQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

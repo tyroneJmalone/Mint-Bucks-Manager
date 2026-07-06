@@ -17,7 +17,12 @@ pdfkit → fontkit → brotli uses `@swc/helpers` at runtime. Must be installed 
 Email functions in `artifacts/api-server/src/lib/email.ts` catch all errors and log them. If SMTP is not configured, emails are logged with the content but not sent. Server never crashes on email failure. Required env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, FROM_EMAIL, APP_URL.
 
 ## API mutation hook shape
-Generated hooks from openapi-react-query: mutation hooks take `{ data: T }` as the argument (not `T` directly). Query hooks return `T` directly.
+Generated hooks from openapi-react-query: mutation hooks take `{ data: T }` as the argument (not `T` directly). Query hooks return `T` directly. `useUpdateCustomer` (and similar id+body mutations) take `{ id, data }`; delete takes `{ id }`; create takes `{ data }`.
+
+## Clearing a nullable field on PATCH/update: send null, never undefined
+To CLEAR an optional/nullable field via a generated update, send `null` — not `undefined` and not an omitted key. `undefined` is dropped by JSON.stringify, so the PATCH body lacks the key, the update-body zod treats it as "no change", and drizzle `.set()` leaves the old value (silent no-op).
+**Why:** `foo || undefined` is correct for CREATE (absent → column default / NULL) but WRONG for UPDATE — it makes fields impossible to blank. For update use `foo?.trim() ? foo.trim() : null`.
+**How to apply:** the field must also be nullable in the *Update* OpenAPI schema (`type: ["string","null"]`), then re-run api-spec codegen. Input (create) schema can stay plain string.
 
 ## Binary endpoints
 QR code and certificate are binary responses — frontend uses `<img src="/api/credits/:id/qr">` and `<a href="/api/credits/:id/certificate" download>` as direct URLs, not React Query hooks.

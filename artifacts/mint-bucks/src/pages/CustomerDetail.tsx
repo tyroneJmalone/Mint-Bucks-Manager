@@ -1,17 +1,34 @@
-import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, Mail, Phone, CreditCard, Plus, Bell } from "lucide-react";
+import { useState } from "react";
+import { useParams, Link } from "wouter";
+import { ArrowLeft, Mail, Phone, Building2, CreditCard, Plus, Bell, Pencil } from "lucide-react";
 import {
   useGetCustomer,
   useGetCustomerCredits,
   useSendCreditReminder,
+  useUpdateCustomer,
   getGetCustomerQueryKey,
   getGetCustomerCreditsQueryKey,
+  getListCustomersQueryKey,
 } from "@workspace/api-client-react";
-import { Badge } from "@/components/ui/badge";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+const editSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Valid email required"),
+  phone: z.string().optional(),
+  companyName: z.string().optional(),
+});
+type EditFormData = z.infer<typeof editSchema>;
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -39,8 +56,9 @@ const statusLabels: Record<string, string> = {
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const customerId = parseInt(id, 10);
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId, {
     query: { enabled: !!customerId, queryKey: getGetCustomerQueryKey(customerId) },
@@ -51,6 +69,46 @@ export function CustomerDetail() {
   });
 
   const sendReminder = useSendCreditReminder();
+  const updateCustomer = useUpdateCustomer();
+
+  const form = useForm<EditFormData>({
+    resolver: zodResolver(editSchema),
+    defaultValues: { name: "", email: "", phone: "", companyName: "" },
+  });
+
+  const openEdit = () => {
+    if (!customer) return;
+    form.reset({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone ?? "",
+      companyName: customer.companyName ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const onEditSubmit = (data: EditFormData) => {
+    updateCustomer.mutate(
+      {
+        id: customerId,
+        data: {
+          name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone?.trim() ? data.phone.trim() : null,
+          companyName: data.companyName?.trim() ? data.companyName.trim() : null,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(customerId) });
+          queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+          toast({ title: "Customer updated" });
+          setEditOpen(false);
+        },
+        onError: () => toast({ title: "Failed to update customer", variant: "destructive" }),
+      }
+    );
+  };
 
   const handleRemind = (creditId: number) => {
     sendReminder.mutate(
@@ -93,6 +151,11 @@ export function CustomerDetail() {
           <div>
             <h1 data-testid="text-customer-name" className="text-2xl font-bold text-foreground">{customer.name}</h1>
             <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
+              {customer.companyName && (
+                <span data-testid="text-customer-company" className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" />{customer.companyName}
+                </span>
+              )}
               <a href={`mailto:${customer.email}`} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
                 <Mail className="w-3.5 h-3.5" />{customer.email}
               </a>
@@ -103,11 +166,21 @@ export function CustomerDetail() {
               )}
             </div>
           </div>
-          <Link href={`/credits/new?customerId=${customer.id}&customerName=${encodeURIComponent(customer.name)}`}>
-              <Button data-testid="button-issue-credit" className="gap-2">
-                <Plus className="w-4 h-4" /> Issue Mint Bucks
-              </Button>
-          </Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={openEdit}
+              data-testid="button-edit-customer"
+              className="gap-2"
+            >
+              <Pencil className="w-4 h-4" /> Edit
+            </Button>
+            <Link href={`/credits/new?customerId=${customer.id}&customerName=${encodeURIComponent(customer.name)}`}>
+                <Button data-testid="button-issue-credit" className="gap-2">
+                  <Plus className="w-4 h-4" /> Issue Mint Bucks
+                </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Balance stats */}
@@ -185,6 +258,77 @@ export function CustomerDetail() {
           </div>
         )}
       </div>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input data-testid="input-edit-name" placeholder="Jane Smith" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="companyName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Company (optional)</FormLabel>
+                    <FormControl>
+                      <Input data-testid="input-edit-company" placeholder="Acme Co." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input data-testid="input-edit-email" type="email" placeholder="jane@company.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone (optional)</FormLabel>
+                    <FormControl>
+                      <Input data-testid="input-edit-phone" placeholder="+1 (555) 000-0000" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button type="submit" data-testid="button-save-customer" disabled={updateCustomer.isPending}>
+                  {updateCustomer.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

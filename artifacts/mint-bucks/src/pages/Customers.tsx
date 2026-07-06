@@ -18,6 +18,7 @@ const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email required"),
   phone: z.string().optional(),
+  companyName: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -42,12 +43,19 @@ export function Customers() {
 
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
-    defaultValues: { name: "", email: "", phone: "" },
+    defaultValues: { name: "", email: "", phone: "", companyName: "" },
   });
 
   const onSubmit = (data: CustomerFormData) => {
     createCustomer.mutate(
-      { data: { name: data.name, email: data.email, phone: data.phone || undefined } },
+      {
+        data: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone || undefined,
+          companyName: data.companyName || undefined,
+        },
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
@@ -116,6 +124,19 @@ export function Customers() {
                       <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input data-testid="input-email" type="email" placeholder="jane@company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="companyName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company (optional)</FormLabel>
+                      <FormControl>
+                        <Input data-testid="input-company" placeholder="Acme Co." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

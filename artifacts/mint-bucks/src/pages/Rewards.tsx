@@ -9,6 +9,9 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  TrendingUp,
+  RefreshCw,
+  Building2,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -25,9 +28,12 @@ import {
   useApproveRewardAward,
   useRejectRewardAward,
   useTriggerRewardsScan,
+  useGetRewardsPipeline,
+  getGetRewardsPipelineQueryKey,
   type RewardRule,
   type RewardAward,
   type RewardsSettingsInput,
+  type RewardsPipelineItem,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -124,11 +130,27 @@ export function Rewards() {
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RewardRule | null>(null);
   const [deletingRule, setDeletingRule] = useState<RewardRule | null>(null);
+  const [activeTab, setActiveTab] = useState("pending");
 
   const { data: summary, isLoading: summaryLoading } = useGetRewardsSummary();
   const { data: settings } = useGetRewardsSettings();
   const { data: rules, isLoading: rulesLoading } = useListRewardRules();
   const { data: awards, isLoading: awardsLoading } = useListRewardAwards();
+
+  const {
+    data: pipeline,
+    isLoading: pipelineLoading,
+    isFetching: pipelineFetching,
+    error: pipelineError,
+    refetch: refetchPipeline,
+  } = useGetRewardsPipeline({
+    query: {
+      queryKey: getGetRewardsPipelineQueryKey(),
+      enabled: activeTab === "pipeline",
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+    },
+  });
 
   const pendingAwards = awards?.filter((a) => a.status === "pending") ?? [];
 
@@ -289,7 +311,7 @@ export function Rewards() {
         )}
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="pending" data-testid="tab-pending">
             Pending
@@ -298,6 +320,9 @@ export function Rewards() {
                 {pendingAwards.length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="pipeline" data-testid="tab-pipeline">
+            Pipeline
           </TabsTrigger>
           <TabsTrigger value="rules" data-testid="tab-rules">
             Rules
@@ -380,6 +405,117 @@ export function Rewards() {
                     <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       No awards waiting for approval
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* Pipeline — forecast of potential Mint Bucks on not-yet-fully-paid invoices */}
+        <TabsContent value="pipeline" className="mt-4">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
+              <div>
+                <div className="text-foreground font-medium">Potential Mint Bucks</div>
+                <div>
+                  Forecast for open Printavo invoices — assumes each is paid in full. Nothing is issued
+                  and annual limits aren't applied here.
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 flex-shrink-0"
+              onClick={() => refetchPipeline()}
+              disabled={pipelineFetching}
+              data-testid="button-refresh-pipeline"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", pipelineFetching && "animate-spin")} />
+              {pipelineFetching ? "Refreshing…" : "Refresh"}
+            </Button>
+          </div>
+
+          {pipeline && pipeline.items.length > 0 && (
+            <div className="mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+              <StatCard label="Potential awards" value={pipeline.items.length} />
+              <StatCard label="Total potential" value={formatCurrency(pipeline.totalPotential)} />
+              <StatCard
+                label="As of"
+                value={<span className="text-sm font-semibold">{formatDateTime(pipeline.fetchedAt)}</span>}
+              />
+            </div>
+          )}
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Paid</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Potential</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pipelineLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : pipelineError ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                      <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                      {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
+                    </td>
+                  </tr>
+                ) : pipeline?.items.length ? (
+                  pipeline.items.map((item: RewardsPipelineItem) => (
+                    <tr
+                      key={`${item.printavoInvoiceId}-${item.ruleId}`}
+                      data-testid={`row-pipeline-${item.printavoInvoiceId}-${item.ruleId}`}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-foreground font-medium">{item.customerName || "Unknown"}</span>
+                          {!item.customerLinked && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600" data-testid="badge-not-linked">
+                              Not linked
+                            </span>
+                          )}
+                        </div>
+                        {item.customerEmail && <div className="text-xs text-muted-foreground">{item.customerEmail}</div>}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                        {item.printavoVisualId ? `#${item.printavoVisualId}` : item.printavoInvoiceId}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.ruleName}</td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
+                        {item.total != null ? formatCurrency(item.total) : "—"}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
+                        {item.amountPaid != null ? formatCurrency(item.amountPaid) : "—"}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm font-semibold text-primary">
+                        {formatCurrency(item.potentialAmount)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                      <Building2 className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                      No open invoices match your active rules right now
                     </td>
                   </tr>
                 )}
