@@ -34,6 +34,8 @@ export interface PrintavoPaidInvoice {
   productionDueAt: string | null;
   customerDueAt: string | null;
   customer: PrintavoCustomer;
+  /** Whether this order is still a Quote (pre-approval) or an Invoice. */
+  stage: "quote" | "invoice";
 }
 
 const PRINTAVO_ENDPOINT = "https://www.printavo.com/api/v2";
@@ -43,8 +45,14 @@ const PAGE_SIZE = 25;
 
 // Printavo rate limit: 10 requests per 5 seconds per email/IP. We serialize all
 // requests through a single gate spaced at least MIN_INTERVAL_MS apart so that
-// concurrent callers (poller + manual sync) never trip a 429.
-const MIN_INTERVAL_MS = 550;
+// concurrent callers (poller + manual sync) never trip a 429. 620ms ≈ 8 req/5s,
+// leaving headroom under the cap (550ms ≈ 9.1 req/5s proved close enough to
+// trip 429s during startup bursts).
+const MIN_INTERVAL_MS = 620;
+// If Printavo still rate-limits us (e.g. requests from outside this process
+// share the same email/IP budget), wait out the window and retry once instead
+// of failing the whole scan.
+const RATE_LIMIT_RETRY_MS = 5200;
 let requestGate: Promise<void> = Promise.resolve();
 let lastRequestAt = 0;
 
@@ -102,11 +110,22 @@ function buildHeaders(config: PrintavoConfig): Record<string, string> {
 async function gql<T>(config: PrintavoConfig, query: string, variables?: Record<string, unknown>): Promise<T> {
   await throttle();
 
-  const res = await fetch(PRINTAVO_ENDPOINT, {
+  let res = await fetch(PRINTAVO_ENDPOINT, {
     method: "POST",
     headers: buildHeaders(config),
     body: JSON.stringify({ query, variables }),
   });
+
+  if (res.status === 429) {
+    logger.warn("Printavo rate limit hit; retrying after cooldown");
+    await new Promise((r) => setTimeout(r, RATE_LIMIT_RETRY_MS));
+    await throttle();
+    res = await fetch(PRINTAVO_ENDPOINT, {
+      method: "POST",
+      headers: buildHeaders(config),
+      body: JSON.stringify({ query, variables }),
+    });
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -249,7 +268,7 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
   return all;
 }
 
-function mapInvoice(inv: RawInvoice): PrintavoPaidInvoice {
+function mapInvoice(inv: RawInvoice, stage: "quote" | "invoice" = "invoice"): PrintavoPaidInvoice {
   return {
     id: inv.id,
     visualId: inv.visualId ?? inv.id,
@@ -262,6 +281,7 @@ function mapInvoice(inv: RawInvoice): PrintavoPaidInvoice {
     productionDueAt: inv.dueAt ?? null,
     customerDueAt: inv.customerDueAt ?? null,
     customer: mapContact(inv.contact ?? { id: "", fullName: null, email: null, phone: null }),
+    stage,
   };
 }
 
@@ -336,19 +356,78 @@ export async function fetchPaidInvoices(
   return fetchInvoicesByPaymentStatus(config, "PAID", sinceMs, maxPages);
 }
 
-// Fetch invoices that are in the pipeline (not yet fully paid) — i.e. unpaid or
-// partially paid — for the rewards forecast. Two paged queries, merged. Capped at
-// a smaller page budget since this runs on-demand behind the shared request gate.
+// Raw node from the `orders` union query, spread with identical field sets on
+// both members plus __typename so we can tell quotes from invoices.
+interface RawOrderUnionNode extends RawInvoice {
+  __typename: "Quote" | "Invoice";
+}
+
+// Fetch open quotes (orders that haven't been approved into invoices yet),
+// newest first. The `invoices` query never returns quotes — a job enters
+// Printavo as a Quote and only becomes an Invoice on approval — so the rewards
+// pipeline must scan the `orders` union to see not-yet-approved work. Invoice
+// nodes are skipped here (they're covered by the paymentStatus queries).
+export async function fetchOpenQuotes(
+  config: PrintavoConfig,
+  sinceMs: number,
+  maxPages = 40,
+): Promise<PrintavoPaidInvoice[]> {
+  const all: PrintavoPaidInvoice[] = [];
+  let after: string | undefined;
+  let pages = 0;
+
+  while (pages < maxPages) {
+    const data = await gql<{ orders: { nodes: RawOrderUnionNode[]; pageInfo: PageInfo } }>(config, `
+      query GetOpenQuotes($first: Int!, $after: String) {
+        orders(first: $first, after: $after, sortOn: VISUAL_ID, sortDescending: true) {
+          nodes {
+            __typename
+            ... on Quote { ${PAID_INVOICE_FIELDS} }
+            ... on Invoice { ${PAID_INVOICE_FIELDS} }
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `, { first: PAGE_SIZE, after });
+
+    let reachedOlder = false;
+    for (const node of data.orders.nodes) {
+      const createdMs = node.timestamps?.createdAt ? new Date(node.timestamps.createdAt).getTime() : 0;
+      if (createdMs < sinceMs) {
+        reachedOlder = true;
+        continue;
+      }
+      if (node.__typename !== "Quote") continue;
+      // A quote already paid in full (rare, e.g. pre-paid) isn't "pipeline".
+      const total = node.total ?? 0;
+      if (total > 0 && (node.amountPaid ?? 0) >= total) continue;
+      all.push(mapInvoice(node, "quote"));
+    }
+
+    pages++;
+    const { hasNextPage, endCursor } = data.orders.pageInfo;
+    if (reachedOlder || !hasNextPage || !endCursor) break;
+    after = endCursor;
+  }
+
+  return all;
+}
+
+// Fetch orders that are in the pipeline (not yet fully paid) for the rewards
+// forecast: open quotes plus unpaid / partially-paid invoices. Three paged
+// queries, merged. Capped at a smaller page budget since this runs on-demand
+// behind the shared request gate.
 export async function fetchPipelineInvoices(
   config: PrintavoConfig,
   sinceMs: number,
   maxPages = 40,
 ): Promise<PrintavoPaidInvoice[]> {
-  const [unpaid, partial] = await Promise.all([
+  const [quotes, unpaid, partial] = await Promise.all([
+    fetchOpenQuotes(config, sinceMs, maxPages),
     fetchInvoicesByPaymentStatus(config, "UNPAID", sinceMs, maxPages),
     fetchInvoicesByPaymentStatus(config, "PARTIAL_PAYMENT", sinceMs, maxPages),
   ]);
-  return [...unpaid, ...partial];
+  return [...quotes, ...unpaid, ...partial];
 }
 
 export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: string): Promise<PrintavoOrder | null> {

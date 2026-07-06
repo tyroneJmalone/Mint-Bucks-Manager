@@ -413,7 +413,7 @@ export function Rewards() {
           </div>
         </TabsContent>
 
-        {/* Pipeline — forecast of potential Mint Bucks on not-yet-fully-paid invoices */}
+        {/* Pipeline — forecast of potential Mint Bucks on quotes and not-yet-fully-paid invoices */}
         <TabsContent value="pipeline" className="mt-4">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -421,8 +421,8 @@ export function Rewards() {
               <div>
                 <div className="text-foreground font-medium">Potential Mint Bucks</div>
                 <div>
-                  Forecast for open Printavo invoices — assumes each is paid in full. Nothing is issued
-                  and annual limits aren't applied here.
+                  Forecast for open Printavo quotes and unpaid invoices — assumes each is approved and
+                  paid in full. Nothing is issued and annual limits aren't applied here.
                 </div>
               </div>
             </div>
@@ -455,7 +455,7 @@ export function Rewards() {
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Paid</th>
@@ -497,7 +497,18 @@ export function Rewards() {
                         {item.customerEmail && <div className="text-xs text-muted-foreground">{item.customerEmail}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                        {item.printavoVisualId ? `#${item.printavoVisualId}` : item.printavoInvoiceId}
+                        <div className="flex items-center gap-2">
+                          <span>{item.printavoVisualId ? `#${item.printavoVisualId}` : item.printavoInvoiceId}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                              item.stage === "quote" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700",
+                            )}
+                            data-testid={`badge-stage-${item.printavoInvoiceId}-${item.ruleId}`}
+                          >
+                            {item.stage === "quote" ? "Quote" : "Invoice"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.ruleName}</td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
@@ -515,7 +526,7 @@ export function Rewards() {
                   <tr>
                     <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Building2 className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                      No open invoices match your active rules right now
+                      No open quotes or invoices match your active rules right now
                     </td>
                   </tr>
                 )}

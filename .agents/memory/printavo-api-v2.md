@@ -40,7 +40,22 @@ fields, `page: Int` args, polling `quotes`). None of that exists. The real API:
 - **Lookup by order number:** `orders(query: "<number>")` does a fuzzy search (also matches
   nickname/PO), so filter results to an exact `visualId` match — never trust `nodes[0]`.
 - **Auth headers:** `email` + `token` (not Authorization). Rate limit ~10 req / 5s per
-  email/IP; serialize requests through a single throttle (~550ms spacing) to avoid 429s.
+  email/IP; serialize requests through a single throttle (≥620ms spacing — see "Rate limit
+  margin" below) to avoid 429s.
+
+## Quotes never appear in `invoices` — pipeline/forecast must scan the orders union
+The rewards pipeline originally queried only `invoices(paymentStatus: UNPAID|PARTIAL_PAYMENT)`
+and showed 0 items while a $1,500 quote sat open. **Why:** `invoices` returns only approved
+Invoices; open Quotes are invisible to it. **How to apply:** any "upcoming/open work" feature
+must also page the `orders` union and keep `__typename === "Quote"` nodes (Quote supports the
+full invoice field set: total, amountPaid, tags, status, dueAt, customerDueAt, contact —
+verified live). Invoice nodes from the union are skipped to avoid double-counting with the
+paymentStatus queries.
+
+## Rate limit margin
+550ms request spacing (≈9.1 req/5s) tripped real 429s during startup bursts (poller scan +
+on-demand pipeline). Use ≥620ms (≈8 req/5s) and retry once after ~5s on 429 — a lone 429
+should not fail a whole scan.
 
 ## Invoices query (payment polling — Rewards)
 The `invoices` query supports server-side filters: `paymentStatus` (enum

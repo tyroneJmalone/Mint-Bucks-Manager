@@ -463,9 +463,18 @@ export interface RewardsScanResult {
   limitReached: boolean;
 }
 
+export type RewardsPipelineItemStage = typeof RewardsPipelineItemStage[keyof typeof RewardsPipelineItemStage];
+
+
+export const RewardsPipelineItemStage = {
+  quote: 'quote',
+  invoice: 'invoice',
+} as const;
+
 export interface RewardsPipelineItem {
   printavoInvoiceId: string;
   printavoVisualId: string;
+  stage: RewardsPipelineItemStage;
   customerName: string;
   customerEmail: string;
   customerLinked: boolean;

@@ -904,6 +904,7 @@ export const GetRewardsPipelineResponse = zod.object({
   "items": zod.array(zod.object({
   "printavoInvoiceId": zod.string(),
   "printavoVisualId": zod.string(),
+  "stage": zod.enum(['quote', 'invoice']),
   "customerName": zod.string(),
   "customerEmail": zod.string(),
   "customerLinked": zod.boolean(),

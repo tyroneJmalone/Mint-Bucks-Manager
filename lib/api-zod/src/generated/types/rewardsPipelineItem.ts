@@ -5,10 +5,12 @@
  * Mint Bucks promotional credit system for Mint Printworks
  * OpenAPI spec version: 0.1.0
  */
+import type { RewardsPipelineItemStage } from './rewardsPipelineItemStage';
 
 export interface RewardsPipelineItem {
   printavoInvoiceId: string;
   printavoVisualId: string;
+  stage: RewardsPipelineItemStage;
   customerName: string;
   customerEmail: string;
   customerLinked: boolean;

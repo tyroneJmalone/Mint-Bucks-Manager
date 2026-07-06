@@ -492,6 +492,7 @@ export interface PipelinePreviewItem {
   ruleName: string;
   potentialAmount: number;
   createdAt: string;
+  stage: "quote" | "invoice";
 }
 
 export interface PipelinePreviewResult {
@@ -565,6 +566,7 @@ export async function computePipelinePreview(config: PrintavoConfig): Promise<Pi
         ruleName: rule.name,
         potentialAmount: potential,
         createdAt: new Date(inv.createdAt).toISOString(),
+        stage: inv.stage,
       });
       totalPotential += potential;
     }

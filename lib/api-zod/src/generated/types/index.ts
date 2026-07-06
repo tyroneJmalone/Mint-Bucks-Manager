@@ -53,6 +53,7 @@ export * from './rewardRuleRewardType';
 export * from './rewardRuleUpdate';
 export * from './rewardRuleUpdateRewardType';
 export * from './rewardsPipelineItem';
+export * from './rewardsPipelineItemStage';
 export * from './rewardsPipelineResult';
 export * from './rewardsScanResult';
 export * from './rewardsSettings';

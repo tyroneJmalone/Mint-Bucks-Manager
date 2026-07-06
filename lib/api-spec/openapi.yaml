@@ -1413,12 +1413,15 @@ components:
 
     RewardsPipelineItem:
       type: object
-      required: [printavoInvoiceId, printavoVisualId, customerName, customerEmail, customerLinked, ruleId, ruleName, potentialAmount, createdAt]
+      required: [printavoInvoiceId, printavoVisualId, customerName, customerEmail, customerLinked, ruleId, ruleName, potentialAmount, createdAt, stage]
       properties:
         printavoInvoiceId:
           type: string
         printavoVisualId:
           type: string
+        stage:
+          type: string
+          enum: [quote, invoice]
         customerName:
           type: string
         customerEmail:
