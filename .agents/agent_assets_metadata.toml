@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "95thF_zjrXCBbEdiXTFbA"
+uri = "file://MINT_BUCKS_HANDOFF.md"
+type = "text"
+title = "Mint Bucks — Technical Handoff for Integration Planning"
