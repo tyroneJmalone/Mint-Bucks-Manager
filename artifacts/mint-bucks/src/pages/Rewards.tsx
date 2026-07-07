@@ -66,6 +66,11 @@ import { RuleFormDialog } from "@/components/rewards/RuleFormDialog";
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
+// Internal (merchant-side) Printavo order page. Both quotes and invoices live
+// under /invoices/{internalId} — verified against the live API's `url` field.
+function printavoOrderUrl(printavoId: string) {
+  return `https://www.printavo.com/invoices/${printavoId}`;
+}
 function formatDateTime(s?: string | null) {
   if (!s) return "—";
   return new Date(s).toLocaleString("en-US", {
@@ -371,7 +376,15 @@ export function Rewards() {
                         {a.customerEmail && <div className="text-xs text-muted-foreground">{a.customerEmail}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                        {a.printavoVisualId ? `#${a.printavoVisualId}` : a.printavoInvoiceId}
+                        <a
+                          href={printavoOrderUrl(a.printavoInvoiceId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary hover:underline"
+                          data-testid={`link-printavo-pending-${a.id}`}
+                        >
+                          {a.printavoVisualId ? `#${a.printavoVisualId}` : a.printavoInvoiceId}
+                        </a>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-primary">{formatCurrency(a.amount)}</td>
@@ -498,7 +511,15 @@ export function Rewards() {
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <span>{item.printavoVisualId ? `#${item.printavoVisualId}` : item.printavoInvoiceId}</span>
+                          <a
+                            href={printavoOrderUrl(item.printavoInvoiceId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-primary hover:underline"
+                            data-testid={`link-printavo-pipeline-${item.printavoInvoiceId}-${item.ruleId}`}
+                          >
+                            {item.printavoVisualId ? `#${item.printavoVisualId}` : item.printavoInvoiceId}
+                          </a>
                           <span
                             className={cn(
                               "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
@@ -663,7 +684,15 @@ export function Rewards() {
                         {a.customerEmail && <div className="text-xs text-muted-foreground">{a.customerEmail}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                        {a.printavoVisualId ? `#${a.printavoVisualId}` : a.printavoInvoiceId}
+                        <a
+                          href={printavoOrderUrl(a.printavoInvoiceId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary hover:underline"
+                          data-testid={`link-printavo-award-${a.id}`}
+                        >
+                          {a.printavoVisualId ? `#${a.printavoVisualId}` : a.printavoInvoiceId}
+                        </a>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-foreground">{formatCurrency(a.amount)}</td>
