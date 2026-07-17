@@ -235,6 +235,43 @@ type ClaimResult =
  * limit blocks the award, NO row is written (so a future year is not
  * permanently blocked by the unique constraint).
  */
+/**
+ * Find the local customer matching an invoice's contact email, auto-creating
+ * one from the Printavo contact when missing. Awards need a customer row to
+ * attach credits to; previously unmatched invoices were silently skipped,
+ * which made paid invoices vanish from the app entirely.
+ * Returns null only when the contact has no email at all.
+ */
+async function findOrCreateCustomerForInvoice(inv: PrintavoPaidInvoice) {
+  const email = inv.customer.email?.toLowerCase().trim();
+  if (!email) return null;
+
+  const [existing] = await db.select().from(customersTable).where(eq(customersTable.email, email));
+  if (existing) return existing;
+
+  const inserted = await db
+    .insert(customersTable)
+    .values({
+      name: inv.customer.fullName?.trim() || email,
+      email,
+      phone: inv.customer.primaryPhone ?? null,
+    })
+    .onConflictDoNothing({ target: customersTable.email })
+    .returning();
+
+  if (inserted.length) {
+    logger.info(
+      { email, visualId: inv.visualId },
+      "Rewards: auto-created customer from Printavo contact",
+    );
+    return inserted[0];
+  }
+
+  // Insert race with another scan/sync — the row exists now; fetch it.
+  const [raced] = await db.select().from(customersTable).where(eq(customersTable.email, email));
+  return raced ?? null;
+}
+
 async function claimAward(
   rule: RewardRule,
   inv: PrintavoPaidInvoice,
@@ -271,6 +308,7 @@ async function claimAward(
         printavoInvoiceId: inv.id,
         printavoVisualId: inv.visualId,
         amount: amount.toFixed(2),
+        datePaid: inv.datePaid ?? null,
         status: claimStatus,
         note: `${rule.name} · order #${inv.visualId}`,
       })
@@ -423,26 +461,24 @@ export async function runRewardsScan(config: PrintavoConfig): Promise<RewardsSca
     // on top of the paging cutoff).
     if (new Date(inv.createdAt).getTime() < startMs) continue;
 
-    const email = inv.customer.email;
-    if (!email) continue;
+    // Evaluate rules first so we only touch the customers table for invoices
+    // that actually earn an award.
+    const matches: { rule: RewardRule; amount: number }[] = [];
+    for (const rule of rules) {
+      if (!invoiceMatchesRule(inv, rule)) continue;
+      const amount = computeAward(inv, rule);
+      if (amount > 0) matches.push({ rule, amount });
+    }
+    if (!matches.length) continue;
 
-    const [customer] = await db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.email, email.toLowerCase()));
-
+    const customer = await findOrCreateCustomerForInvoice(inv);
     if (!customer) {
       result.skippedNoCustomer++;
-      logger.debug({ visualId: inv.visualId, email }, "Rewards: no local customer — skipping invoice");
+      logger.debug({ visualId: inv.visualId }, "Rewards: invoice contact has no email — skipping invoice");
       continue;
     }
 
-    for (const rule of rules) {
-      if (!invoiceMatchesRule(inv, rule)) continue;
-
-      const amount = computeAward(inv, rule);
-      if (amount <= 0) continue;
-
+    for (const { rule, amount } of matches) {
       let claim: ClaimResult;
       try {
         claim = await claimAward(rule, inv, customer.id, cfg, amount);

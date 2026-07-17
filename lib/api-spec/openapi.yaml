@@ -1325,6 +1325,9 @@ components:
           type: ["string", "null"]
         amount:
           type: number
+        datePaid:
+          type: ["string", "null"]
+          description: Date (YYYY-MM-DD) the invoice was last paid, captured when the award was created.
         status:
           type: string
           enum: [processing, pending, issued, rejected]

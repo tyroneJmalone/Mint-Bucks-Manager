@@ -280,6 +280,7 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       printavoInvoiceId: r.award.printavoInvoiceId,
       printavoVisualId: r.award.printavoVisualId ?? null,
       amount: parseFloat(r.award.amount as unknown as string),
+      datePaid: r.award.datePaid ?? null,
       status: r.award.status,
       creditId: r.award.creditId ?? null,
       note: r.award.note ?? null,

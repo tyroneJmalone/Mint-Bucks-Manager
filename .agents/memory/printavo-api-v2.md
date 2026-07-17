@@ -76,6 +76,10 @@ The `invoices` query supports server-side filters: `paymentStatus` (enum
   `transactionDate` (plain YYYY-MM-DD — beware `new Date("YYYY-MM-DD")` UTC day-shift when
   rendering). "Date paid" = max Payment transactionDate; ignore non-Payment members. Nesting
   `transactions(first: 25)` inside 25-node pages passed live with no complexity errors.
+  - **`transactionDate` can differ by ±1 day between endpoints** for the same Payment
+    (observed live: `orders(query:)` said 2026-07-15, `invoice(id:)` said 2026-07-16 for the
+    identical transaction) — a Printavo-side timezone rendering quirk. Treat stored paid dates
+    as approximate to ±1 day; don't chase such off-by-one "bugs" in our code.
 - Page size still capped at 25 regardless of `first`.
 
 ## Environment quirk for probing

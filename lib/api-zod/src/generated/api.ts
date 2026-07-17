@@ -850,6 +850,7 @@ export const ListRewardAwardsResponseItem = zod.object({
   "printavoInvoiceId": zod.string(),
   "printavoVisualId": zod.string().nullish(),
   "amount": zod.number(),
+  "datePaid": zod.string().nullish().describe('Date (YYYY-MM-DD) the invoice was last paid, captured when the award was created.'),
   "status": zod.enum(['processing', 'pending', 'issued', 'rejected']),
   "creditId": zod.number().nullish(),
   "note": zod.string().nullish(),

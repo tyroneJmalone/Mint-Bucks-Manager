@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Gift,
   Plus,
@@ -12,6 +12,9 @@ import {
   TrendingUp,
   RefreshCw,
   Building2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -126,6 +129,70 @@ const awardStatusLabels: Record<string, string> = {
   rejected: "Rejected",
 };
 
+type PipelineSortKey =
+  | "customerName"
+  | "printavoVisualId"
+  | "nickname"
+  | "ruleName"
+  | "total"
+  | "datePaid"
+  | "amountPaid"
+  | "potentialAmount";
+type PipelineSort = { key: PipelineSortKey; dir: "asc" | "desc" };
+
+// Numeric/date columns feel most useful sorted high→low first; text columns A→Z.
+const defaultSortDir: Record<PipelineSortKey, "asc" | "desc"> = {
+  customerName: "asc",
+  printavoVisualId: "desc",
+  nickname: "asc",
+  ruleName: "asc",
+  total: "desc",
+  datePaid: "desc",
+  amountPaid: "desc",
+  potentialAmount: "desc",
+};
+
+function SortableTh({
+  label,
+  sortKey,
+  align,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: PipelineSortKey;
+  align: "left" | "right";
+  sort: PipelineSort | null;
+  onSort: (key: PipelineSortKey) => void;
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <th className={cn("px-5 py-3", align === "right" ? "text-right" : "text-left")}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors hover:text-foreground",
+          active ? "text-foreground" : "text-muted-foreground",
+          align === "right" && "flex-row-reverse",
+        )}
+        data-testid={`button-sort-${sortKey}`}
+      >
+        {label}
+        {active ? (
+          sort!.dir === "asc" ? (
+            <ArrowUp className="w-3 h-3" />
+          ) : (
+            <ArrowDown className="w-3 h-3" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3 h-3 opacity-40" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function StatCard({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
   return (
     <div className="bg-card border border-border rounded-lg px-4 py-3">
@@ -166,6 +233,35 @@ export function Rewards() {
   });
 
   const pendingAwards = awards?.filter((a) => a.status === "pending") ?? [];
+
+  // Client-side sorting for the Pipeline table. null = server order (potential, high→low).
+  const [pipelineSort, setPipelineSort] = useState<PipelineSort | null>(null);
+  function togglePipelineSort(key: PipelineSortKey) {
+    setPipelineSort((prev) =>
+      prev?.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: defaultSortDir[key] },
+    );
+  }
+  const sortedPipelineItems = useMemo(() => {
+    const items = pipeline?.items ?? [];
+    if (!pipelineSort) return items;
+    const { key, dir } = pipelineSort;
+    const mul = dir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const va = a[key];
+      const vb = b[key];
+      const aEmpty = va == null || va === "";
+      const bEmpty = vb == null || vb === "";
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1; // blanks sink to the bottom in either direction
+      if (bEmpty) return -1;
+      if (typeof va === "number" && typeof vb === "number") return mul * (va - vb);
+      // Order numbers, dates (YYYY-MM-DD), and text all compare sensibly here;
+      // numeric:true keeps #22462 above #9999.
+      return mul * String(va).localeCompare(String(vb), undefined, { sensitivity: "base", numeric: true });
+    });
+  }, [pipeline, pipelineSort]);
 
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() });
@@ -214,7 +310,7 @@ export function Rewards() {
         toast({
           title: `Scan complete`,
           description: `${result.scanned} invoice(s) checked · ${result.issued} issued · ${result.pending} pending${
-            result.skippedNoCustomer ? ` · ${result.skippedNoCustomer} skipped (no customer)` : ""
+            result.skippedNoCustomer ? ` · ${result.skippedNoCustomer} skipped (no contact email)` : ""
           }${result.limitReached ? " · annual limit reached" : ""}`,
         });
       },
@@ -363,6 +459,7 @@ export function Rewards() {
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
@@ -371,7 +468,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 5 }).map((_, j) => (
+                      {Array.from({ length: 6 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -395,6 +492,9 @@ export function Rewards() {
                         </a>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-date-paid-pending-${a.id}`}>
+                        {formatDateOnly(a.datePaid)}
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-primary">{formatCurrency(a.amount)}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-2">
@@ -423,7 +523,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       No awards waiting for approval
                     </td>
@@ -475,14 +575,14 @@ export function Rewards() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nickname</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Paid</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Potential</th>
+                  <SortableTh label="Customer" sortKey="customerName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Order" sortKey="printavoVisualId" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Nickname" sortKey="nickname" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Rule" sortKey="ruleName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Total" sortKey="total" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Date Paid" sortKey="datePaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Paid" sortKey="amountPaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Potential" sortKey="potentialAmount" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -501,8 +601,8 @@ export function Rewards() {
                       {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
                     </td>
                   </tr>
-                ) : pipeline?.items.length ? (
-                  pipeline.items.map((item: RewardsPipelineItem) => (
+                ) : sortedPipelineItems.length ? (
+                  sortedPipelineItems.map((item: RewardsPipelineItem) => (
                     <tr
                       key={`${item.printavoInvoiceId}-${item.ruleId}`}
                       data-testid={`row-pipeline-${item.printavoInvoiceId}-${item.ruleId}`}
@@ -683,6 +783,7 @@ export function Rewards() {
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Awarded</th>
@@ -692,7 +793,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -716,6 +817,9 @@ export function Rewards() {
                         </a>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-date-paid-award-${a.id}`}>
+                        {formatDateOnly(a.datePaid)}
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-foreground">{formatCurrency(a.amount)}</td>
                       <td className="px-5 py-3.5">
                         <span
@@ -732,7 +836,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       No awards yet
                     </td>
                   </tr>

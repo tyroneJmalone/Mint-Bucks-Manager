@@ -387,6 +387,11 @@ export interface RewardAward {
   /** @nullable */
   printavoVisualId?: string | null;
   amount: number;
+  /**
+     * Date (YYYY-MM-DD) the invoice was last paid, captured when the award was created.
+     * @nullable
+     */
+  datePaid?: string | null;
   status: RewardAwardStatus;
   /** @nullable */
   creditId?: number | null;

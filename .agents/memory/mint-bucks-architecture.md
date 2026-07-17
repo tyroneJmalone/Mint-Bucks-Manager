@@ -16,9 +16,6 @@ pdfkit → fontkit → brotli uses `@swc/helpers` at runtime. Must be installed 
 ## Email is non-blocking
 Email functions in `artifacts/api-server/src/lib/email.ts` catch all errors and log them. If SMTP is not configured, emails are logged with the content but not sent. Server never crashes on email failure. Required env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, FROM_EMAIL, APP_URL.
 
-## API mutation hook shape
-Generated hooks from openapi-react-query: mutation hooks take `{ data: T }` as the argument (not `T` directly). Query hooks return `T` directly. `useUpdateCustomer` (and similar id+body mutations) take `{ id, data }`; delete takes `{ id }`; create takes `{ data }`.
-
 ## Clearing a nullable field on PATCH/update: send null, never undefined
 To CLEAR an optional/nullable field via a generated update, send `null` — not `undefined` and not an omitted key. `undefined` is dropped by JSON.stringify, so the PATCH body lacks the key, the update-body zod treats it as "no change", and drizzle `.set()` leaves the old value (silent no-op).
 **Why:** `foo || undefined` is correct for CREATE (absent → column default / NULL) but WRONG for UPDATE — it makes fields impossible to blank. For update use `foo?.trim() ? foo.trim() : null`.
@@ -43,3 +40,8 @@ Each (rule, invoice) awards at most once, enforced by a DB unique constraint + c
 
 ## Paid-date requirement is approximated
 "Only award invoices paid on/after the start date" is enforced via invoice `createdAt`, because Printavo exposes no paid-at timestamp (see printavo-api-v2.md). Invoices created before the start date but paid after will never earn. Documented deviation from the "locked" requirement, accepted due to API limits.
+
+## Scan auto-creates customers — never require a pre-synced customer list
+The rewards scan must not skip a paid invoice just because its contact email has no local customer row; it finds-or-creates the customer from the Printavo contact at award time (only for invoices that actually match a rule).
+**Why:** requiring a prior bulk customer sync made every matching paid invoice silently vanish (no award, not in pipeline since PAID is excluded there) — the app looked broken with zero explanation.
+**How to apply:** any new award/credit path that needs a customer row should reuse the find-or-create helper (lowercased/trimmed email, on-conflict-ignore + re-select for races). Caveat: some Printavo contacts have comma-separated multi-emails stored as one literal string — fine for matching, but credit emails to that string may bounce (email send is non-blocking by design).
