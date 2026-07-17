@@ -42,6 +42,7 @@ interface RuleFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rule: RewardRule | null;
+  onSaved?: () => void;
 }
 
 const REWARD_TYPE_OPTIONS: { value: RewardType; label: string; hint: string }[] = [
@@ -67,7 +68,7 @@ function toDateInput(s?: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps) {
+export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEdit = !!rule;
@@ -91,6 +92,8 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
   const [invoiceDateTo, setInvoiceDateTo] = useState("");
   const [productionDateFrom, setProductionDateFrom] = useState("");
   const [productionDateTo, setProductionDateTo] = useState("");
+  const [paidDateFrom, setPaidDateFrom] = useState("");
+  const [paidDateTo, setPaidDateTo] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -119,6 +122,8 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       setInvoiceDateTo(toDateInput(c.invoiceDateTo));
       setProductionDateFrom(toDateInput(c.productionDateFrom));
       setProductionDateTo(toDateInput(c.productionDateTo));
+      setPaidDateFrom(toDateInput(c.paidDateFrom));
+      setPaidDateTo(toDateInput(c.paidDateTo));
       setShowConditions(
         c.totalMin != null ||
           c.totalMax != null ||
@@ -127,7 +132,9 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
           !!c.invoiceDateFrom ||
           !!c.invoiceDateTo ||
           !!c.productionDateFrom ||
-          !!c.productionDateTo,
+          !!c.productionDateTo ||
+          !!c.paidDateFrom ||
+          !!c.paidDateTo,
       );
     } else {
       setName("");
@@ -147,6 +154,8 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       setInvoiceDateTo("");
       setProductionDateFrom("");
       setProductionDateTo("");
+      setPaidDateFrom("");
+      setPaidDateTo("");
     }
   }, [open, rule]);
 
@@ -178,6 +187,8 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       if (invoiceDateTo) c.invoiceDateTo = invoiceDateTo;
       if (productionDateFrom) c.productionDateFrom = productionDateFrom;
       if (productionDateTo) c.productionDateTo = productionDateTo;
+      if (paidDateFrom) c.paidDateFrom = paidDateFrom;
+      if (paidDateTo) c.paidDateTo = paidDateTo;
     }
     return c;
   }
@@ -202,6 +213,7 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
       queryClient.invalidateQueries({ queryKey: getListRewardRulesQueryKey() });
       toast({ title: isEdit ? "Rule updated" : "Rule created" });
       onOpenChange(false);
+      onSaved?.();
     };
     const onError = (err: Error) => toast({ title: err.message, variant: "destructive" });
 
@@ -517,6 +529,32 @@ export function RuleFormDialog({ open, onOpenChange, rule }: RuleFormDialogProps
                       value={productionDateTo}
                       onChange={(e) => setProductionDateTo(e.target.value)}
                       data-testid="input-production-date-to"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paid-date-from" className="text-xs">
+                      Paid from
+                    </Label>
+                    <Input
+                      id="paid-date-from"
+                      type="date"
+                      value={paidDateFrom}
+                      onChange={(e) => setPaidDateFrom(e.target.value)}
+                      data-testid="input-paid-date-from"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paid-date-to" className="text-xs">
+                      Paid to
+                    </Label>
+                    <Input
+                      id="paid-date-to"
+                      type="date"
+                      value={paidDateTo}
+                      onChange={(e) => setPaidDateTo(e.target.value)}
+                      data-testid="input-paid-date-to"
                     />
                   </div>
                 </div>

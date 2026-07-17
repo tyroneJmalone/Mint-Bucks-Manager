@@ -1237,6 +1237,10 @@ components:
           type: string
         productionDateTo:
           type: string
+        paidDateFrom:
+          type: string
+        paidDateTo:
+          type: string
 
     RewardRule:
       type: object
@@ -1401,7 +1405,7 @@ components:
 
     RewardsScanResult:
       type: object
-      required: [scanned, issued, pending, skippedNoCustomer, limitReached]
+      required: [scanned, issued, pending, skippedNoCustomer, limitReached, removedStale]
       properties:
         scanned:
           type: integer
@@ -1413,6 +1417,8 @@ components:
           type: integer
         limitReached:
           type: boolean
+        removedStale:
+          type: integer
 
     RewardsPipelineItem:
       type: object

@@ -15,4 +15,6 @@ export interface RewardConditions {
   invoiceDateTo?: string;
   productionDateFrom?: string;
   productionDateTo?: string;
+  paidDateFrom?: string;
+  paidDateTo?: string;
 }

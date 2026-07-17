@@ -690,7 +690,9 @@ export const ListRewardRulesResponseItem = zod.object({
   "invoiceDateFrom": zod.string().optional(),
   "invoiceDateTo": zod.string().optional(),
   "productionDateFrom": zod.string().optional(),
-  "productionDateTo": zod.string().optional()
+  "productionDateTo": zod.string().optional(),
+  "paidDateFrom": zod.string().optional(),
+  "paidDateTo": zod.string().optional()
 }),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
@@ -723,7 +725,9 @@ export const CreateRewardRuleBody = zod.object({
   "invoiceDateFrom": zod.string().optional(),
   "invoiceDateTo": zod.string().optional(),
   "productionDateFrom": zod.string().optional(),
-  "productionDateTo": zod.string().optional()
+  "productionDateTo": zod.string().optional(),
+  "paidDateFrom": zod.string().optional(),
+  "paidDateTo": zod.string().optional()
 }).optional(),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish()
@@ -750,7 +754,9 @@ export const CreateRewardRuleResponse = zod.object({
   "invoiceDateFrom": zod.string().optional(),
   "invoiceDateTo": zod.string().optional(),
   "productionDateFrom": zod.string().optional(),
-  "productionDateTo": zod.string().optional()
+  "productionDateTo": zod.string().optional(),
+  "paidDateFrom": zod.string().optional(),
+  "paidDateTo": zod.string().optional()
 }),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
@@ -786,7 +792,9 @@ export const UpdateRewardRuleBody = zod.object({
   "invoiceDateFrom": zod.string().optional(),
   "invoiceDateTo": zod.string().optional(),
   "productionDateFrom": zod.string().optional(),
-  "productionDateTo": zod.string().optional()
+  "productionDateTo": zod.string().optional(),
+  "paidDateFrom": zod.string().optional(),
+  "paidDateTo": zod.string().optional()
 }).optional(),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish()
@@ -813,7 +821,9 @@ export const UpdateRewardRuleResponse = zod.object({
   "invoiceDateFrom": zod.string().optional(),
   "invoiceDateTo": zod.string().optional(),
   "productionDateFrom": zod.string().optional(),
-  "productionDateTo": zod.string().optional()
+  "productionDateTo": zod.string().optional(),
+  "paidDateFrom": zod.string().optional(),
+  "paidDateTo": zod.string().optional()
 }),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
@@ -894,7 +904,8 @@ export const TriggerRewardsScanResponse = zod.object({
   "issued": zod.number(),
   "pending": zod.number(),
   "skippedNoCustomer": zod.number(),
-  "limitReached": zod.boolean()
+  "limitReached": zod.boolean(),
+  "removedStale": zod.number()
 })
 
 

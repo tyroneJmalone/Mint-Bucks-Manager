@@ -162,13 +162,38 @@ export async function runPoll(): Promise<void> {
 // Rewards evaluation pass. Runs in the same tick as the notification poll but
 // with its own single-flight guard and error boundary so a failure in one never
 // affects the other. Gated by the rewards master switch.
+//
+// Single-flight with one trailing re-run: a scan pages the whole lookback
+// window out of Printavo (throttled, ~15-20s), and the UI auto-triggers a scan
+// after every rule save/toggle/delete. Callers that arrive while a scan is
+// running must NOT just piggyback on it — the running scan loaded the rules
+// before their edit — so they coalesce onto ONE follow-up scan that starts
+// fresh (re-reading rules) after the current one finishes.
+let inflightScan: Promise<RewardsScanResult | null> | null = null;
+let trailingScan: Promise<RewardsScanResult | null> | null = null;
+
 export async function runRewardsPoll(): Promise<RewardsScanResult | null> {
-  const config = await getPrintavoConfig();
-  if (!config) {
-    logger.debug("Printavo not configured — skipping rewards scan");
-    return null;
+  if (inflightScan) {
+    trailingScan ??= inflightScan
+      .catch(() => null)
+      .then(() => {
+        trailingScan = null; // requests arriving during the re-run get their own follow-up
+        return runRewardsPoll();
+      });
+    return trailingScan;
   }
-  return runRewardsScan(config);
+
+  inflightScan = (async () => {
+    const config = await getPrintavoConfig();
+    if (!config) {
+      logger.debug("Printavo not configured — skipping rewards scan");
+      return null;
+    }
+    return runRewardsScan(config);
+  })().finally(() => {
+    inflightScan = null;
+  });
+  return inflightScan;
 }
 
 export async function startPoller(): Promise<void> {

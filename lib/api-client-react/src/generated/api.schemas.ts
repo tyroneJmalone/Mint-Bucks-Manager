@@ -292,6 +292,8 @@ export interface RewardConditions {
   invoiceDateTo?: string;
   productionDateFrom?: string;
   productionDateTo?: string;
+  paidDateFrom?: string;
+  paidDateTo?: string;
 }
 
 export type RewardRuleRewardType = typeof RewardRuleRewardType[keyof typeof RewardRuleRewardType];
@@ -466,6 +468,7 @@ export interface RewardsScanResult {
   pending: number;
   skippedNoCustomer: number;
   limitReached: boolean;
+  removedStale: number;
 }
 
 export type RewardsPipelineItemStage = typeof RewardsPipelineItemStage[keyof typeof RewardsPipelineItemStage];

@@ -55,6 +55,8 @@ export const conditionsSchema = z.object({
   invoiceDateTo: z.string().optional(),
   productionDateFrom: z.string().optional(),
   productionDateTo: z.string().optional(),
+  paidDateFrom: z.string().optional(),
+  paidDateTo: z.string().optional(),
 });
 export type RewardConditions = z.infer<typeof conditionsSchema>;
 
@@ -148,7 +150,30 @@ export function invoiceMatchesRule(inv: PrintavoPaidInvoice, rule: RewardRule): 
     if (cond.productionDateTo && prodMs > new Date(cond.productionDateTo).getTime()) return false;
   }
 
+  // Paid-date window. datePaid and the conditions are plain YYYY-MM-DD strings,
+  // so lexicographic comparison is correct and avoids timezone day-shifts.
+  if (cond.paidDateFrom || cond.paidDateTo) {
+    if (!inv.datePaid) return false;
+    if (cond.paidDateFrom && inv.datePaid < cond.paidDateFrom) return false;
+    if (cond.paidDateTo && inv.datePaid > cond.paidDateTo) return false;
+  }
+
   return true;
+}
+
+/**
+ * Global program-start gate: the program rewards invoices PAID on/after
+ * cfg.startDate. Gate on the real paid date (YYYY-MM-DD, lexicographic) when
+ * one is recorded; fall back to the creation date for paid invoices that have
+ * no payment transaction on record (e.g. marked paid manually in Printavo).
+ */
+function passesProgramStart(
+  datePaid: string | null,
+  createdAt: string | Date,
+  cfg: RewardsConfig,
+): boolean {
+  if (datePaid) return datePaid >= cfg.startDate.slice(0, 10);
+  return new Date(createdAt).getTime() >= new Date(cfg.startDate).getTime();
 }
 
 /** Compute the Mint Bucks award amount for an invoice under a rule (2dp, >= 0). */
@@ -410,6 +435,92 @@ export interface RewardsScanResult {
   pending: number;
   skippedNoCustomer: number;
   limitReached: boolean;
+  removedStale: number;
+}
+
+/**
+ * Delete PENDING awards that no longer qualify under the CURRENT rules — the
+ * rule was disabled/deleted, its conditions/date windows changed, or the
+ * reward amount changed (deleted here, then re-claimed by the scan loop with
+ * the fresh amount). This is what makes the approval queue "refresh" when the
+ * user edits a rule's date ranges.
+ *
+ * Never touches processing/issued/rejected rows. Awards whose invoice was NOT
+ * re-fetched in this scan are still judged against everything the stored award
+ * row can answer (the program start date and the rule's paid-date window, both
+ * via the stored paid date); conditions that need live invoice data (totals,
+ * production dates) are only re-checked when the invoice is in the fetch.
+ * Deletes run under the advisory lock so the released budget is immediately
+ * and atomically available to claims in the same scan.
+ */
+async function removeStalePendingAwards(
+  enabledRules: RewardRule[],
+  invoices: PrintavoPaidInvoice[],
+  cfg: RewardsConfig,
+): Promise<number> {
+  const pendingAwards = await db
+    .select()
+    .from(rewardAwardsTable)
+    .where(eq(rewardAwardsTable.status, "pending"));
+  if (!pendingAwards.length) return 0;
+
+  const ruleById = new Map(enabledRules.map((r) => [r.id, r]));
+  const invById = new Map(invoices.map((i) => [i.id, i]));
+
+  const staleIds: number[] = [];
+  for (const award of pendingAwards) {
+    const rule = ruleById.get(award.ruleId);
+    if (!rule) {
+      staleIds.push(award.id); // rule disabled or deleted
+      continue;
+    }
+    // Program start date, judged on the stored paid date (available whether or
+    // not the invoice was re-fetched).
+    if (award.datePaid && !passesProgramStart(award.datePaid, award.awardedAt, cfg)) {
+      staleIds.push(award.id);
+      continue;
+    }
+    const inv = invById.get(award.printavoInvoiceId);
+    if (!inv) {
+      // Not re-fetched — judge the rule's paid-date window against the stored
+      // paid date; other conditions can't be re-checked without live data.
+      const cond = safeConditions(rule);
+      if (cond.paidDateFrom || cond.paidDateTo) {
+        if (
+          !award.datePaid ||
+          (cond.paidDateFrom && award.datePaid < cond.paidDateFrom) ||
+          (cond.paidDateTo && award.datePaid > cond.paidDateTo)
+        ) {
+          staleIds.push(award.id);
+        }
+      }
+      continue;
+    }
+    if (!passesProgramStart(inv.datePaid, inv.createdAt, cfg) || !invoiceMatchesRule(inv, rule)) {
+      staleIds.push(award.id);
+      continue;
+    }
+    const amount = computeAward(inv, rule);
+    if (amount <= 0 || Math.abs(amount - parseFloat(award.amount)) > 1e-9) {
+      staleIds.push(award.id); // amount changed — re-claimed below at the new amount
+    }
+  }
+  if (!staleIds.length) return 0;
+
+  const deleted = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
+    return tx
+      .delete(rewardAwardsTable)
+      .where(and(inArray(rewardAwardsTable.id, staleIds), eq(rewardAwardsTable.status, "pending")))
+      .returning({ id: rewardAwardsTable.id, visualId: rewardAwardsTable.printavoVisualId });
+  });
+  if (deleted.length) {
+    logger.info(
+      { count: deleted.length, visualIds: deleted.map((d) => d.visualId) },
+      "Rewards: removed pending awards that no longer match current rules",
+    );
+  }
+  return deleted.length;
 }
 
 /**
@@ -424,6 +535,7 @@ export async function runRewardsScan(config: PrintavoConfig): Promise<RewardsSca
     pending: 0,
     skippedNoCustomer: 0,
     limitReached: false,
+    removedStale: 0,
   };
 
   const cfg = await getRewardsConfig();
@@ -440,9 +552,11 @@ export async function runRewardsScan(config: PrintavoConfig): Promise<RewardsSca
     return empty;
   }
 
-  const startMs = new Date(cfg.startDate).getTime();
-  const lookbackMs = Date.now() - cfg.lookbackDays * 24 * 60 * 60 * 1000;
-  const cutoffMs = Math.max(startMs, lookbackMs);
+  // Fetch window: lookback only. Printavo can only be paged by creation date,
+  // but eligibility is judged on the PAID date — an invoice created before the
+  // program start and paid after it still qualifies, so the fetch must reach
+  // back the full lookback regardless of cfg.startDate.
+  const cutoffMs = Date.now() - cfg.lookbackDays * 24 * 60 * 60 * 1000;
 
   let invoices: PrintavoPaidInvoice[];
   try {
@@ -454,12 +568,19 @@ export async function runRewardsScan(config: PrintavoConfig): Promise<RewardsSca
 
   const result: RewardsScanResult = { ...empty, scanned: invoices.length };
 
+  // Refresh the approval queue against the CURRENT rules before claiming, so
+  // freed budget is available to the claims below in this same pass.
+  try {
+    result.removedStale = await removeStalePendingAwards(rules, invoices, cfg);
+  } catch (err) {
+    logger.error({ err }, "Rewards: failed to remove stale pending awards — continuing scan");
+  }
+
   for (const inv of invoices) {
     if (result.limitReached) break;
 
-    // Enforce the effective start date on the invoice itself (defence in depth
-    // on top of the paging cutoff).
-    if (new Date(inv.createdAt).getTime() < startMs) continue;
+    // Program start date, judged on when the invoice was paid.
+    if (!passesProgramStart(inv.datePaid, inv.createdAt, cfg)) continue;
 
     // Evaluate rules first so we only touch the customers table for invoices
     // that actually earn an award.
@@ -555,9 +676,10 @@ export async function computePipelinePreview(config: PrintavoConfig): Promise<Pi
   const rules = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.enabled, true));
   if (!rules.length) return { items: [], totalPotential: 0, fetchedAt };
 
-  const startMs = new Date(cfg.startDate).getTime();
-  const lookbackMs = Date.now() - cfg.lookbackDays * 24 * 60 * 60 * 1000;
-  const cutoffMs = Math.max(startMs, lookbackMs);
+  // Lookback-only fetch window, mirroring the scan: eligibility is judged on
+  // the paid date, and pipeline items are by definition not fully paid yet —
+  // their eventual payment date lies in the future, after any past start date.
+  const cutoffMs = Date.now() - cfg.lookbackDays * 24 * 60 * 60 * 1000;
 
   const invoices = await fetchPipelineInvoices(config, cutoffMs);
 
@@ -582,8 +704,6 @@ export async function computePipelinePreview(config: PrintavoConfig): Promise<Pi
   let totalPotential = 0;
 
   for (const inv of invoices) {
-    if (new Date(inv.createdAt).getTime() < startMs) continue;
-
     for (const rule of rules) {
       if (!invoiceMatchesRule(inv, rule)) continue;
 

@@ -294,6 +294,7 @@ export function Rewards() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListRewardRulesQueryKey() });
           toast({ title: enabled ? "Rule enabled" : "Rule disabled" });
+          handleScan();
         },
         onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
       },
@@ -310,6 +311,8 @@ export function Rewards() {
         toast({
           title: `Scan complete`,
           description: `${result.scanned} invoice(s) checked · ${result.issued} issued · ${result.pending} pending${
+            result.removedStale ? ` · ${result.removedStale} removed (no longer match rules)` : ""
+          }${
             result.skippedNoCustomer ? ` · ${result.skippedNoCustomer} skipped (no contact email)` : ""
           }${result.limitReached ? " · annual limit reached" : ""}`,
         });
@@ -352,6 +355,7 @@ export function Rewards() {
           queryClient.invalidateQueries({ queryKey: getListRewardRulesQueryKey() });
           toast({ title: "Rule deleted" });
           setDeletingRule(null);
+          handleScan();
         },
         onError: (err: Error) => {
           toast({ title: err.message, variant: "destructive" });
@@ -902,7 +906,12 @@ export function Rewards() {
         </TabsContent>
       </Tabs>
 
-      <RuleFormDialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen} rule={editingRule} />
+      <RuleFormDialog
+        open={ruleDialogOpen}
+        onOpenChange={setRuleDialogOpen}
+        rule={editingRule}
+        onSaved={handleScan}
+      />
 
       <AlertDialog open={!!deletingRule} onOpenChange={(o) => !o && setDeletingRule(null)}>
         <AlertDialogContent>

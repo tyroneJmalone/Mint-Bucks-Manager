@@ -12,4 +12,5 @@ export interface RewardsScanResult {
   pending: number;
   skippedNoCustomer: number;
   limitReached: boolean;
+  removedStale: number;
 }

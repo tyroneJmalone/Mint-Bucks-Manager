@@ -38,8 +38,10 @@ Each (rule, invoice) awards at most once, enforced by a DB unique constraint + c
 **Why:** last-updated is bumped at every claim (scan insert AND pending→processing flip); keying off created-time lets the sweep reclaim an old pending row mid-approval → orphaned claim → double-award.
 **How to apply:** any future rewrite of the sweep/reclaim query must preserve the last-updated basis.
 
-## Paid-date requirement is approximated
-"Only award invoices paid on/after the start date" is enforced via invoice `createdAt`, because Printavo exposes no paid-at timestamp (see printavo-api-v2.md). Invoices created before the start date but paid after will never earn. Documented deviation from the "locked" requirement, accepted due to API limits.
+## Paid-date gating is real, and the fetch window must be lookback-only
+Eligibility ("paid on/after the start date", rule paid-date windows) is judged on a real `datePaid` (YYYY-MM-DD, derived from the newest Payment transaction; lexicographic compare, no Date parsing). `createdAt` is only a fallback for paid invoices with no payment transaction on record.
+**Why:** Printavo can only be *paged* by creation order (VISUAL_ID desc), so the fetch cutoff must be the lookback alone — never `max(startDate, lookback)`. Clamping the fetch to the start date silently hides invoices created before it but paid after it, which DO qualify.
+**How to apply:** any new scan/preview that filters by a payment-ish date must fetch by lookback and gate per-invoice on `datePaid`. Pending awards are re-validated each scan (stale ones deleted pending-only, under the advisory lock); awards whose invoice wasn't re-fetched are judged only on what the stored row can answer (paid-date checks), never deleted for mere absence from the fetch.
 
 ## Scan auto-creates customers — never require a pre-synced customer list
 The rewards scan must not skip a paid invoice just because its contact email has no local customer row; it finds-or-creates the customer from the Printavo contact at award time (only for invoices that actually match a rule).
