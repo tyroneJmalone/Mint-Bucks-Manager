@@ -316,6 +316,13 @@ export function CreditDetail() {
           {credit.expiresAt && <span>Expires {formatDate(credit.expiresAt)}</span>}
           {credit.note && <span className="italic">"{credit.note}"</span>}
         </div>
+        {credit.sourceOrderVisualId && (
+          <div data-testid="text-source-order" className="mt-3 pt-3 border-t border-border text-sm text-muted-foreground">
+            Earned from order <span className="font-medium text-foreground">#{credit.sourceOrderVisualId}</span>
+            {credit.sourceOrderNickname && <span> — {credit.sourceOrderNickname}</span>}
+            {credit.sourceRuleName && <span className="text-xs"> · rule: {credit.sourceRuleName}</span>}
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

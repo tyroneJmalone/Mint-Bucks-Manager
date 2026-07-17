@@ -54,7 +54,8 @@ export function Credits() {
     const q = search.toLowerCase();
     return (
       c.customerName.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q)
+      c.code.toLowerCase().includes(q) ||
+      c.sourceOrderVisualId?.toLowerCase().includes(q)
     );
   });
 
@@ -125,6 +126,7 @@ export function Credits() {
                   <tr key={c.id} data-testid={`row-credit-${c.id}`} className="hover:bg-muted/30 transition-colors group">
                     <td className="px-5 py-3.5">
                       <span className="font-mono text-sm text-foreground font-medium tracking-wide">{c.code}</span>
+                      {c.sourceOrderVisualId && <div className="text-xs text-muted-foreground">Order #{c.sourceOrderVisualId}</div>}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="text-sm text-foreground">{c.customerName}</div>

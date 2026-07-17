@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { customersTable, creditsTable, redemptionsTable } from "@workspace/db";
+import { customersTable, creditsTable, redemptionsTable, rewardAwardsTable } from "@workspace/db";
 import {
   ListRedemptionsQueryParams,
   GetRedemptionParams,
@@ -19,10 +19,13 @@ router.get("/redemptions", async (req, res): Promise<void> => {
       customerName: customersTable.name,
       customerCompany: customersTable.companyName,
       creditCode: creditsTable.code,
+      sourceVisualId: rewardAwardsTable.printavoVisualId,
+      sourceNickname: rewardAwardsTable.nickname,
     })
     .from(redemptionsTable)
     .innerJoin(customersTable, eq(redemptionsTable.customerId, customersTable.id))
     .innerJoin(creditsTable, eq(redemptionsTable.creditId, creditsTable.id))
+    .leftJoin(rewardAwardsTable, eq(rewardAwardsTable.creditId, creditsTable.id))
     .$dynamic();
 
   if (customerId) {
@@ -48,6 +51,8 @@ router.get("/redemptions", async (req, res): Promise<void> => {
       customerName: r.customerName,
       customerCompany: r.customerCompany ?? null,
       creditCode: r.creditCode,
+      sourceOrderVisualId: r.sourceVisualId ?? null,
+      sourceOrderNickname: r.sourceNickname ?? null,
     }))
   );
 });
@@ -65,10 +70,13 @@ router.get("/redemptions/:id", async (req, res): Promise<void> => {
       customerName: customersTable.name,
       customerCompany: customersTable.companyName,
       creditCode: creditsTable.code,
+      sourceVisualId: rewardAwardsTable.printavoVisualId,
+      sourceNickname: rewardAwardsTable.nickname,
     })
     .from(redemptionsTable)
     .innerJoin(customersTable, eq(redemptionsTable.customerId, customersTable.id))
     .innerJoin(creditsTable, eq(redemptionsTable.creditId, creditsTable.id))
+    .leftJoin(rewardAwardsTable, eq(rewardAwardsTable.creditId, creditsTable.id))
     .where(eq(redemptionsTable.id, params.data.id));
 
   if (!row) {
@@ -82,6 +90,8 @@ router.get("/redemptions/:id", async (req, res): Promise<void> => {
     customerName: row.customerName,
     customerCompany: row.customerCompany ?? null,
     creditCode: row.creditCode,
+    sourceOrderVisualId: row.sourceVisualId ?? null,
+    sourceOrderNickname: row.sourceNickname ?? null,
   });
 });
 

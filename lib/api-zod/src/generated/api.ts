@@ -149,7 +149,10 @@ export const GetCustomerCreditsResponseItem = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 export const GetCustomerCreditsResponse = zod.array(GetCustomerCreditsResponseItem)
 
@@ -177,7 +180,10 @@ export const ListCreditsResponseItem = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 export const ListCreditsResponse = zod.array(ListCreditsResponseItem)
 
@@ -210,7 +216,10 @@ export const IssueCreditResponse = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 
 
@@ -235,7 +244,10 @@ export const GetCreditResponse = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 
 
@@ -266,7 +278,10 @@ export const UpdateCreditResponse = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 
 
@@ -309,7 +324,9 @@ export const RedeemCreditResponse = zod.object({
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
   "redeemedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish()
 }),
   "credit": zod.object({
   "id": zod.number(),
@@ -325,7 +342,10 @@ export const RedeemCreditResponse = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 })
 
@@ -400,7 +420,9 @@ export const ListRedemptionsResponseItem = zod.object({
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
   "redeemedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish()
 })
 export const ListRedemptionsResponse = zod.array(ListRedemptionsResponseItem)
 
@@ -423,7 +445,9 @@ export const GetRedemptionResponse = zod.object({
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
   "redeemedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish()
 })
 
 
@@ -498,7 +522,10 @@ export const GetExpiringSoonResponseItem = zod.object({
   "expiresAt": zod.string().nullish(),
   "issuedAt": zod.string(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "sourceOrderVisualId": zod.string().nullish(),
+  "sourceOrderNickname": zod.string().nullish(),
+  "sourceRuleName": zod.string().nullish()
 })
 export const GetExpiringSoonResponse = zod.array(GetExpiringSoonResponseItem)
 

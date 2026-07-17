@@ -31,7 +31,8 @@ export function Redemptions() {
     return (
       r.customerName.toLowerCase().includes(q) ||
       r.creditCode?.toLowerCase().includes(q) ||
-      r.invoiceRef?.toLowerCase().includes(q)
+      r.invoiceRef?.toLowerCase().includes(q) ||
+      r.sourceOrderVisualId?.toLowerCase().includes(q)
     );
   });
 
@@ -101,6 +102,7 @@ export function Redemptions() {
                       <Link href={`/credits/${r.creditId}`} className="font-mono text-xs text-muted-foreground hover:text-primary tracking-wide">
                         {r.creditCode}
                       </Link>
+                      {r.sourceOrderVisualId && <div className="text-xs text-muted-foreground">Order #{r.sourceOrderVisualId}</div>}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <span className="text-sm font-semibold text-foreground">{formatCurrency(r.amountApplied)}</span>

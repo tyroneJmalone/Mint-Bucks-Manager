@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, gte, lte, or, ilike } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { customersTable, creditsTable, redemptionsTable } from "@workspace/db";
+import { customersTable, creditsTable, redemptionsTable, rewardAwardsTable, rewardRulesTable } from "@workspace/db";
 import {
   ListCreditsQueryParams,
   IssueCreditBody,
@@ -19,7 +19,15 @@ import { generateCertificatePdf, generateQrPng } from "../lib/certificate";
 
 const router: IRouter = Router();
 
-function formatCredit(credit: Record<string, unknown>, customerName: string, customerEmail: string, customerCompany: string | null = null) {
+interface CreditSource {
+  sourceOrderVisualId: string | null;
+  sourceOrderNickname: string | null;
+  sourceRuleName: string | null;
+}
+
+const NO_SOURCE: CreditSource = { sourceOrderVisualId: null, sourceOrderNickname: null, sourceRuleName: null };
+
+function formatCredit(credit: Record<string, unknown>, customerName: string, customerEmail: string, customerCompany: string | null = null, source: CreditSource = NO_SOURCE) {
   return {
     ...credit,
     amount: parseFloat(credit.amount as string),
@@ -27,6 +35,26 @@ function formatCredit(credit: Record<string, unknown>, customerName: string, cus
     customerName,
     customerEmail,
     customerCompany,
+    ...source,
+  };
+}
+
+async function getCreditSource(creditId: number): Promise<CreditSource> {
+  const [row] = await db
+    .select({
+      visualId: rewardAwardsTable.printavoVisualId,
+      nickname: rewardAwardsTable.nickname,
+      ruleName: rewardRulesTable.name,
+    })
+    .from(rewardAwardsTable)
+    .leftJoin(rewardRulesTable, eq(rewardAwardsTable.ruleId, rewardRulesTable.id))
+    .where(eq(rewardAwardsTable.creditId, creditId))
+    .limit(1);
+  if (!row) return NO_SOURCE;
+  return {
+    sourceOrderVisualId: row.visualId ?? null,
+    sourceOrderNickname: row.nickname ?? null,
+    sourceRuleName: row.ruleName ?? null,
   };
 }
 
@@ -47,9 +75,14 @@ router.get("/credits", async (req, res): Promise<void> => {
       customerName: customersTable.name,
       customerEmail: customersTable.email,
       customerCompany: customersTable.companyName,
+      sourceVisualId: rewardAwardsTable.printavoVisualId,
+      sourceNickname: rewardAwardsTable.nickname,
+      sourceRuleName: rewardRulesTable.name,
     })
     .from(creditsTable)
     .innerJoin(customersTable, eq(creditsTable.customerId, customersTable.id))
+    .leftJoin(rewardAwardsTable, eq(rewardAwardsTable.creditId, creditsTable.id))
+    .leftJoin(rewardRulesTable, eq(rewardAwardsTable.ruleId, rewardRulesTable.id))
     .$dynamic();
 
   if (status) {
@@ -80,7 +113,11 @@ router.get("/credits", async (req, res): Promise<void> => {
   const rows = await query.orderBy(sql`${creditsTable.issuedAt} DESC`);
 
   res.json(
-    rows.map(r => formatCredit(r.credit as unknown as Record<string, unknown>, r.customerName, r.customerEmail, r.customerCompany ?? null))
+    rows.map(r => formatCredit(r.credit as unknown as Record<string, unknown>, r.customerName, r.customerEmail, r.customerCompany ?? null, {
+      sourceOrderVisualId: r.sourceVisualId ?? null,
+      sourceOrderNickname: r.sourceNickname ?? null,
+      sourceRuleName: r.sourceRuleName ?? null,
+    }))
   );
 });
 
@@ -141,7 +178,8 @@ router.get("/credits/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(formatCredit(result.credit as unknown as Record<string, unknown>, result.customer?.name ?? "", result.customer?.email ?? "", result.customer?.companyName ?? null));
+  const source = await getCreditSource(result.credit.id);
+  res.json(formatCredit(result.credit as unknown as Record<string, unknown>, result.customer?.name ?? "", result.customer?.email ?? "", result.customer?.companyName ?? null, source));
 });
 
 router.patch("/credits/:id", async (req, res): Promise<void> => {
@@ -173,8 +211,11 @@ router.patch("/credits/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, credit.customerId));
-  res.json(formatCredit(credit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null));
+  const [[customer], source] = await Promise.all([
+    db.select().from(customersTable).where(eq(customersTable.id, credit.customerId)),
+    getCreditSource(credit.id),
+  ]);
+  res.json(formatCredit(credit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null, source));
 });
 
 router.delete("/credits/:id", async (req, res): Promise<void> => {
@@ -267,7 +308,7 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
       customerId: credit.customerId,
       customerName: customer?.name ?? "",
     },
-    credit: formatCredit(updatedCredit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null),
+    credit: formatCredit(updatedCredit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null, await getCreditSource(updatedCredit.id)),
   });
 });
 

@@ -917,6 +917,12 @@ components:
           type: string
         updatedAt:
           type: string
+        sourceOrderVisualId:
+          type: ["string", "null"]
+        sourceOrderNickname:
+          type: ["string", "null"]
+        sourceRuleName:
+          type: ["string", "null"]
 
     CreditInput:
       type: object
@@ -981,6 +987,10 @@ components:
           type: string
         createdAt:
           type: string
+        sourceOrderVisualId:
+          type: ["string", "null"]
+        sourceOrderNickname:
+          type: ["string", "null"]
 
     RedemptionResult:
       type: object

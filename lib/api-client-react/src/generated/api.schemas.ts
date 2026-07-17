@@ -71,6 +71,12 @@ export interface Credit {
   issuedAt: string;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  sourceOrderVisualId?: string | null;
+  /** @nullable */
+  sourceOrderNickname?: string | null;
+  /** @nullable */
+  sourceRuleName?: string | null;
 }
 
 export interface CreditInput {
@@ -118,6 +124,10 @@ export interface Redemption {
   note?: string | null;
   redeemedAt: string;
   createdAt: string;
+  /** @nullable */
+  sourceOrderVisualId?: string | null;
+  /** @nullable */
+  sourceOrderNickname?: string | null;
 }
 
 export interface RedemptionResult {

@@ -48,13 +48,16 @@ interface Credit {
   customerEmail: string;
   customerCompany?: string | null;
   customerId: number;
+  sourceOrderVisualId?: string | null;
+  sourceOrderNickname?: string | null;
+  sourceRuleName?: string | null;
   issuedAt: string;
   expiresAt?: string | null;
   note?: string | null;
 }
 
 function exportCsv(rows: Credit[]) {
-  const cols = ["Code", "Status", "Customer Name", "Company", "Email", "Original ($)", "Redeemed ($)", "Remaining ($)", "Issued", "Expires", "Note"];
+  const cols = ["Code", "Status", "Customer Name", "Company", "Email", "Original ($)", "Redeemed ($)", "Remaining ($)", "Issued", "Expires", "Note", "Source Order #", "Source Order Name", "Source Rule"];
   const lines = [
     cols.join(","),
     ...rows.map(r =>
@@ -70,6 +73,9 @@ function exportCsv(rows: Credit[]) {
         r.issuedAt ? formatDate(r.issuedAt) : "",
         r.expiresAt ? formatDate(r.expiresAt) : "",
         r.note ? `"${r.note.replace(/"/g, '""')}"` : "",
+        r.sourceOrderVisualId ? `#${r.sourceOrderVisualId}` : "",
+        r.sourceOrderNickname ? `"${r.sourceOrderNickname.replace(/"/g, '""')}"` : "",
+        r.sourceRuleName ? `"${r.sourceRuleName.replace(/"/g, '""')}"` : "",
       ].join(",")
     ),
   ];
@@ -98,7 +104,7 @@ export function CertificateHistory() {
 
     return (credits as Credit[]).filter(c => {
       if (status && c.status !== status) return false;
-      if (q && !c.code.toLowerCase().includes(q) && !c.customerName.toLowerCase().includes(q) && !c.customerEmail.toLowerCase().includes(q) && !(c.customerCompany ?? "").toLowerCase().includes(q)) return false;
+      if (q && !c.code.toLowerCase().includes(q) && !c.customerName.toLowerCase().includes(q) && !c.customerEmail.toLowerCase().includes(q) && !(c.customerCompany ?? "").toLowerCase().includes(q) && !(c.sourceOrderVisualId ?? "").toLowerCase().includes(q)) return false;
       const issued = new Date(c.issuedAt).getTime();
       if (from && issued < from) return false;
       if (to && issued > to) return false;
@@ -230,6 +236,11 @@ export function CertificateHistory() {
                   <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono font-semibold text-foreground tracking-wider whitespace-nowrap">
                       {c.code}
+                      {c.sourceOrderVisualId && (
+                        <div className="font-sans font-normal tracking-normal text-xs text-muted-foreground mt-0.5">
+                          Order #{c.sourceOrderVisualId}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Link href={`/customers/${c.customerId}`} className="font-medium text-foreground hover:text-primary transition-colors">

@@ -21,4 +21,8 @@ export interface Redemption {
   note?: string | null;
   redeemedAt: string;
   createdAt: string;
+  /** @nullable */
+  sourceOrderVisualId?: string | null;
+  /** @nullable */
+  sourceOrderNickname?: string | null;
 }
