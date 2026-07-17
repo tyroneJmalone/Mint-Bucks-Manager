@@ -493,6 +493,9 @@ export interface PipelinePreviewItem {
   potentialAmount: number;
   createdAt: string;
   stage: "quote" | "invoice";
+  nickname: string | null;
+  /** Date (YYYY-MM-DD) of the most recent payment, or null if none yet. */
+  datePaid: string | null;
 }
 
 export interface PipelinePreviewResult {
@@ -567,6 +570,8 @@ export async function computePipelinePreview(config: PrintavoConfig): Promise<Pi
         potentialAmount: potential,
         createdAt: new Date(inv.createdAt).toISOString(),
         stage: inv.stage,
+        nickname: inv.nickname,
+        datePaid: inv.datePaid,
       });
       totalPotential += potential;
     }

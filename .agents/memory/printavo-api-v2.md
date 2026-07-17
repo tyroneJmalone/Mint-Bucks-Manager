@@ -71,6 +71,11 @@ The `invoices` query supports server-side filters: `paymentStatus` (enum
   creation-time window misses late payments. Mitigate with a generous lookback window and an
   idempotent dedup ledger so overlapping re-scans are harmless. "Paid on/after <date>" is only
   approximable via `createdAt` — there is no true paid-at timestamp.
+- **Payment dates ARE derivable per order:** Quote/Invoice expose a `transactions` connection
+  (TransactionUnion = Payment | Refund | Return | Void | PaymentDispute). `Payment` nodes carry
+  `transactionDate` (plain YYYY-MM-DD — beware `new Date("YYYY-MM-DD")` UTC day-shift when
+  rendering). "Date paid" = max Payment transactionDate; ignore non-Payment members. Nesting
+  `transactions(first: 25)` inside 25-node pages passed live with no complexity errors.
 - Page size still capped at 25 regardless of `first`.
 
 ## Environment quirk for probing

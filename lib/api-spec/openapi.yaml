@@ -1422,6 +1422,12 @@ components:
         stage:
           type: string
           enum: [quote, invoice]
+        nickname:
+          type: ["string", "null"]
+          description: Order nickname (job title) from Printavo.
+        datePaid:
+          type: ["string", "null"]
+          description: Date (YYYY-MM-DD) of the most recent payment, null if none.
         customerName:
           type: string
         customerEmail:

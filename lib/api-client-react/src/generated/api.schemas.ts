@@ -475,6 +475,16 @@ export interface RewardsPipelineItem {
   printavoInvoiceId: string;
   printavoVisualId: string;
   stage: RewardsPipelineItemStage;
+  /**
+     * Order nickname (job title) from Printavo.
+     * @nullable
+     */
+  nickname?: string | null;
+  /**
+     * Date (YYYY-MM-DD) of the most recent payment, null if none.
+     * @nullable
+     */
+  datePaid?: string | null;
   customerName: string;
   customerEmail: string;
   customerLinked: boolean;

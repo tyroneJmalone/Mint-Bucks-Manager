@@ -71,6 +71,14 @@ function formatCurrency(n: number) {
 function printavoOrderUrl(printavoId: string) {
   return `https://www.printavo.com/invoices/${printavoId}`;
 }
+// Format a date-only string (YYYY-MM-DD) without timezone shifting — parsing
+// it with new Date(s) would treat it as UTC midnight and can render a day early.
+function formatDateOnly(s?: string | null) {
+  if (!s) return "—";
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 function formatDateTime(s?: string | null) {
   if (!s) return "—";
   return new Date(s).toLocaleString("en-US", {
@@ -469,8 +477,10 @@ export function Rewards() {
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nickname</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Potential</th>
                 </tr>
@@ -479,14 +489,14 @@ export function Rewards() {
                 {pipelineLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 8 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
                   ))
                 ) : pipelineError ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
                     </td>
@@ -531,9 +541,20 @@ export function Rewards() {
                           </span>
                         </div>
                       </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground max-w-[220px]">
+                        <div className="truncate" title={item.nickname ?? undefined} data-testid={`text-nickname-${item.printavoInvoiceId}-${item.ruleId}`}>
+                          {item.nickname || "—"}
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.ruleName}</td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
                         {item.total != null ? formatCurrency(item.total) : "—"}
+                      </td>
+                      <td
+                        className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap"
+                        data-testid={`text-date-paid-${item.printavoInvoiceId}-${item.ruleId}`}
+                      >
+                        {formatDateOnly(item.datePaid)}
                       </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
                         {item.amountPaid != null ? formatCurrency(item.amountPaid) : "—"}
@@ -545,7 +566,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Building2 className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       No open quotes or invoices match your active rules right now
                     </td>

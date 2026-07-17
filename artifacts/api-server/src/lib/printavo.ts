@@ -36,6 +36,14 @@ export interface PrintavoPaidInvoice {
   customer: PrintavoCustomer;
   /** Whether this order is still a Quote (pre-approval) or an Invoice. */
   stage: "quote" | "invoice";
+  /** Order nickname from Printavo (free-text job title). */
+  nickname: string | null;
+  /**
+   * Date (YYYY-MM-DD) of the most recent Payment transaction, or null if no
+   * payments exist. Printavo has no "paidAt" field on orders, so this is
+   * derived from the transactions connection.
+   */
+  datePaid: string | null;
 }
 
 const PRINTAVO_ENDPOINT = "https://www.printavo.com/api/v2";
@@ -86,9 +94,16 @@ interface RawOrder {
   contact: RawContact | null;
 }
 
+interface RawTransactionNode {
+  __typename: string;
+  // Only present on Payment nodes (YYYY-MM-DD).
+  transactionDate?: string | null;
+}
+
 interface RawInvoice {
   id: string;
   visualId: string | null;
+  nickname: string | null;
   total: number | null;
   amountPaid: number | null;
   tags: string[] | null;
@@ -97,6 +112,7 @@ interface RawInvoice {
   dueAt: string | null;
   customerDueAt: string | null;
   contact: RawContact | null;
+  transactions: { nodes: RawTransactionNode[] } | null;
 }
 
 function buildHeaders(config: PrintavoConfig): Record<string, string> {
@@ -268,6 +284,17 @@ export async function fetchRecentOrders(config: PrintavoConfig, sinceIso: string
   return all;
 }
 
+// Latest Payment transactionDate (YYYY-MM-DD strings compare correctly
+// lexicographically). Refunds/voids/disputes are ignored.
+function latestPaymentDate(inv: RawInvoice): string | null {
+  let latest: string | null = null;
+  for (const t of inv.transactions?.nodes ?? []) {
+    if (t.__typename !== "Payment" || !t.transactionDate) continue;
+    if (!latest || t.transactionDate > latest) latest = t.transactionDate;
+  }
+  return latest;
+}
+
 function mapInvoice(inv: RawInvoice, stage: "quote" | "invoice" = "invoice"): PrintavoPaidInvoice {
   return {
     id: inv.id,
@@ -282,12 +309,15 @@ function mapInvoice(inv: RawInvoice, stage: "quote" | "invoice" = "invoice"): Pr
     customerDueAt: inv.customerDueAt ?? null,
     customer: mapContact(inv.contact ?? { id: "", fullName: null, email: null, phone: null }),
     stage,
+    nickname: inv.nickname ?? null,
+    datePaid: latestPaymentDate(inv),
   };
 }
 
 const PAID_INVOICE_FIELDS = `
   id
   visualId
+  nickname
   total
   amountPaid
   tags
@@ -296,6 +326,7 @@ const PAID_INVOICE_FIELDS = `
   dueAt
   customerDueAt
   contact { ${CONTACT_FIELDS} }
+  transactions(first: 25) { nodes { __typename ... on Payment { transactionDate } } }
 `;
 
 // Printavo's server-side payment filter. `PARTIAL_PAYMENT` covers invoices with a

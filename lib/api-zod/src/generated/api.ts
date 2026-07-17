@@ -905,6 +905,8 @@ export const GetRewardsPipelineResponse = zod.object({
   "printavoInvoiceId": zod.string(),
   "printavoVisualId": zod.string(),
   "stage": zod.enum(['quote', 'invoice']),
+  "nickname": zod.string().nullish().describe('Order nickname (job title) from Printavo.'),
+  "datePaid": zod.string().nullish().describe('Date (YYYY-MM-DD) of the most recent payment, null if none.'),
   "customerName": zod.string(),
   "customerEmail": zod.string(),
   "customerLinked": zod.boolean(),
