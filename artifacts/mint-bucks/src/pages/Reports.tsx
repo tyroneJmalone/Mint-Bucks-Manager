@@ -138,7 +138,8 @@ export function Reports() {
               {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
             </div>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
@@ -164,6 +165,7 @@ export function Reports() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -223,7 +225,8 @@ export function Reports() {
             <p className="text-xs text-muted-foreground mt-1">Configure Printavo in Settings and enable automation to get started.</p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
@@ -271,6 +274,7 @@ export function Reports() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

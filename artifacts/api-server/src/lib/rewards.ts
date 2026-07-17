@@ -218,6 +218,15 @@ function addMonths(date: Date, months: number): Date {
   return d;
 }
 
+/** Today's date (YYYY-MM-DD) in the shop timezone. */
+function todayInTimezone(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 /** Jan 1 (00:00) of the current year in the shop timezone, as an instant. */
 function startOfCurrentYear(timezone: string): Date {
   let year: number;
@@ -332,6 +341,8 @@ async function claimAward(
         customerId,
         printavoInvoiceId: inv.id,
         printavoVisualId: inv.visualId,
+        nickname: inv.nickname ?? null,
+        invoiceTotal: inv.total != null ? inv.total.toFixed(2) : null,
         amount: amount.toFixed(2),
         datePaid: inv.datePaid ?? null,
         status: claimStatus,
@@ -468,6 +479,7 @@ async function removeStalePendingAwards(
   const invById = new Map(invoices.map((i) => [i.id, i]));
 
   const staleIds: number[] = [];
+  const backfills: { id: number; nickname: string | null; invoiceTotal: string | null }[] = [];
   for (const award of pendingAwards) {
     const rule = ruleById.get(award.ruleId);
     if (!rule) {
@@ -503,8 +515,25 @@ async function removeStalePendingAwards(
     const amount = computeAward(inv, rule);
     if (amount <= 0 || Math.abs(amount - parseFloat(award.amount)) > 1e-9) {
       staleIds.push(award.id); // amount changed — re-claimed below at the new amount
+      continue;
+    }
+    // Kept — backfill display fields added after this row was claimed.
+    if (award.nickname == null || award.invoiceTotal == null) {
+      backfills.push({
+        id: award.id,
+        nickname: inv.nickname ?? null,
+        invoiceTotal: inv.total != null ? inv.total.toFixed(2) : null,
+      });
     }
   }
+
+  for (const b of backfills) {
+    await db
+      .update(rewardAwardsTable)
+      .set({ nickname: b.nickname, invoiceTotal: b.invoiceTotal })
+      .where(and(eq(rewardAwardsTable.id, b.id), eq(rewardAwardsTable.status, "pending")));
+  }
+
   if (!staleIds.length) return 0;
 
   const deleted = await db.transaction(async (tx) => {
@@ -668,8 +697,47 @@ export interface PipelinePreviewResult {
  * amountPaid === total (so percent_paid rules reflect full payment). One row per
  * (invoice, rule) pair — mirroring the scan, which awards every matching rule.
  * The annual limit is intentionally NOT applied (this is gross upcoming liability).
+ *
+ * Cached for a few minutes with a single-flight guard: the lookback-wide fetch
+ * pages a lot of Printavo data through a throttled client (can take ~1 min),
+ * so concurrent tab loads share one build and repeat visits hit the cache.
+ * Rule/settings mutations invalidate the cache via invalidatePipelineCache().
  */
+const PIPELINE_CACHE_TTL_MS = 5 * 60 * 1000;
+let pipelineCache: PipelinePreviewResult | null = null;
+let pipelineCacheAtMs = 0;
+let pipelineInflight: Promise<PipelinePreviewResult> | null = null;
+let pipelineGeneration = 0;
+
+export function invalidatePipelineCache(): void {
+  pipelineCache = null;
+  pipelineCacheAtMs = 0;
+  // Bump the generation so an in-flight build (which read the old rules/settings)
+  // doesn't repopulate the cache with stale results when it completes.
+  pipelineGeneration += 1;
+}
+
 export async function computePipelinePreview(config: PrintavoConfig): Promise<PipelinePreviewResult> {
+  if (pipelineCache && Date.now() - pipelineCacheAtMs < PIPELINE_CACHE_TTL_MS) {
+    return pipelineCache;
+  }
+  if (pipelineInflight) return pipelineInflight;
+  const generation = pipelineGeneration;
+  pipelineInflight = buildPipelinePreview(config)
+    .then((result) => {
+      if (generation === pipelineGeneration) {
+        pipelineCache = result;
+        pipelineCacheAtMs = Date.now();
+      }
+      return result;
+    })
+    .finally(() => {
+      pipelineInflight = null;
+    });
+  return pipelineInflight;
+}
+
+async function buildPipelinePreview(config: PrintavoConfig): Promise<PipelinePreviewResult> {
   const fetchedAt = new Date().toISOString();
   const cfg = await getRewardsConfig();
 
@@ -703,13 +771,23 @@ export async function computePipelinePreview(config: PrintavoConfig): Promise<Pi
   const items: PipelinePreviewItem[] = [];
   let totalPotential = 0;
 
+  // Forecast paid date: pipeline items have no (final) paid date yet, so rule
+  // paid-date windows are judged as if the order were paid in full today — or
+  // on the window's first day when it opens in the future. Only a window that
+  // has already CLOSED (paidDateTo < today) excludes an unpaid order.
+  const today = todayInTimezone(cfg.timezone);
+
   for (const inv of invoices) {
     for (const rule of rules) {
-      if (!invoiceMatchesRule(inv, rule)) continue;
-
+      const cond = safeConditions(rule);
+      const assumedPaid =
+        cond.paidDateFrom && cond.paidDateFrom > today ? cond.paidDateFrom : today;
       // Forecast as if the invoice is paid in full, so percent_paid reflects the
       // full potential rather than the (near-zero) amount paid so far.
-      const potential = computeAward({ ...inv, amountPaid: inv.total }, rule);
+      const forecast = { ...inv, amountPaid: inv.total, datePaid: assumedPaid };
+      if (!invoiceMatchesRule(forecast, rule)) continue;
+
+      const potential = computeAward(forecast, rule);
       if (potential <= 0) continue;
 
       const email = inv.customer.email?.toLowerCase() ?? "";

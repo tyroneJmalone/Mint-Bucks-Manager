@@ -421,7 +421,8 @@ export function CreditDetail() {
           <div className="px-5 py-4 border-b border-border">
             <h2 className="text-sm font-semibold text-foreground">Redemption History</h2>
           </div>
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
@@ -441,6 +442,7 @@ export function CreditDetail() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

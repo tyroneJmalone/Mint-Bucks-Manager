@@ -47,3 +47,8 @@ Eligibility ("paid on/after the start date", rule paid-date windows) is judged o
 The rewards scan must not skip a paid invoice just because its contact email has no local customer row; it finds-or-creates the customer from the Printavo contact at award time (only for invoices that actually match a rule).
 **Why:** requiring a prior bulk customer sync made every matching paid invoice silently vanish (no award, not in pipeline since PAID is excluded there) — the app looked broken with zero explanation.
 **How to apply:** any new award/credit path that needs a customer row should reuse the find-or-create helper (lowercased/trimmed email, on-conflict-ignore + re-select for races). Caveat: some Printavo contacts have comma-separated multi-emails stored as one literal string — fine for matching, but credit emails to that string may bounce (email send is non-blocking by design).
+
+## Pipeline forecast must assume a paid date
+Unpaid/quote invoices have null `datePaid`, so rule paid-date windows would exclude ALL pipeline items if matched raw. The pipeline preview must match against a forecast invoice: `amountPaid = total`, `datePaid = max(today in shop TZ, rule.paidDateFrom)` — only an already-closed window (paidDateTo < today) excludes an unpaid order.
+**Why:** Rule 3's July paid window emptied the Pipeline tab because forecast matching reused the strict scan matcher on null datePaid.
+**How to apply:** Any new matcher condition keyed on payment state needs an explicit forecast semantics decision in `buildPipelinePreview`. Pipeline result is cached ~5min with single-flight + generation counter (`invalidatePipelineCache()` on rule/settings mutations) because the Printavo fetch takes ~45s throttled.

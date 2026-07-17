@@ -26,6 +26,7 @@ import {
   rejectAward,
   getRewardsStats,
   computePipelinePreview,
+  invalidatePipelineCache,
   type RewardTypeValue,
 } from "../lib/rewards";
 import { runRewardsPoll, startPoller } from "../lib/poller";
@@ -90,6 +91,7 @@ router.put("/rewards/settings", async (req, res): Promise<void> => {
   if (b.timezone !== undefined) tasks.push(setSetting("rewards_shop_timezone", b.timezone));
 
   await Promise.all(tasks);
+  invalidatePipelineCache();
 
   // Re-evaluate the poller: it (re)starts only if Printavo or rewards is enabled.
   await startPoller().catch((err) => logger.error({ err }, "Failed to restart poller after rewards settings change"));
@@ -155,6 +157,7 @@ router.post("/rewards/rules", async (req, res): Promise<void> => {
     })
     .returning();
 
+  invalidatePipelineCache();
   res.status(201).json(serializeRule(rule));
 });
 
@@ -216,6 +219,7 @@ router.patch("/rewards/rules/:id", async (req, res): Promise<void> => {
     .where(eq(rewardRulesTable.id, id))
     .returning();
 
+  invalidatePipelineCache();
   res.json(serializeRule(rule));
 });
 
@@ -236,6 +240,7 @@ router.delete("/rewards/rules/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+  invalidatePipelineCache();
   res.sendStatus(204);
 });
 
@@ -279,6 +284,11 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       customerEmail: r.customerEmail ?? null,
       printavoInvoiceId: r.award.printavoInvoiceId,
       printavoVisualId: r.award.printavoVisualId ?? null,
+      nickname: r.award.nickname ?? null,
+      invoiceTotal:
+        r.award.invoiceTotal != null
+          ? parseFloat(r.award.invoiceTotal as unknown as string)
+          : null,
       amount: parseFloat(r.award.amount as unknown as string),
       datePaid: r.award.datePaid ?? null,
       status: r.award.status,

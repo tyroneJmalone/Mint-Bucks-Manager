@@ -67,7 +67,8 @@ export function Redemptions() {
       )}
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
@@ -116,6 +117,7 @@ export function Redemptions() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

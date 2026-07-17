@@ -388,6 +388,16 @@ export interface RewardAward {
   printavoInvoiceId: string;
   /** @nullable */
   printavoVisualId?: string | null;
+  /**
+     * Invoice nickname/job name from Printavo, captured when the award was created.
+     * @nullable
+     */
+  nickname?: string | null;
+  /**
+     * Total order value of the invoice, captured when the award was created.
+     * @nullable
+     */
+  invoiceTotal?: number | null;
   amount: number;
   /**
      * Date (YYYY-MM-DD) the invoice was last paid, captured when the award was created.

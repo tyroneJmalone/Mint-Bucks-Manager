@@ -371,8 +371,8 @@ export function Rewards() {
   const annualAwarded = summary?.annualAwarded ?? 0;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1">
             <Gift className="w-5 h-5 text-primary" />
@@ -457,12 +457,14 @@ export function Rewards() {
             </div>
           )}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -472,7 +474,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -494,8 +496,16 @@ export function Rewards() {
                         >
                           {a.printavoVisualId ? `#${a.printavoVisualId}` : a.printavoInvoiceId}
                         </a>
+                        {a.nickname && (
+                          <div className="text-xs text-muted-foreground/80 truncate max-w-[220px]" data-testid={`text-nickname-pending-${a.id}`}>
+                            {a.nickname}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-invoice-total-pending-${a.id}`}>
+                        {a.invoiceTotal != null ? formatCurrency(a.invoiceTotal) : "—"}
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-date-paid-pending-${a.id}`}>
                         {formatDateOnly(a.datePaid)}
                       </td>
@@ -527,7 +537,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       No awards waiting for approval
                     </td>
@@ -535,6 +545,7 @@ export function Rewards() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </TabsContent>
 
@@ -576,7 +587,8 @@ export function Rewards() {
           )}
 
           <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <SortableTh label="Customer" sortKey="customerName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
@@ -678,6 +690,7 @@ export function Rewards() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </TabsContent>
 
@@ -696,7 +709,8 @@ export function Rewards() {
             </Button>
           </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
@@ -775,13 +789,15 @@ export function Rewards() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </TabsContent>
 
         {/* History */}
         <TabsContent value="history" className="mt-4">
           <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
@@ -847,6 +863,7 @@ export function Rewards() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </TabsContent>
 

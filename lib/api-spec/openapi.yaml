@@ -1327,6 +1327,12 @@ components:
           type: string
         printavoVisualId:
           type: ["string", "null"]
+        nickname:
+          type: ["string", "null"]
+          description: Invoice nickname/job name from Printavo, captured when the award was created.
+        invoiceTotal:
+          type: ["number", "null"]
+          description: Total order value of the invoice, captured when the award was created.
         amount:
           type: number
         datePaid:
