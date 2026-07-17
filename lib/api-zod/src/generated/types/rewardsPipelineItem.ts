@@ -23,6 +23,8 @@ export interface RewardsPipelineItem {
   datePaid?: string | null;
   customerName: string;
   customerEmail: string;
+  /** @nullable */
+  customerCompany?: string | null;
   customerLinked: boolean;
   /** @nullable */
   total?: number | null;

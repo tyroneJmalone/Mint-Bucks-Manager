@@ -484,7 +484,7 @@ export function Rewards() {
                     <tr key={a.id} data-testid={`row-pending-${a.id}`} className="hover:bg-muted/30 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="text-sm text-foreground font-medium">{a.customerName ?? "Unknown"}</div>
-                        {a.customerEmail && <div className="text-xs text-muted-foreground">{a.customerEmail}</div>}
+                        {a.customerCompany && <div className="text-xs text-muted-foreground">{a.customerCompany}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
                         <a
@@ -633,7 +633,7 @@ export function Rewards() {
                             </span>
                           )}
                         </div>
-                        {item.customerEmail && <div className="text-xs text-muted-foreground">{item.customerEmail}</div>}
+                        {item.customerCompany && <div className="text-xs text-muted-foreground">{item.customerCompany}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
@@ -823,7 +823,7 @@ export function Rewards() {
                     <tr key={a.id} data-testid={`row-award-${a.id}`} className="hover:bg-muted/30 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="text-sm text-foreground font-medium">{a.customerName ?? "Unknown"}</div>
-                        {a.customerEmail && <div className="text-xs text-muted-foreground">{a.customerEmail}</div>}
+                        {a.customerCompany && <div className="text-xs text-muted-foreground">{a.customerCompany}</div>}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">
                         <a

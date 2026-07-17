@@ -95,6 +95,7 @@ export function Redemptions() {
                       <Link href={`/customers/${r.customerId}`} className="text-sm text-foreground hover:text-primary transition-colors font-medium">
                         {r.customerName}
                       </Link>
+                      {r.customerCompany && <div className="text-xs text-muted-foreground">{r.customerCompany}</div>}
                     </td>
                     <td className="px-5 py-3.5">
                       <Link href={`/credits/${r.creditId}`} className="font-mono text-xs text-muted-foreground hover:text-primary tracking-wide">

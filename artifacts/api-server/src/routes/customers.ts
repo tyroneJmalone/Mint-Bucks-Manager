@@ -39,7 +39,11 @@ router.get("/customers", async (req, res): Promise<void> => {
 
   if (search) {
     query = query.where(
-      or(ilike(customersTable.name, `%${search}%`), ilike(customersTable.email, `%${search}%`)) as ReturnType<typeof or>
+      or(
+        ilike(customersTable.name, `%${search}%`),
+        ilike(customersTable.email, `%${search}%`),
+        ilike(customersTable.companyName, `%${search}%`),
+      ) as ReturnType<typeof or>
     );
   }
 
@@ -146,7 +150,7 @@ router.get("/customers/:id/credits", async (req, res): Promise<void> => {
     .orderBy(sql`${creditsTable.issuedAt} DESC`);
 
   // Join customer name
-  const [customer] = await db.select({ name: customersTable.name, email: customersTable.email }).from(customersTable).where(eq(customersTable.id, params.data.id));
+  const [customer] = await db.select({ name: customersTable.name, email: customersTable.email, companyName: customersTable.companyName }).from(customersTable).where(eq(customersTable.id, params.data.id));
 
   res.json(
     credits.map(c => ({
@@ -155,6 +159,7 @@ router.get("/customers/:id/credits", async (req, res): Promise<void> => {
       amountRemaining: parseFloat(c.amountRemaining as unknown as string),
       customerName: customer?.name ?? "",
       customerEmail: customer?.email ?? "",
+      customerCompany: customer?.companyName ?? null,
     }))
   );
 });

@@ -281,7 +281,18 @@ async function findOrCreateCustomerForInvoice(inv: PrintavoPaidInvoice) {
   if (!email) return null;
 
   const [existing] = await db.select().from(customersTable).where(eq(customersTable.email, email));
-  if (existing) return existing;
+  if (existing) {
+    // Backfill company name for customers created before we captured it.
+    if (!existing.companyName && inv.customer.companyName) {
+      const [updated] = await db
+        .update(customersTable)
+        .set({ companyName: inv.customer.companyName })
+        .where(eq(customersTable.id, existing.id))
+        .returning();
+      return updated ?? existing;
+    }
+    return existing;
+  }
 
   const inserted = await db
     .insert(customersTable)
@@ -289,6 +300,7 @@ async function findOrCreateCustomerForInvoice(inv: PrintavoPaidInvoice) {
       name: inv.customer.fullName?.trim() || email,
       email,
       phone: inv.customer.primaryPhone ?? null,
+      companyName: inv.customer.companyName ?? null,
     })
     .onConflictDoNothing({ target: customersTable.email })
     .returning();
@@ -671,6 +683,7 @@ export interface PipelinePreviewItem {
   printavoVisualId: string;
   customerName: string;
   customerEmail: string;
+  customerCompany: string | null;
   customerLinked: boolean;
   total: number | null;
   amountPaid: number | null;
@@ -796,6 +809,7 @@ async function buildPipelinePreview(config: PrintavoConfig): Promise<PipelinePre
         printavoVisualId: inv.visualId,
         customerName: inv.customer.fullName || "",
         customerEmail: inv.customer.email || "",
+        customerCompany: inv.customer.companyName,
         customerLinked: email ? linkedEmails.has(email) : false,
         total: inv.total,
         amountPaid: inv.amountPaid,

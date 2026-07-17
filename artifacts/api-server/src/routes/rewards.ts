@@ -255,6 +255,7 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       ruleName: rewardRulesTable.name,
       customerName: customersTable.name,
       customerEmail: customersTable.email,
+      customerCompany: customersTable.companyName,
     })
     .from(rewardAwardsTable)
     .leftJoin(rewardRulesTable, eq(rewardAwardsTable.ruleId, rewardRulesTable.id))
@@ -282,6 +283,7 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       customerId: r.award.customerId,
       customerName: r.customerName ?? null,
       customerEmail: r.customerEmail ?? null,
+      customerCompany: r.customerCompany ?? null,
       printavoInvoiceId: r.award.printavoInvoiceId,
       printavoVisualId: r.award.printavoVisualId ?? null,
       nickname: r.award.nickname ?? null,

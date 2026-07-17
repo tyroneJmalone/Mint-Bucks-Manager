@@ -48,6 +48,11 @@ The rewards scan must not skip a paid invoice just because its contact email has
 **Why:** requiring a prior bulk customer sync made every matching paid invoice silently vanish (no award, not in pipeline since PAID is excluded there) — the app looked broken with zero explanation.
 **How to apply:** any new award/credit path that needs a customer row should reuse the find-or-create helper (lowercased/trimmed email, on-conflict-ignore + re-select for races). Caveat: some Printavo contacts have comma-separated multi-emails stored as one literal string — fine for matching, but credit emails to that string may bounce (email send is non-blocking by design).
 
+## sync-customers bulk-imports ALL Printavo contacts — never trigger it as a side-effect utility
+POST /api/printavo/sync-customers (Settings "Sync Customers") pages through every Printavo contact (~4,200) and inserts each as a local customer, in addition to backfilling fields (e.g. company name) on existing rows.
+**Why:** running it just to backfill one field flooded the curated ~29-customer roster with ~3,800 rows; had to be undone with a guarded delete (created-in-window + zero references in credits/awards/redemptions/notification_log).
+**How to apply:** for targeted backfills, write a one-off update against existing rows only, or filter the sync to matched emails. Only run the full sync if the user actually wants the whole Printavo contact list imported.
+
 ## Pipeline forecast must assume a paid date
 Unpaid/quote invoices have null `datePaid`, so rule paid-date windows would exclude ALL pipeline items if matched raw. The pipeline preview must match against a forecast invoice: `amountPaid = total`, `datePaid = max(today in shop TZ, rule.paidDateFrom)` — only an already-closed window (paidDateTo < today) excludes an unpaid order.
 **Why:** Rule 3's July paid window emptied the Pipeline tab because forecast matching reused the strict scan matcher on null datePaid.

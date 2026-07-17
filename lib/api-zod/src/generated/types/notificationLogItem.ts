@@ -14,6 +14,8 @@ export interface NotificationLogItem {
   customerName?: string | null;
   /** @nullable */
   customerEmail?: string | null;
+  /** @nullable */
+  customerCompany?: string | null;
   printavoOrderId: string;
   /** @nullable */
   printavoOrderNumber?: string | null;

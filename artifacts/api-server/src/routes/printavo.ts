@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   customersTable,
@@ -51,22 +51,37 @@ router.post("/printavo/sync-customers", async (_req, res): Promise<void> => {
   }
 
   // Dedupe incoming contacts by email; drop any without a usable email.
-  const byEmail = new Map<string, { name: string; email: string; phone: string | null }>();
+  const byEmail = new Map<string, { name: string; email: string; phone: string | null; companyName: string | null }>();
   let skipped = 0;
   for (const pc of printavoCustomers) {
     const email = (pc.email ?? "").toLowerCase().trim();
     if (!email) { skipped++; continue; }
     if (!byEmail.has(email)) {
-      byEmail.set(email, { name: pc.fullName || "Unknown", email, phone: pc.primaryPhone ?? null });
+      byEmail.set(email, { name: pc.fullName || "Unknown", email, phone: pc.primaryPhone ?? null, companyName: pc.companyName ?? null });
     }
   }
 
   // Load existing emails once, then bulk-insert only the new contacts.
-  const existingRows = await db.select({ email: customersTable.email }).from(customersTable);
+  const existingRows = await db
+    .select({ id: customersTable.id, email: customersTable.email, companyName: customersTable.companyName })
+    .from(customersTable);
   const existingSet = new Set(existingRows.map(r => r.email));
 
   const toInsert = [...byEmail.values()].filter(c => !existingSet.has(c.email));
   const matched = byEmail.size - toInsert.length;
+
+  // Backfill company names on existing customers that don't have one yet.
+  let updated = 0;
+  for (const row of existingRows) {
+    if (row.companyName) continue;
+    const incoming = byEmail.get(row.email);
+    if (!incoming?.companyName) continue;
+    await db
+      .update(customersTable)
+      .set({ companyName: incoming.companyName })
+      .where(eq(customersTable.id, row.id));
+    updated++;
+  }
 
   let created = 0;
   const BATCH = 500;
@@ -80,7 +95,7 @@ router.post("/printavo/sync-customers", async (_req, res): Promise<void> => {
     created += inserted.length;
   }
 
-  logger.info({ created, matched, skipped, total: printavoCustomers.length }, "Printavo customer sync complete");
+  logger.info({ created, matched, updated, skipped, total: printavoCustomers.length }, "Printavo customer sync complete");
 
   res.json({
     created,
@@ -144,6 +159,7 @@ router.get("/printavo/notification-log", async (_req, res): Promise<void> => {
       customerId: l.customerId,
       customerName: customerMap[l.customerId]?.name ?? null,
       customerEmail: customerMap[l.customerId]?.email ?? null,
+      customerCompany: customerMap[l.customerId]?.companyName ?? null,
       printavoOrderId: l.printavoOrderId,
       printavoOrderNumber: l.printavoOrderNumber ?? null,
       amountAvailable: parseFloat(l.amountAvailable as unknown as string),

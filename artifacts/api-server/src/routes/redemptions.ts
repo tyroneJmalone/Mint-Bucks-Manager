@@ -17,6 +17,7 @@ router.get("/redemptions", async (req, res): Promise<void> => {
     .select({
       redemption: redemptionsTable,
       customerName: customersTable.name,
+      customerCompany: customersTable.companyName,
       creditCode: creditsTable.code,
     })
     .from(redemptionsTable)
@@ -45,6 +46,7 @@ router.get("/redemptions", async (req, res): Promise<void> => {
       ...r.redemption,
       amountApplied: parseFloat(r.redemption.amountApplied as unknown as string),
       customerName: r.customerName,
+      customerCompany: r.customerCompany ?? null,
       creditCode: r.creditCode,
     }))
   );
@@ -61,6 +63,7 @@ router.get("/redemptions/:id", async (req, res): Promise<void> => {
     .select({
       redemption: redemptionsTable,
       customerName: customersTable.name,
+      customerCompany: customersTable.companyName,
       creditCode: creditsTable.code,
     })
     .from(redemptionsTable)
@@ -77,6 +80,7 @@ router.get("/redemptions/:id", async (req, res): Promise<void> => {
     ...row.redemption,
     amountApplied: parseFloat(row.redemption.amountApplied as unknown as string),
     customerName: row.customerName,
+    customerCompany: row.customerCompany ?? null,
     creditCode: row.creditCode,
   });
 });

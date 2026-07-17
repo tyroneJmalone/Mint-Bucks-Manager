@@ -46,6 +46,7 @@ interface Credit {
   amountRemaining: number;
   customerName: string;
   customerEmail: string;
+  customerCompany?: string | null;
   customerId: number;
   issuedAt: string;
   expiresAt?: string | null;
@@ -53,7 +54,7 @@ interface Credit {
 }
 
 function exportCsv(rows: Credit[]) {
-  const cols = ["Code", "Status", "Customer Name", "Email", "Original ($)", "Redeemed ($)", "Remaining ($)", "Issued", "Expires", "Note"];
+  const cols = ["Code", "Status", "Customer Name", "Company", "Email", "Original ($)", "Redeemed ($)", "Remaining ($)", "Issued", "Expires", "Note"];
   const lines = [
     cols.join(","),
     ...rows.map(r =>
@@ -61,6 +62,7 @@ function exportCsv(rows: Credit[]) {
         r.code,
         STATUS_LABELS[r.status] ?? r.status,
         `"${r.customerName.replace(/"/g, '""')}"`,
+        r.customerCompany ? `"${r.customerCompany.replace(/"/g, '""')}"` : "",
         r.customerEmail,
         r.amount.toFixed(2),
         (r.amount - r.amountRemaining).toFixed(2),
@@ -96,7 +98,7 @@ export function CertificateHistory() {
 
     return (credits as Credit[]).filter(c => {
       if (status && c.status !== status) return false;
-      if (q && !c.code.toLowerCase().includes(q) && !c.customerName.toLowerCase().includes(q) && !c.customerEmail.toLowerCase().includes(q)) return false;
+      if (q && !c.code.toLowerCase().includes(q) && !c.customerName.toLowerCase().includes(q) && !c.customerEmail.toLowerCase().includes(q) && !(c.customerCompany ?? "").toLowerCase().includes(q)) return false;
       const issued = new Date(c.issuedAt).getTime();
       if (from && issued < from) return false;
       if (to && issued > to) return false;
@@ -233,7 +235,7 @@ export function CertificateHistory() {
                       <Link href={`/customers/${c.customerId}`} className="font-medium text-foreground hover:text-primary transition-colors">
                         {c.customerName}
                       </Link>
-                      <div className="text-xs text-muted-foreground mt-0.5">{c.customerEmail}</div>
+                      {c.customerCompany && <div className="text-xs text-muted-foreground mt-0.5">{c.customerCompany}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap", STATUS_STYLES[c.status])}>

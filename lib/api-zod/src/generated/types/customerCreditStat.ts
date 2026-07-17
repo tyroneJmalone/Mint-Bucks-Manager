@@ -10,6 +10,8 @@ export interface CustomerCreditStat {
   customerId: number;
   customerName: string;
   customerEmail: string;
+  /** @nullable */
+  customerCompany?: string | null;
   totalIssued: number;
   totalRedeemed: number;
   outstandingBalance: number;

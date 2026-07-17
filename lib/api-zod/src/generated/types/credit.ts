@@ -12,6 +12,8 @@ export interface Credit {
   customerId: number;
   customerName: string;
   customerEmail?: string;
+  /** @nullable */
+  customerCompany?: string | null;
   code: string;
   amount: number;
   amountRemaining: number;

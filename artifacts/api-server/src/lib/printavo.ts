@@ -11,6 +11,8 @@ export interface PrintavoCustomer {
   fullName: string;
   email: string;
   primaryPhone?: string | null;
+  /** Company name from the contact's parent Customer record in Printavo. */
+  companyName: string | null;
 }
 
 export interface PrintavoOrder {
@@ -83,6 +85,9 @@ interface RawContact {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  // Parent Customer record; Printavo stores the company name there, not on
+  // the Contact itself.
+  customer?: { companyName: string | null } | null;
 }
 
 interface RawOrder {
@@ -163,6 +168,7 @@ function mapContact(c: RawContact): PrintavoCustomer {
     fullName: c.fullName ?? "",
     email: (c.email ?? "").toLowerCase().trim(),
     primaryPhone: c.phone ?? null,
+    companyName: c.customer?.companyName?.trim() || null,
   };
 }
 
@@ -188,7 +194,7 @@ export async function testConnection(config: PrintavoConfig): Promise<{ success:
   }
 }
 
-const CONTACT_FIELDS = `id fullName email phone`;
+const CONTACT_FIELDS = `id fullName email phone customer { companyName }`;
 
 export async function fetchAllCustomers(config: PrintavoConfig): Promise<PrintavoCustomer[]> {
   const all: PrintavoCustomer[] = [];

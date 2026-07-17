@@ -896,6 +896,8 @@ components:
           type: string
         customerEmail:
           type: string
+        customerCompany:
+          type: ["string", "null"]
         code:
           type: string
         amount:
@@ -967,6 +969,8 @@ components:
           type: integer
         customerName:
           type: string
+        customerCompany:
+          type: ["string", "null"]
         amountApplied:
           type: number
         invoiceRef:
@@ -1038,6 +1042,8 @@ components:
           type: string
         customerEmail:
           type: string
+        customerCompany:
+          type: ["string", "null"]
         totalIssued:
           type: number
         totalRedeemed:
@@ -1181,6 +1187,8 @@ components:
           type: ["string", "null"]
         customerEmail:
           type: ["string", "null"]
+        customerCompany:
+          type: ["string", "null"]
         printavoOrderId:
           type: string
         printavoOrderNumber:
@@ -1323,6 +1331,8 @@ components:
           type: ["string", "null"]
         customerEmail:
           type: ["string", "null"]
+        customerCompany:
+          type: ["string", "null"]
         printavoInvoiceId:
           type: string
         printavoVisualId:
@@ -1447,6 +1457,8 @@ components:
           type: string
         customerEmail:
           type: string
+        customerCompany:
+          type: ["string", "null"]
         customerLinked:
           type: boolean
         total:

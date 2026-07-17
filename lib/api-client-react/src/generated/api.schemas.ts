@@ -58,6 +58,8 @@ export interface Credit {
   customerId: number;
   customerName: string;
   customerEmail?: string;
+  /** @nullable */
+  customerCompany?: string | null;
   code: string;
   amount: number;
   amountRemaining: number;
@@ -107,6 +109,8 @@ export interface Redemption {
   creditCode?: string;
   customerId: number;
   customerName: string;
+  /** @nullable */
+  customerCompany?: string | null;
   amountApplied: number;
   /** @nullable */
   invoiceRef?: string | null;
@@ -147,6 +151,8 @@ export interface CustomerCreditStat {
   customerId: number;
   customerName: string;
   customerEmail: string;
+  /** @nullable */
+  customerCompany?: string | null;
   totalIssued: number;
   totalRedeemed: number;
   outstandingBalance: number;
@@ -264,6 +270,8 @@ export interface NotificationLogItem {
   customerName?: string | null;
   /** @nullable */
   customerEmail?: string | null;
+  /** @nullable */
+  customerCompany?: string | null;
   printavoOrderId: string;
   /** @nullable */
   printavoOrderNumber?: string | null;
@@ -385,6 +393,8 @@ export interface RewardAward {
   customerName?: string | null;
   /** @nullable */
   customerEmail?: string | null;
+  /** @nullable */
+  customerCompany?: string | null;
   printavoInvoiceId: string;
   /** @nullable */
   printavoVisualId?: string | null;
@@ -505,6 +515,8 @@ export interface RewardsPipelineItem {
   datePaid?: string | null;
   customerName: string;
   customerEmail: string;
+  /** @nullable */
+  customerCompany?: string | null;
   customerLinked: boolean;
   /** @nullable */
   total?: number | null;

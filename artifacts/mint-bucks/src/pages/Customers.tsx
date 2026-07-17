@@ -173,7 +173,7 @@ export function Customers() {
         <Input
           data-testid="input-search"
           type="search"
-          placeholder="Search by name or email..."
+          placeholder="Search by name, company, or email..."
           className="pl-9"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -187,7 +187,7 @@ export function Customers() {
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
+              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
               <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Outstanding</th>
               <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Issued</th>
               <th className="w-10 px-3"></th>
@@ -213,7 +213,7 @@ export function Customers() {
                       </Link>
                       {c.phone && <div className="text-xs text-muted-foreground mt-0.5">{c.phone}</div>}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.email}</td>
+                    <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.companyName || "—"}</td>
                     <td className="px-5 py-3.5 text-right">
                       <span
                         data-testid={`text-balance-${c.id}`}

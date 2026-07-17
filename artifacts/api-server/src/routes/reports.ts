@@ -111,6 +111,7 @@ router.get("/reports/top-customers", async (req, res): Promise<void> => {
       customerId: customer.id,
       customerName: customer.name,
       customerEmail: customer.email,
+      customerCompany: customer.companyName ?? null,
       totalIssued: parseFloat(totalIssued.toFixed(2)),
       totalRedeemed: parseFloat(totalRedeemed.toFixed(2)),
       outstandingBalance: parseFloat(outstandingBalance.toFixed(2)),
@@ -152,6 +153,7 @@ router.get("/reports/expiring-soon", async (req, res): Promise<void> => {
       amountRemaining: parseFloat(c.amountRemaining as unknown as string),
       customerName: customerMap[c.customerId]?.name ?? "",
       customerEmail: customerMap[c.customerId]?.email ?? "",
+      customerCompany: customerMap[c.customerId]?.companyName ?? null,
     }))
   );
 });

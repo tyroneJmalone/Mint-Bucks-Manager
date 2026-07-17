@@ -126,7 +126,10 @@ export function Credits() {
                     <td className="px-5 py-3.5">
                       <span className="font-mono text-sm text-foreground font-medium tracking-wide">{c.code}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-foreground">{c.customerName}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="text-sm text-foreground">{c.customerName}</div>
+                      {c.customerCompany && <div className="text-xs text-muted-foreground">{c.customerCompany}</div>}
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", statusStyles[c.status])}>
                         {statusLabels[c.status]}

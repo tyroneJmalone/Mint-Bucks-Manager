@@ -243,8 +243,8 @@ export function Reports() {
                     <Link href={`/customers/${entry.customerId}`} className="text-sm font-medium text-foreground hover:text-primary transition-colors">
                       {entry.customerName ?? `Customer #${entry.customerId}`}
                     </Link>
-                    {entry.customerEmail && (
-                      <div className="text-xs text-muted-foreground">{entry.customerEmail}</div>
+                    {entry.customerCompany && (
+                      <div className="text-xs text-muted-foreground">{entry.customerCompany}</div>
                     )}
                   </td>
                   <td className="px-5 py-3">

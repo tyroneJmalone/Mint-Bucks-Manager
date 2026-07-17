@@ -17,6 +17,8 @@ export interface RewardAward {
   customerName?: string | null;
   /** @nullable */
   customerEmail?: string | null;
+  /** @nullable */
+  customerCompany?: string | null;
   printavoInvoiceId: string;
   /** @nullable */
   printavoVisualId?: string | null;

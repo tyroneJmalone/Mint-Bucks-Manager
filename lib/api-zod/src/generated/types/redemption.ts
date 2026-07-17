@@ -12,6 +12,8 @@ export interface Redemption {
   creditCode?: string;
   customerId: number;
   customerName: string;
+  /** @nullable */
+  customerCompany?: string | null;
   amountApplied: number;
   /** @nullable */
   invoiceRef?: string | null;

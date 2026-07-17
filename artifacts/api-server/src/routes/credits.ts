@@ -19,13 +19,14 @@ import { generateCertificatePdf, generateQrPng } from "../lib/certificate";
 
 const router: IRouter = Router();
 
-function formatCredit(credit: Record<string, unknown>, customerName: string, customerEmail: string) {
+function formatCredit(credit: Record<string, unknown>, customerName: string, customerEmail: string, customerCompany: string | null = null) {
   return {
     ...credit,
     amount: parseFloat(credit.amount as string),
     amountRemaining: parseFloat(credit.amountRemaining as string),
     customerName,
     customerEmail,
+    customerCompany,
   };
 }
 
@@ -45,6 +46,7 @@ router.get("/credits", async (req, res): Promise<void> => {
       credit: creditsTable,
       customerName: customersTable.name,
       customerEmail: customersTable.email,
+      customerCompany: customersTable.companyName,
     })
     .from(creditsTable)
     .innerJoin(customersTable, eq(creditsTable.customerId, customersTable.id))
@@ -78,7 +80,7 @@ router.get("/credits", async (req, res): Promise<void> => {
   const rows = await query.orderBy(sql`${creditsTable.issuedAt} DESC`);
 
   res.json(
-    rows.map(r => formatCredit(r.credit as unknown as Record<string, unknown>, r.customerName, r.customerEmail))
+    rows.map(r => formatCredit(r.credit as unknown as Record<string, unknown>, r.customerName, r.customerEmail, r.customerCompany ?? null))
   );
 });
 
@@ -123,7 +125,7 @@ router.post("/credits", async (req, res): Promise<void> => {
     creditId: credit.id,
   }).catch(() => {});
 
-  res.status(201).json(formatCredit(credit as unknown as Record<string, unknown>, customer.name, customer.email));
+  res.status(201).json(formatCredit(credit as unknown as Record<string, unknown>, customer.name, customer.email, customer.companyName ?? null));
 });
 
 router.get("/credits/:id", async (req, res): Promise<void> => {
@@ -139,7 +141,7 @@ router.get("/credits/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(formatCredit(result.credit as unknown as Record<string, unknown>, result.customer?.name ?? "", result.customer?.email ?? ""));
+  res.json(formatCredit(result.credit as unknown as Record<string, unknown>, result.customer?.name ?? "", result.customer?.email ?? "", result.customer?.companyName ?? null));
 });
 
 router.patch("/credits/:id", async (req, res): Promise<void> => {
@@ -172,7 +174,7 @@ router.patch("/credits/:id", async (req, res): Promise<void> => {
   }
 
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, credit.customerId));
-  res.json(formatCredit(credit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? ""));
+  res.json(formatCredit(credit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null));
 });
 
 router.delete("/credits/:id", async (req, res): Promise<void> => {
@@ -265,7 +267,7 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
       customerId: credit.customerId,
       customerName: customer?.name ?? "",
     },
-    credit: formatCredit(updatedCredit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? ""),
+    credit: formatCredit(updatedCredit as unknown as Record<string, unknown>, customer?.name ?? "", customer?.email ?? "", customer?.companyName ?? null),
   });
 });
 
