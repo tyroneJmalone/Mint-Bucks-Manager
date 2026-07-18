@@ -1,6 +1,8 @@
-# Mint Bucks — Technical Handoff / Integration Context
+# Mint Bucks — Technical Handoff & Integration Specification
 
-**Purpose of this document:** Mint Bucks is one of four Printavo-connected apps being considered for consolidation into a single dashboard. This doc gives another agent enough context to understand how Mint Bucks is built, what it does, and what matters when combining it with sibling apps tied to the same Printavo account.
+**Audience:** the agent building the combined Printavo dashboard ("the hub") that will connect to the same Printavo account and read/write this app's PostgreSQL database.
+
+**Prime directive:** Mint Bucks must keep running and serving its function unchanged. The hub integrates *alongside* it — same Printavo account, shared database — without breaking the invariants documented below. Section 12 is the contract for safe coexistence; everything before it is the detail needed to understand (or replicate) how the system works.
 
 ---
 
@@ -14,83 +16,245 @@ Mint Bucks is a **promotional store-credit system** for Mint Printworks (a scree
 - Emails customers on issuance, redemption, expiry reminders, and when a new Printavo order comes in for a customer with unused credit ("you have credit — apply it!").
 - Provides an admin dashboard with reporting (issuance/redemption trends, top customers, expiring credits, activity log).
 
-Admin user: Tyler (owner). No multi-user auth currently — it's a single-tenant internal tool.
+Admin user: Tyler (owner). No multi-user auth — single-tenant internal tool. **This Postgres database — not Printavo — is the system of record for credit balances.** Printavo knows nothing about Mint Bucks.
 
-## 2. Tech Stack & Architecture
+## 2. Tech Stack & Monorepo Layout
 
-**pnpm monorepo** with contract-first API design:
+**pnpm monorepo**, TypeScript throughout, contract-first API design:
 
 | Package | Role |
 |---|---|
-| `artifacts/api-server` | Express 5 backend (TypeScript, esbuild). Serves all business logic under `/api`, port from `PORT` env (8080 in dev). |
-| `artifacts/mint-bucks` | React + Vite + Tailwind + shadcn/ui admin frontend. Talks to API via generated React Query hooks. |
-| `lib/db` | Drizzle ORM schemas + migrations for PostgreSQL (Replit-managed, `DATABASE_URL`). |
-| `lib/api-spec` | `openapi.yaml` — **single source of truth** for the API contract. Orval codegen. |
-| `lib/api-zod` | Generated Zod schemas — used by the API server for request/response validation. |
-| `lib/api-client-react` | Generated React Query hooks — used by the frontend. |
+| `artifacts/api-server` | Express 5 backend (esbuild bundle). All business logic, served under `/api`. Listens on `PORT` (8080 in dev). |
+| `artifacts/mint-bucks` | React + Vite + Tailwind + shadcn/ui admin frontend (Wouter routing, React Query). |
+| `lib/db` | Drizzle ORM schema + client for PostgreSQL (Replit-managed, `DATABASE_URL`). |
+| `lib/api-spec` | `openapi.yaml` — **single source of truth** for the API contract (OpenAPI 3.0, Orval codegen). |
+| `lib/api-zod` | Generated Zod schemas — request/response validation in the API server. |
+| `lib/api-client-react` | Generated React Query hooks — consumed by the frontend. |
 
-**Codegen workflow:** edit `openapi.yaml` → `pnpm --filter @workspace/api-spec run codegen` → regenerates Zod + React client. Backend and frontend never hand-write API types.
+**Codegen workflow:** edit `lib/api-spec/openapi.yaml` → `pnpm --filter @workspace/api-spec run codegen` → regenerates Zod schemas + React client. Neither backend nor frontend hand-writes API types.
+
+**Schema migrations:** `drizzle-kit push` (no migration files). From `lib/db`: `pnpm run push` (or `push-force`). The Drizzle schema files in `lib/db/src/schema/` are the authoritative definition of the database shape.
+
+**Key backend modules** (`artifacts/api-server/src/`):
+
+- `lib/printavo.ts` — the *only* module that talks to Printavo (GraphQL v2 client, throttling, pagination).
+- `lib/rewards.ts` — rewards engine (rule matching, budget cap, award claiming/issuance).
+- `lib/poller.ts` — in-process background poll loop (order notifications + rewards scan scheduling).
+- `lib/settings.ts` — typed key-value settings store with AES-256-GCM encryption for sensitive keys.
+- `lib/email.ts` — Resend email via Replit connector (`@replit/connectors-sdk`).
+- `lib/certificate.ts` — PDF gift certificate generation (pdfkit + qrcode).
+- `routes/*.ts` — Express routers: `customers`, `credits`, `redemptions`, `reports`, `rewards`, `printavo`, `settings`, `health`.
 
 ## 3. Database Schema (PostgreSQL, Drizzle)
 
-- **`customers`** — local customer records: `id`, `name`, `email` (unique), `phone`, `company_name`. Populated manually or bulk-synced from Printavo contacts.
-- **`credits`** — `id`, `customerId`, `code` (unique, human-shareable), `amount`, `amountRemaining`, `status` (`active` / `partially_redeemed` / `fully_redeemed` / `expired` / `void`), `sourceRuleId` (if reward-generated), `expiresAt`.
-- **`redemptions`** — `creditId`, `customerId`, `amountApplied`, `invoiceRef` (Printavo reference), `redeemedAt`.
-- **`reward_rules`** — `name`, `enabled`, `rewardType` (`flat` / `percent_paid` / `percent_total` / `tiered`), `rewardParams` (JSON), `conditions` (JSON: order tags, status, total min/max), `startsAt`/`endsAt`.
-- **`reward_awards`** — **dedup ledger** preventing double-awards. `ruleId`, `printavoInvoiceId` (Printavo *internal* id, see §5), `printavoVisualId`, `amount`, `status` (`processing` → `pending` → `issued` / `rejected`). **Unique on `(ruleId, printavoInvoiceId)`.**
-- **`settings`** — key-value config store. Sensitive values (Printavo API key) are **AES-256-GCM encrypted at rest**, keyed by `SETTINGS_ENCRYPTION_KEY` env secret.
-- **`notification_log`** — tracks credit-available emails per order. Unique on `(customerId, printavoOrderId)` to prevent duplicate emails.
+All timestamps are `timestamptz`. Money columns are `numeric` (returned as **strings** by the `pg` driver — the app parses them; the hub must too). Status columns are `text` with app-level enum values (not Postgres enums).
 
-## 4. API Surface (all under `/api`)
+### `customers`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | Local customer id — all other tables reference this, not Printavo ids. |
+| `name` | text NOT NULL | |
+| `email` | text NOT NULL **UNIQUE** | Dedup key for Printavo contact sync (upsert by email). |
+| `phone` | text | |
+| `company_name` | text | |
+| `created_at` / `updated_at` | timestamptz NOT NULL default now() | `updated_at` auto-set by Drizzle `$onUpdate` (app layer, **not** a DB trigger — direct SQL writes bypass it). |
 
-- **`/credits`** — CRUD + `POST /:id/redeem` (apply to invoice), `POST /:id/remind` (email reminder), `GET /check/:code` (public balance check), `GET /:id/qr` (QR PNG), `GET /:id/certificate` (PDF).
-- **`/customers`** — CRUD + per-customer credit history + balance stats.
-- **`/rewards`** — settings (enabled, mode `auto`|`approve`, annual budget limit), rules CRUD, awards ledger, `POST /awards/:id/approve|reject`, `POST /scan` (manual scan trigger), `GET /pipeline` (forecast of potential awards from open quotes + unpaid invoices).
-- **`/printavo`** — `POST /test` (credential check), `POST /sync-customers` (bulk contact import), `POST /poll` (manual poll trigger), `GET /order/:orderNum`, `GET /notification-log`.
-- **`/settings/printavo`** — get/update credentials + polling interval.
-- **`/reports`** — summary KPIs, credits-over-time, top customers, expiring soon, activity feed.
-- **`GET /healthz`**.
+### `credits`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `customer_id` | integer NOT NULL | → `customers.id` (no FK constraint; app-enforced). |
+| `code` | text NOT NULL **UNIQUE** | Human-shareable, format `MB-XXXXXXXX` (8 chars from an uppercased UUID). Public balance check looks up by this, uppercased. |
+| `amount` | numeric(10,2) NOT NULL | Original issued amount. |
+| `amount_remaining` | numeric(10,2) NOT NULL | Live balance. Must stay consistent with `status`. |
+| `status` | text NOT NULL default `'active'` | One of `active`, `partially_redeemed`, `redeemed`, `expired`, `cancelled`. |
+| `note` | text | |
+| `source_rule_id` | integer | Set when generated by the rewards engine (→ `reward_rules.id`). |
+| `expires_at` | timestamptz | Nullable = never expires. |
+| `issued_at` | timestamptz NOT NULL default now() | |
+| `created_at` / `updated_at` | timestamptz NOT NULL default now() | |
+
+### `redemptions` (append-only audit log)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `credit_id` | integer NOT NULL | → `credits.id` |
+| `customer_id` | integer NOT NULL | Denormalized for reporting. |
+| `amount_applied` | numeric(10,2) NOT NULL | |
+| `invoice_ref` | text | Free-text Printavo invoice reference (usually the visual id). |
+| `note` | text | |
+| `redeemed_at` | timestamptz NOT NULL default now() | |
+| `created_at` | timestamptz NOT NULL default now() | |
+
+### `reward_rules`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `name` | text NOT NULL | |
+| `enabled` | boolean NOT NULL default true | |
+| `reward_type` | text NOT NULL | `flat`, `percent_paid`, `percent_total`, `tiered`. |
+| `reward_params` | jsonb NOT NULL | Type-specific keys (exact): flat → `{flatAmount}`; percent (`percent_paid`/`percent_total`) → `{percent}`; tiered → `{tiers: [{minAmount, rewardAmount}, …]}`. Wrong key names fail validation or silently compute $0 awards. |
+| `conditions` | jsonb NOT NULL default `{}` | Optional matchers (exact keys): `tagAny`, `statusNameAny`, `totalMin`, `totalMax`, `invoiceDateFrom`/`invoiceDateTo`, `productionDateFrom`/`productionDateTo`, `paidDateFrom`/`paidDateTo`. |
+| `starts_at` / `ends_at` | timestamptz | Rule active window. |
+| `created_at` / `updated_at` | timestamptz NOT NULL default now() | |
+
+### `reward_awards` — the rewards dedup ledger (load-bearing)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `rule_id` | integer NOT NULL | |
+| `customer_id` | integer NOT NULL | |
+| `printavo_invoice_id` | text NOT NULL | Printavo **internal** id (see §5.3). |
+| `printavo_visual_id` | text | Human-facing order number, display only. |
+| `nickname` | text | Order nickname snapshot. |
+| `invoice_total` | numeric(12,2) | |
+| `amount` | numeric(10,2) NOT NULL | |
+| `date_paid` | text | ISO date string derived from Printavo transactions (see §5.5). |
+| `status` | text NOT NULL default `'pending'` | `processing` → (`pending` \|) `issued` \| `rejected`. |
+| `credit_id` | integer | Set when issued (→ `credits.id`). |
+| `note` | text | |
+| `awarded_at` | timestamptz NOT NULL default now() | |
+| `issued_at` | timestamptz | |
+| `created_at` / `updated_at` | timestamptz NOT NULL default now() | |
+
+**UNIQUE INDEX `reward_awards_rule_invoice_unique` on `(rule_id, printavo_invoice_id)`** — this is what makes the rewards scan idempotent. One award per rule per invoice, ever.
+
+### `notification_log` — the notification dedup ledger (load-bearing)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `customer_id` | integer NOT NULL | |
+| `printavo_order_id` | text NOT NULL | Printavo internal id. |
+| `printavo_order_number` | text | Visual id, display only. |
+| `amount_available` | numeric(10,2) NOT NULL | Balance snapshot at send time. |
+| `delivery_status` | text NOT NULL default `'sent'` | |
+| `sent_at` | timestamptz NOT NULL default now() | |
+| `created_at` | timestamptz NOT NULL default now() | |
+
+**UNIQUE INDEX `notif_log_customer_order_unique` on `(customer_id, printavo_order_id)`** — slot is claimed with `INSERT … ON CONFLICT DO NOTHING` *before* sending, so a customer is never emailed twice for the same order even across concurrent polls.
+
+### `settings` — key-value config store
+`key` text PK · `value` text · `updated_at` timestamptz. Full key list:
+
+| Key | Meaning |
+|---|---|
+| `printavo_api_key` | **AES-256-GCM encrypted** (see §4). |
+| `printavo_email` | Printavo account email (auth header). |
+| `printavo_shop_url` | e.g. `mintprintworks.printavo.com`. |
+| `printavo_enabled` | `"true"`/`"false"` — master switch for the poll loop. |
+| `printavo_polling_interval` | Minutes between poll ticks (default 15). |
+| `printavo_last_poll_at` | ISO timestamp watermark for the notification poll. |
+| `rewards_enabled` | `"true"`/`"false"`. |
+| `rewards_mode` | `auto` (issue immediately) or `approve` (queue for admin). |
+| `rewards_annual_limit` | Optional yearly budget cap in dollars. |
+| `rewards_expiry_months` | Months until auto-issued credits expire. |
+| `rewards_start_date` | Invoices paid before this date are never rewarded. |
+| `rewards_lookback_days` | Scan window for paid invoices. |
+| `rewards_shop_timezone` | Used for "current year" budget boundary math. |
+| `rewards_last_scan_at` | ISO timestamp of last completed rewards scan. |
+
+## 4. Settings Encryption (matters if the hub reads `settings` directly)
+
+`lib/settings.ts`:
+
+- Sensitive keys (currently only `printavo_api_key`) are stored as `enc:<base64>` where base64 = `12-byte IV ‖ 16-byte GCM auth tag ‖ ciphertext`, AES-256-GCM.
+- The AES key is `sha256(SETTINGS_ENCRYPTION_KEY env value)`. Without that secret, the hub **cannot decrypt the Printavo API key from the DB** — decryption failure returns empty/null, not an error.
+- `getSetting(key)` first checks an env-var override of the same name uppercased (e.g. `PRINTAVO_API_KEY`, `PRINTAVO_EMAIL`) before hitting the DB. Recommended for the hub: use its own env secrets for Printavo credentials rather than sharing `SETTINGS_ENCRYPTION_KEY`.
+- Non-sensitive settings are plaintext — safe to read directly.
 
 ## 5. Printavo Integration (critical for consolidation)
 
-All Printavo access goes through one module (`artifacts/api-server/src/lib/printavo.ts`) against **GraphQL API v2** — single endpoint `POST https://www.printavo.com/api/v2`.
+All Printavo access goes through `artifacts/api-server/src/lib/printavo.ts` against **GraphQL API v2** — single endpoint `POST https://www.printavo.com/api/v2`.
 
-**Auth:** HTTP headers `email` + `token` (the account API key). Stored encrypted in the `settings` table; also available as env secrets `PRINTAVO_EMAIL` / `PRINTAVO_API_KEY`.
+**5.1 Auth:** plain HTTP headers `email` + `token` (account API key) on every request. No OAuth.
 
-**Hard-won API quirks (verified against the live API — trust these):**
+**5.2 Rate limit — the #1 consolidation hazard.** Printavo enforces **10 requests per 5 seconds, account-wide**. Mint Bucks serializes every GraphQL call through a global promise gate with a **≥620ms minimum interval** (~8 req/5s, leaving headroom), plus one retry after a 5.2s cooldown on HTTP 429. ⚠️ This budget is shared by *every* app on the account. The hub polling independently will cause mutual 429s. Either route all Printavo traffic through one shared throttled client, or leave polling to Mint Bucks and read its DB.
 
-1. **Rate limit: 10 requests per 5 seconds, account-wide.** Mint Bucks serializes all GraphQL calls through a promise gate with a **≥620ms minimum interval** between requests, plus a one-shot retry after a 5.2s cooldown on HTTP 429. ⚠️ **This limit is shared by every app using the same Printavo account.** Four apps polling independently *will* collide with 429s. A combined app should route all Printavo traffic through a single throttled client — this is one of the strongest arguments for consolidation.
-2. **Quotes never appear in the `invoices` query.** Printavo's `invoices` GraphQL query only returns orders after quote approval. To see pre-approval work you must query `orders` (a Quote/Invoice union) and filter on `__typename === "Quote"`. Mint Bucks' pipeline feature depends on this.
-3. **Two IDs per order:** the internal numeric `id` (e.g. `23592196`, stable, used in API lookups and stored in `reward_awards.printavo_invoice_id`) and the `visualId` (e.g. `22375`, the human-facing order number shown in the Printavo UI). Always store the internal id; display the visualId.
-4. **Two URLs per order:** `url` = merchant-side page, deterministic `https://www.printavo.com/invoices/{internalId}` for **both** quotes and invoices; `publicUrl` = customer-facing hashed link (`https://mintprintworks.printavo.com/invoice/{hash}`). Deep links in the admin UI use the merchant URL, constructed from the internal id.
-5. **Queries used:** `contacts` (customer sync), `invoices` filtered by `paymentStatus` (`PAID` for the rewards scan; `UNPAID`/`PARTIAL_PAYMENT` for pipeline), `orders` sorted by `VISUAL_ID` desc (open quotes for pipeline).
-6. **No webhooks are used** — Printavo state is pulled by polling (see §6). (Printavo v2 does offer some webhook support; Mint Bucks predates evaluating it.)
+**5.3 Two IDs per order.** Internal numeric `id` (e.g. `23592196`) — stable, used for API lookups, stored in `reward_awards.printavo_invoice_id` and `notification_log.printavo_order_id`. `visualId` (e.g. `22375`) — the human-facing order number in the Printavo UI. **Always store the internal id; display the visualId.**
+
+**5.4 Two URLs per order.** `url` = merchant-side page, deterministic `https://www.printavo.com/invoices/{internalId}` for both quotes and invoices; `publicUrl` = customer-facing hashed link (`https://{shop}.printavo.com/invoice/{hash}`). Admin deep links use the merchant URL built from the internal id.
+
+**5.5 No native paid-date.** Orders have no `paidAt` field. Mint Bucks derives `datePaid` by fetching the invoice's `transactions` connection and taking the most recent transaction of type `Payment`. Stored as text on the award row.
+
+**5.6 Pagination cap.** Printavo returns **max 25 nodes per page** regardless of the `first` argument. All list fetches loop on `pageInfo.hasNextPage` / `endCursor`.
+
+**5.7 Queries used:** `contacts` (customer sync — imports ALL contacts), `invoices` filtered by `paymentStatus` (`PAID` for the rewards scan; `UNPAID`/`PARTIAL_PAYMENT` for the pipeline forecast), `orders` (a Quote/Invoice union — the only way to see pre-approval quotes; filter `__typename === "Quote"`), sorted by `VISUAL_ID` desc as a recency proxy (no created-at sort exists).
+
+**5.8 No webhooks.** All Printavo state is pulled by polling (§6). Printavo v2 has some webhook support; this app predates evaluating it — a consolidated hub could revisit.
 
 ## 6. Background Jobs (in-process poller)
 
-A `setInterval` loop inside the API server (interval from `printavo_polling_interval` setting, default 15 min) does three things each tick:
+A `setInterval` loop inside the API server (interval = `printavo_polling_interval`, default 15 min; also manually triggerable via `POST /api/printavo/poll` and `POST /api/rewards/scan`). Each tick:
 
-1. **Rewards scan** — fetch recently PAID invoices, match against enabled `reward_rules`, insert `reward_awards`. In `auto` mode credit is issued immediately; in `approve` mode awards queue as `pending` for Tyler to approve in the dashboard. An **annual budget cap** is enforced atomically using a Postgres advisory lock (`pg_advisory_xact_lock`) so concurrent scans can't overspend.
-2. **Order notifications** — fetch recent orders; if the customer has active credit and no `notification_log` row for that order, claim the slot and send a "you have credit" email.
-3. **Stale-state cleanup** — resets `processing` awards / `pending` notifications older than 10 min (crash recovery).
+1. **Rewards scan** (`lib/rewards.ts`) — fetch invoices paid within `rewards_lookback_days`, gate on `rewards_start_date`, match against enabled `reward_rules` (tags, status, totals, date windows). For each match, atomically claim a ledger slot:
+   - Inside a transaction, take `pg_advisory_xact_lock(782311)` (constant `REWARDS_LOCK_KEY`), check the annual budget (`rewards_annual_limit`, year boundary in `rewards_shop_timezone`), then insert the `reward_awards` row (unique index rejects duplicates). If the budget blocks it, **no row is written** so a future year isn't permanently blocked.
+   - `auto` mode: claim as `processing`, immediately create the `credits` row (with expiry from `rewards_expiry_months`), flip award to `issued`, email the customer. `approve` mode: claim as `pending` for dashboard approval.
+   - Manual approval (`POST /rewards/awards/:id/approve`) goes through the same advisory-lock claim path, so scans and approvals can never jointly overspend the budget.
+   - Scans use a **single-flight with trailing re-run** pattern: a scan requested while one runs queues exactly one follow-up.
+2. **Order notifications** (`lib/poller.ts`) — fetch orders since the `printavo_last_poll_at` watermark; if the order's customer exists locally (matched by email) and has active credit, claim the `notification_log` slot (`ON CONFLICT DO NOTHING`) and send a "you have credit" email; then advance the watermark.
+3. **Stale-state sweep** — rows older than ~10 minutes left behind by a crash mid-operation are cleaned up: stale `reward_awards` rows are deleted under the same advisory lock (so their budget is atomically reclaimed and the invoice can be retried); stale pending `notification_log` rows are deleted with a plain delete (no lock needed — the unique index still guards re-claims).
 
-## 7. Email
+## 7. API Surface (all under `/api`, no auth except where noted)
 
-Outbound email via **Resend** through Replit's connector integration (`@replit/connectors-sdk`). Templates: credit issued, credit redeemed, expiry reminder, order notification. Sender address from `FROM_EMAIL`.
+| Area | Endpoints |
+|---|---|
+| Health | `GET /healthz` |
+| Customers | `GET/POST /customers`, `GET/PATCH/DELETE /customers/:id`, `GET /customers/:id/credits`. List supports `search`, `hasCredit`; responses include balance stats. PATCH treats explicit `null` as "clear field". |
+| Credits | `GET/POST /credits`, `GET/PATCH/DELETE /credits/:id`, `POST /credits/:id/redeem` (full/partial; writes `redemptions`, decrements `amount_remaining`, flips status, emails confirmation), `POST /credits/:id/remind`, `GET /credits/:id/qr` (PNG), `GET /credits/:id/certificate` (PDF), **`GET /credits/check/:code` (public — no auth by design)**. |
+| Redemptions | `GET /redemptions`, `GET /redemptions/:id` (filters: `customerId`, `creditId`). |
+| Reports | `GET /reports/summary`, `/credits-over-time`, `/top-customers`, `/expiring-soon`, `/activity`. |
+| Rewards | `GET/PUT /rewards/settings`, `GET /rewards/summary`, `GET/POST /rewards/rules`, `PATCH/DELETE /rewards/rules/:id`, `GET /rewards/awards`, `POST /rewards/awards/:id/approve|reject`, `POST /rewards/scan`, `GET /rewards/pipeline` (forecast from open quotes + unpaid invoices). |
+| Printavo | `POST /printavo/test`, `POST /printavo/sync-customers` (upsert ALL contacts by email), `POST /printavo/poll`, `GET /printavo/order/:num`, `GET /printavo/notification-log`. |
+| Settings | `GET/PUT /settings/printavo` (API key masked in GET responses). |
 
-## 8. Frontend Pages
+Exact request/response shapes: `lib/api-spec/openapi.yaml`.
 
-`Dashboard` (KPIs + activity) · `Customers` / `CustomerDetail` (CRM + sync from Printavo) · `Credits` / `CreditDetail` / `IssueCredit` · `Redemptions` · `Rewards` (settings, rules, pending-approval queue, pipeline forecast, history — Printavo order numbers deep-link to the merchant order page) · `Reports` · `Settings` (Printavo creds + polling) · `CheckCredit` (public, QR-reachable balance checker).
+## 8. Email (Resend via Replit connector)
 
-## 9. Env Vars / Secrets (names only)
+`lib/email.ts` sends through the Replit-managed **Resend** connector (`@replit/connectors-sdk` proxy to Resend's `/emails`). Sender: `Mint Printworks <FROM_EMAIL>`. Templates (inline-CSS HTML): credit issued, credit redeemed, expiry/balance reminder, order notification ("you have credit available"). Email sends are best-effort — failures are logged, never block the credit operation.
 
-`DATABASE_URL`, `SETTINGS_ENCRYPTION_KEY` (32-byte hex for AES-GCM), `PRINTAVO_EMAIL`, `PRINTAVO_API_KEY`, `FROM_EMAIL`, `PORT`, `APP_URL` / `REPLIT_DEV_DOMAIN` (link + QR generation).
+## 9. Certificates, QR, Public Balance Check
 
-## 10. Consolidation Considerations (from this app's perspective)
+- `lib/certificate.ts` builds a branded 612×396pt PDF via **pdfkit** with an embedded QR (**qrcode** lib) pointing to `{APP_URL}/check/{code}`.
+- Base URL for links/QR: `APP_URL` env, falling back to `https://{REPLIT_DEV_DOMAIN}`.
+- The frontend page `/check/:code` (and `GET /api/credits/check/:code`) is intentionally public: given a code, it returns status, original amount, and remaining balance. Codes are unguessable (`MB-` + 8 hex-ish chars) and act as bearer tokens for *viewing* a balance only.
+- Build note: the esbuild bundle must copy pdfkit's `data/*.afm` font files into `dist/` (handled in `build.mjs`) — bundling without them causes runtime 500s on certificate generation.
 
-- **Single throttled Printavo client is non-negotiable.** The 10-req/5s account-wide limit means the combined dashboard needs one shared gateway module (Mint Bucks' throttle + 429-retry logic is a proven starting point).
-- **The dedup ledgers are load-bearing.** `reward_awards (ruleId, printavoInvoiceId)` and `notification_log (customerId, printavoOrderId)` unique constraints are what make polling idempotent and safe. Preserve them (or an equivalent) through any migration.
-- **Credits are the system of record here, not Printavo.** Balances, redemptions, and expiry live only in this Postgres DB. Merging apps must not lose this ledger; redemptions reference Printavo invoices but Printavo knows nothing about credit balances.
-- **Contract-first pattern travels well.** If the combined dashboard keeps the OpenAPI → Orval (Zod + React Query) pipeline, Mint Bucks' endpoints can be merged into a unified spec with minimal frontend rework.
-- **Poller consolidation:** each app running its own poll loop multiplies API traffic. A combined app should have one scheduler that fans out to each feature module.
-- **Auth gap:** Mint Bucks has no login layer. A combined dashboard will likely want one; nothing in Mint Bucks conflicts with adding auth in front.
+## 10. Frontend Pages (admin dashboard)
+
+`Dashboard` (KPIs + activity) · `Customers` / `CustomerDetail` (CRM + Printavo sync) · `Credits` / `CreditDetail` / `IssueCredit` · `Redemptions` · `Rewards` (settings, rules, pending-approval queue, pipeline forecast, history — order numbers deep-link to Printavo merchant pages) · `Reports` · `Settings` (Printavo creds + polling) · `CheckCredit` (public balance checker, QR-reachable).
+
+## 11. Env Vars / Secrets (names only — values live in Replit Secrets)
+
+| Name | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string (Replit-managed DB). **This is what the hub will share.** |
+| `SETTINGS_ENCRYPTION_KEY` | 32-byte-hex passphrase for AES-GCM settings encryption (§4). |
+| `PRINTAVO_EMAIL` / `PRINTAVO_API_KEY` | Optional env overrides for Printavo credentials (take precedence over DB settings). |
+| `FROM_EMAIL` | Outbound sender address (default `noreply@mintprintworks.com`). |
+| `APP_URL` / `REPLIT_DEV_DOMAIN` | Public base URL for emails, QR codes, certificates. |
+| `PORT` | API server listen port. |
+| `NODE_ENV`, `LOG_LEVEL` | Logging (pino). |
+
+## 12. Rules of Engagement for the Hub (shared-database contract)
+
+The hub may read this database freely. For **writes**, follow these rules or you will corrupt the ledger or double-send emails:
+
+1. **Prefer the HTTP API over direct DB writes.** `POST /api/credits`, `POST /api/credits/:id/redeem`, etc. keep `amount_remaining`/`status` consistent, write the `redemptions` audit row, respect the budget lock, and send customer emails. Direct inserts get none of that. Note the API is **unauthenticated** — do not assume network isolation on Replit (deployed apps are publicly reachable). Add auth or restrict access before exposing the hub publicly, and treat server-to-server calls as calls to an unprotected admin API.
+2. **If you must write `credits` directly**, maintain the invariant set atomically: `amount_remaining` decremented ⇄ `redemptions` row appended ⇄ `status` transitioned (`active` → `partially_redeemed` → `redeemed`). Never let `amount_remaining` exceed `amount` or go negative. `updated_at` is app-maintained, not a trigger — set it yourself.
+3. **Never bypass the two dedup ledgers.** Any process that issues rule-based rewards must claim `(rule_id, printavo_invoice_id)` in `reward_awards` first; any process that sends order-based credit emails must claim `(customer_id, printavo_order_id)` in `notification_log` via `ON CONFLICT DO NOTHING` *before* sending.
+4. **Budget-relevant issuance must take `pg_advisory_xact_lock(782311)`** in the same transaction as the limit check + insert. Don't reuse that lock key for unrelated purposes.
+5. **Don't alter the schema out-of-band.** Schema is owned by `lib/db/src/schema/` + `drizzle-kit push`. If the hub needs new tables in the shared DB, namespace them (e.g. `hub_*`) and never modify Mint Bucks tables' columns/constraints — especially the two unique indexes.
+6. **Match customers by `email` (unique).** `customer_id` values are local — never assume they correlate with Printavo contact ids.
+7. **Respect the Printavo rate budget.** If the hub also polls Printavo, coordinate: one shared throttled client, or disable one side's polling (`printavo_enabled` setting turns Mint Bucks' loop off — but then the hub owns rewards scanning and must replicate §6 semantics exactly).
+8. **Money columns come back as strings.** Parse with a decimal-safe approach; don't float-math dollar values.
+9. **Don't share `SETTINGS_ENCRYPTION_KEY` casually.** The hub should hold its own Printavo credentials as env secrets instead of decrypting this app's settings row.
+
+## 13. Consolidation Considerations
+
+- **Single throttled Printavo client is non-negotiable** (§5.2). Mint Bucks' gate + 429-retry logic is a proven starting point.
+- **The dedup ledgers are load-bearing** (§3). Preserve them (or an exact equivalent) through any migration.
+- **Credits are the system of record here, not Printavo** (§1). Merging apps must not lose this ledger.
+- **Contract-first pattern travels well.** Keeping the OpenAPI → Orval (Zod + React Query) pipeline lets Mint Bucks' endpoints merge into a unified spec with minimal frontend rework.
+- **Poller consolidation:** one scheduler fanning out to feature modules beats N independent loops hammering the same rate limit.
+- **Auth gap:** Mint Bucks has no login layer (only the balance-check page is meant to be public). A combined dashboard should add auth in front; nothing here conflicts with that.
