@@ -16,6 +16,11 @@ export interface RewardRule {
   rewardType: RewardRuleRewardType;
   rewardParams: RewardParams;
   conditions: RewardConditions;
+  /**
+     * Object storage path of the image attached to award emails.
+     * @nullable
+     */
+  imageObjectPath?: string | null;
   /** @nullable */
   startsAt?: string | null;
   /** @nullable */

@@ -7,6 +7,7 @@ import reportsRouter from "./reports";
 import settingsRouter from "./settings";
 import printavoRouter from "./printavo";
 import rewardsRouter from "./rewards";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(reportsRouter);
 router.use(settingsRouter);
 router.use(printavoRouter);
 router.use(rewardsRouter);
+router.use(storageRouter);
 
 export default router;

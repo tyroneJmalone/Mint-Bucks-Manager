@@ -51,6 +51,19 @@ interface CreditEmailData {
   expiresAt?: string | null;
   note?: string | null;
   creditId: number;
+  /** Object storage path (e.g. /objects/uploads/<id>) of a rule image to feature in the email. */
+  imageObjectPath?: string | null;
+}
+
+function ruleImageTag(imageObjectPath?: string | null): string {
+  if (!imageObjectPath) return "";
+  // Defense in depth: only render canonical /objects/... paths so no
+  // arbitrary markup or foreign URL can end up in the src attribute.
+  if (!/^\/objects\/[A-Za-z0-9._/-]+$/.test(imageObjectPath)) return "";
+  const appUrl = getAppUrl();
+  if (!appUrl) return "";
+  const src = `${appUrl}/api/storage${encodeURI(imageObjectPath)}`;
+  return `<div style="text-align:center;margin:24px 0"><img src="${src}" alt="" style="max-width:100%;height:auto;border-radius:8px"></div>`;
 }
 
 interface RedemptionEmailData {
@@ -104,6 +117,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>
+    ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Mint Bucks Credit</div></div>
     <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your unique credit code</div></div>
     <div class="dl"><dl>
@@ -170,6 +184,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>
+    ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Available Balance</div></div>
     <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your credit code</div></div>
     ${data.expiresAt ? `<p><strong>Expires:</strong> ${formatDate(data.expiresAt)} — don't let it go to waste!</p>` : ""}

@@ -415,6 +415,7 @@ async function issueClaimedAward(
       expiresAt: credit.expiresAt?.toISOString() ?? null,
       note: credit.note,
       creditId: credit.id,
+      imageObjectPath: rule.imageObjectPath ?? null,
     }).catch(() => {});
 
     logger.info(
@@ -927,6 +928,7 @@ export async function approveAward(
       expiresAt: credit.expiresAt?.toISOString() ?? null,
       note: credit.note,
       creditId: credit.id,
+      imageObjectPath: rule?.imageObjectPath ?? null,
     }).catch(() => {});
 
     logger.info({ awardId, creditId: credit.id }, "Rewards: award approved and credit issued");

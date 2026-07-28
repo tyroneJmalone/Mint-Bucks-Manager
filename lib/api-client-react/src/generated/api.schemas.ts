@@ -5,6 +5,21 @@
  * Mint Bucks promotional credit system for Mint Printworks
  * OpenAPI spec version: 0.1.0
  */
+export interface ErrorEnvelope {
+  error: string;
+}
+
+export interface UploadUrlRequest {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -331,6 +346,11 @@ export interface RewardRule {
   rewardType: RewardRuleRewardType;
   rewardParams: RewardParams;
   conditions: RewardConditions;
+  /**
+     * Object storage path of the image attached to award emails.
+     * @nullable
+     */
+  imageObjectPath?: string | null;
   /** @nullable */
   startsAt?: string | null;
   /** @nullable */
@@ -356,6 +376,8 @@ export interface RewardRuleInput {
   rewardParams: RewardParams;
   conditions?: RewardConditions;
   /** @nullable */
+  imageObjectPath?: string | null;
+  /** @nullable */
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
@@ -377,6 +399,8 @@ export interface RewardRuleUpdate {
   rewardType?: RewardRuleUpdateRewardType;
   rewardParams?: RewardParams;
   conditions?: RewardConditions;
+  /** @nullable */
+  imageObjectPath?: string | null;
   /** @nullable */
   startsAt?: string | null;
   /** @nullable */

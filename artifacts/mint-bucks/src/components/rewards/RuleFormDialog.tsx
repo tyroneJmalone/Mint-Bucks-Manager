@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import {
   useCreateRewardRule,
   useUpdateRewardRule,
@@ -82,6 +83,12 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
 
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [imageObjectPath, setImageObjectPath] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => setImageObjectPath(response.objectPath),
+    onError: (err) => toast({ title: "Image upload failed", description: err.message, variant: "destructive" }),
+  });
 
   const [showConditions, setShowConditions] = useState(false);
   const [totalMin, setTotalMin] = useState("");
@@ -113,6 +120,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       );
       setStartsAt(toDateInput(rule.startsAt));
       setEndsAt(toDateInput(rule.endsAt));
+      setImageObjectPath(rule.imageObjectPath ?? null);
       const c = rule.conditions ?? {};
       setTotalMin(c.totalMin != null ? String(c.totalMin) : "");
       setTotalMax(c.totalMax != null ? String(c.totalMax) : "");
@@ -145,6 +153,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setTiers([{ minAmount: "", rewardAmount: "" }]);
       setStartsAt("");
       setEndsAt("");
+      setImageObjectPath(null);
       setShowConditions(false);
       setTotalMin("");
       setTotalMax("");
@@ -205,6 +214,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       rewardType,
       rewardParams: buildParams(),
       conditions: buildConditions(),
+      imageObjectPath,
       startsAt: startsAt || null,
       endsAt: endsAt || null,
     };
@@ -367,6 +377,72 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
               </Button>
             </div>
           )}
+
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <div>
+              <Label className="text-sm">Email image (optional)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Shown in the notification email a customer gets when this rule awards them Mint Bucks.
+              </p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              data-testid="input-rule-image-file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadFile(file);
+                e.target.value = "";
+              }}
+            />
+            {imageObjectPath ? (
+              <div className="flex items-center gap-3">
+                <img
+                  src={`/api/storage${imageObjectPath}`}
+                  alt="Rule email image"
+                  className="h-16 w-16 rounded-md object-cover border border-border"
+                  data-testid="img-rule-image-preview"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="button-replace-image"
+                  >
+                    {isUploading ? "Uploading…" : "Replace"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive gap-1"
+                    onClick={() => setImageObjectPath(null)}
+                    data-testid="button-remove-image"
+                  >
+                    <X className="w-3.5 h-3.5" /> Remove
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="button-upload-image"
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
+                {isUploading ? "Uploading…" : "Upload image"}
+              </Button>
+            )}
+          </div>
 
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>

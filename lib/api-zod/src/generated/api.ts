@@ -9,6 +9,41 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Request a presigned URL for file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string()
+})
+
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const GetPublicObjectParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+export const GetPublicObjectResponse = zod.unknown()
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -733,6 +768,7 @@ export const ListRewardRulesResponseItem = zod.object({
   "paidDateFrom": zod.string().optional(),
   "paidDateTo": zod.string().optional()
 }),
+  "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -768,6 +804,7 @@ export const CreateRewardRuleBody = zod.object({
   "paidDateFrom": zod.string().optional(),
   "paidDateTo": zod.string().optional()
 }).optional(),
+  "imageObjectPath": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish()
 })
@@ -797,6 +834,7 @@ export const CreateRewardRuleResponse = zod.object({
   "paidDateFrom": zod.string().optional(),
   "paidDateTo": zod.string().optional()
 }),
+  "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -835,6 +873,7 @@ export const UpdateRewardRuleBody = zod.object({
   "paidDateFrom": zod.string().optional(),
   "paidDateTo": zod.string().optional()
 }).optional(),
+  "imageObjectPath": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish()
 })
@@ -864,6 +903,7 @@ export const UpdateRewardRuleResponse = zod.object({
   "paidDateFrom": zod.string().optional(),
   "paidDateTo": zod.string().optional()
 }),
+  "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
   "createdAt": zod.string(),

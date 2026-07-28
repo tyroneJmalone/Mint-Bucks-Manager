@@ -22,8 +22,90 @@ tags:
     description: App configuration and Printavo credentials
   - name: printavo
     description: Printavo integration — customer sync, order lookup, notifications
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 
 paths:
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /healthz:
     get:
       operationId: healthCheck
@@ -823,6 +905,33 @@ paths:
 
 components:
   schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+        size:
+          type: number
+        contentType:
+          type: string
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+
     HealthStatus:
       type: object
       properties:
@@ -1277,6 +1386,9 @@ components:
           $ref: "#/components/schemas/RewardParams"
         conditions:
           $ref: "#/components/schemas/RewardConditions"
+        imageObjectPath:
+          type: ["string", "null"]
+          description: Object storage path of the image attached to award emails.
         startsAt:
           type: ["string", "null"]
         endsAt:
@@ -1301,6 +1413,8 @@ components:
           $ref: "#/components/schemas/RewardParams"
         conditions:
           $ref: "#/components/schemas/RewardConditions"
+        imageObjectPath:
+          type: ["string", "null"]
         startsAt:
           type: ["string", "null"]
         endsAt:
@@ -1320,6 +1434,8 @@ components:
           $ref: "#/components/schemas/RewardParams"
         conditions:
           $ref: "#/components/schemas/RewardConditions"
+        imageObjectPath:
+          type: ["string", "null"]
         startsAt:
           type: ["string", "null"]
         endsAt:

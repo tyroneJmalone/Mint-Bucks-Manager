@@ -331,6 +331,16 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     return;
   }
 
+  // If this credit came from a reward rule with an attached image, include it.
+  let imageObjectPath: string | null = null;
+  if (credit.sourceRuleId != null) {
+    const [rule] = await db
+      .select({ imageObjectPath: rewardRulesTable.imageObjectPath })
+      .from(rewardRulesTable)
+      .where(eq(rewardRulesTable.id, credit.sourceRuleId));
+    imageObjectPath = rule?.imageObjectPath ?? null;
+  }
+
   const sent = await sendReminderEmail({
     customerName: customer.name,
     customerEmail: customer.email,
@@ -339,6 +349,7 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     expiresAt: credit.expiresAt?.toISOString() ?? null,
     note: credit.note,
     creditId: credit.id,
+    imageObjectPath,
   });
 
   if (!sent) {

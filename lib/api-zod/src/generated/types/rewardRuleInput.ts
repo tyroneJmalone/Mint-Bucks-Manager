@@ -16,6 +16,8 @@ export interface RewardRuleInput {
   rewardParams: RewardParams;
   conditions?: RewardConditions;
   /** @nullable */
+  imageObjectPath?: string | null;
+  /** @nullable */
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;

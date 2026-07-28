@@ -12,6 +12,7 @@ export const rewardRulesTable = pgTable("reward_rules", {
   rewardType: text("reward_type").notNull(),
   rewardParams: jsonb("reward_params").notNull(),
   conditions: jsonb("conditions").notNull().default({}),
+  imageObjectPath: text("image_object_path"),
   startsAt: timestamp("starts_at", { withTimezone: true }),
   endsAt: timestamp("ends_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
