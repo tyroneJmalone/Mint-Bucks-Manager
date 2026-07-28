@@ -12,4 +12,9 @@ export interface CreditInput {
   amount: number;
   note?: string;
   expiresAt?: string;
+  /**
+     * Object storage path of an image to feature in the issuance email.
+     * @nullable
+     */
+  imageObjectPath?: string | null;
 }

@@ -31,4 +31,6 @@ export interface Credit {
   sourceOrderNickname?: string | null;
   /** @nullable */
   sourceRuleName?: string | null;
+  /** @nullable */
+  imageObjectPath?: string | null;
 }

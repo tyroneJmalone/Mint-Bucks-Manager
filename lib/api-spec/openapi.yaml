@@ -1032,6 +1032,8 @@ components:
           type: ["string", "null"]
         sourceRuleName:
           type: ["string", "null"]
+        imageObjectPath:
+          type: ["string", "null"]
 
     CreditInput:
       type: object
@@ -1046,6 +1048,9 @@ components:
           type: string
         expiresAt:
           type: string
+        imageObjectPath:
+          type: ["string", "null"]
+          description: Object storage path of an image to feature in the issuance email.
 
     CreditUpdate:
       type: object

@@ -187,7 +187,8 @@ export const GetCustomerCreditsResponseItem = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 export const GetCustomerCreditsResponse = zod.array(GetCustomerCreditsResponseItem)
 
@@ -218,7 +219,8 @@ export const ListCreditsResponseItem = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 export const ListCreditsResponse = zod.array(ListCreditsResponseItem)
 
@@ -234,7 +236,8 @@ export const IssueCreditBody = zod.object({
   "customerId": zod.number(),
   "amount": zod.number().min(issueCreditBodyAmountMin),
   "note": zod.string().optional(),
-  "expiresAt": zod.string().optional()
+  "expiresAt": zod.string().optional(),
+  "imageObjectPath": zod.string().nullish().describe('Object storage path of an image to feature in the issuance email.')
 })
 
 export const IssueCreditResponse = zod.object({
@@ -254,7 +257,8 @@ export const IssueCreditResponse = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 
 
@@ -282,7 +286,8 @@ export const GetCreditResponse = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 
 
@@ -316,7 +321,8 @@ export const UpdateCreditResponse = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 
 
@@ -380,7 +386,8 @@ export const RedeemCreditResponse = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 })
 
@@ -560,7 +567,8 @@ export const GetExpiringSoonResponseItem = zod.object({
   "updatedAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
-  "sourceRuleName": zod.string().nullish()
+  "sourceRuleName": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
 })
 export const GetExpiringSoonResponse = zod.array(GetExpiringSoonResponseItem)
 

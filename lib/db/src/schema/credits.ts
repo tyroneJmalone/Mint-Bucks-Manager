@@ -14,6 +14,7 @@ export const creditsTable = pgTable("credits", {
   status: text("status").notNull().default("active"),
   note: text("note"),
   sourceRuleId: integer("source_rule_id"),
+  imageObjectPath: text("image_object_path"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

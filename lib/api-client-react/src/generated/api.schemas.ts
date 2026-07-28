@@ -92,6 +92,8 @@ export interface Credit {
   sourceOrderNickname?: string | null;
   /** @nullable */
   sourceRuleName?: string | null;
+  /** @nullable */
+  imageObjectPath?: string | null;
 }
 
 export interface CreditInput {
@@ -100,6 +102,11 @@ export interface CreditInput {
   amount: number;
   note?: string;
   expiresAt?: string;
+  /**
+     * Object storage path of an image to feature in the issuance email.
+     * @nullable
+     */
+  imageObjectPath?: string | null;
 }
 
 export type CreditUpdateStatus = typeof CreditUpdateStatus[keyof typeof CreditUpdateStatus];

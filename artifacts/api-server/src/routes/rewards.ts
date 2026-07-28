@@ -31,23 +31,7 @@ import {
 } from "../lib/rewards";
 import { runRewardsPoll, startPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
-import { ObjectStorageService } from "../lib/objectStorage";
-
-// Normalize a freshly-uploaded image path and mark it publicly readable so
-// email clients can load it without auth. Returns the normalized /objects path.
-async function normalizeRuleImage(rawPath: string): Promise<string> {
-  const svc = new ObjectStorageService();
-  const normalized = await svc.trySetObjectEntityAclPolicy(rawPath, {
-    owner: "system",
-    visibility: "public",
-  });
-  // Only accept canonical object-entity paths; anything else is not a valid
-  // upload reference and must be rejected (it would also break email <img> src).
-  if (!/^\/objects\/[A-Za-z0-9._/-]+$/.test(normalized)) {
-    throw new Error(`Invalid object path: ${normalized}`);
-  }
-  return normalized;
-}
+import { normalizeEmailImage } from "../lib/objectImages";
 
 const router: IRouter = Router();
 
@@ -164,7 +148,7 @@ router.post("/rewards/rules", async (req, res): Promise<void> => {
   let imageObjectPath: string | null = null;
   if (b.imageObjectPath) {
     try {
-      imageObjectPath = await normalizeRuleImage(b.imageObjectPath);
+      imageObjectPath = await normalizeEmailImage(b.imageObjectPath);
     } catch (err) {
       logger.error({ err }, "Rewards: failed to store rule image");
       res.status(400).json({ error: "Invalid image upload path" });
@@ -226,7 +210,7 @@ router.patch("/rewards/rules/:id", async (req, res): Promise<void> => {
       updateData.imageObjectPath = null;
     } else if (b.imageObjectPath !== existing.imageObjectPath) {
       try {
-        updateData.imageObjectPath = await normalizeRuleImage(b.imageObjectPath);
+        updateData.imageObjectPath = await normalizeEmailImage(b.imageObjectPath);
       } catch (err) {
         logger.error({ err }, "Rewards: failed to store rule image");
         res.status(400).json({ error: "Invalid image upload path" });
