@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { creditsTable, customersTable, notificationLogTable } from "@workspace/db";
+import { creditsTable, customersTable, notificationLogTable, rewardRulesTable } from "@workspace/db";
 import { eq, and, inArray, lt } from "drizzle-orm";
 import { logger } from "./logger";
 import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, isRewardsEnabled, getPollingIntervalMinutes } from "./settings";
@@ -109,6 +109,24 @@ export async function runPoll(): Promise<void> {
 
       const logId = claimed[0].id;
 
+      // Featured image policy: walk credits from most recently issued to oldest;
+      // the first credit with its own image (manual issue) or a source-rule
+      // image wins. Rule images are fetched in one batch to avoid N+1 queries.
+      const ruleIds = [...new Set(credits.map(c => c.sourceRuleId).filter((id): id is number => id != null))];
+      const rules = ruleIds.length
+        ? await db
+            .select({ id: rewardRulesTable.id, imageObjectPath: rewardRulesTable.imageObjectPath })
+            .from(rewardRulesTable)
+            .where(inArray(rewardRulesTable.id, ruleIds))
+        : [];
+      const ruleImageById = new Map(rules.map(r => [r.id, r.imageObjectPath]));
+      let imageObjectPath: string | null = null;
+      for (const credit of [...credits].sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())) {
+        imageObjectPath = credit.imageObjectPath
+          ?? (credit.sourceRuleId != null ? ruleImageById.get(credit.sourceRuleId) ?? null : null);
+        if (imageObjectPath) break;
+      }
+
       const delivered = await sendPrintavoNotificationEmail({
         customerName: localCustomer.name,
         customerEmail: localCustomer.email,
@@ -116,6 +134,7 @@ export async function runPoll(): Promise<void> {
         totalOutstanding,
         orderNumber: order.visualId,
         orderTotal: order.total ?? undefined,
+        imageObjectPath,
       });
 
       if (delivered) {

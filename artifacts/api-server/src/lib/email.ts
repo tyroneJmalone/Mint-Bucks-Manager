@@ -205,6 +205,8 @@ export interface PrintavoNotificationData {
   totalOutstanding: number;
   orderNumber: string;
   orderTotal?: number;
+  /** Object storage path (e.g. /objects/uploads/<id>) of a rule image to feature in the email. */
+  imageObjectPath?: string | null;
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
@@ -220,6 +222,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
   <div class="bd">
     <p>Hi ${data.customerName},</p>
     <p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>
+    ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.totalOutstanding)}</div><div class="l">Available Balance</div></div>
     <div class="code">
       <div style="color:#a8c5b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Credit Code${data.creditCodes.length > 1 ? "s" : ""}</div>
