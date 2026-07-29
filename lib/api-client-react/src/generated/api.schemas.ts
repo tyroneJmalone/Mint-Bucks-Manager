@@ -414,6 +414,27 @@ export interface RewardRuleUpdate {
   endsAt?: string | null;
 }
 
+export type TestEmailRequestEmailType = typeof TestEmailRequestEmailType[keyof typeof TestEmailRequestEmailType];
+
+
+export const TestEmailRequestEmailType = {
+  issued: 'issued',
+  reminder: 'reminder',
+} as const;
+
+export interface TestEmailRequest {
+  emailType: TestEmailRequestEmailType;
+  recipientEmail: string;
+  /** @minimum 0.01 */
+  amount: number;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  imageObjectPath?: string | null;
+}
+
 export type RewardAwardStatus = typeof RewardAwardStatus[keyof typeof RewardAwardStatus];
 
 
@@ -610,5 +631,9 @@ limit?: string;
 export type ListRewardAwardsParams = {
 status?: string;
 limit?: string;
+};
+
+export type SendTestRewardEmail200 = {
+  success: boolean;
 };
 

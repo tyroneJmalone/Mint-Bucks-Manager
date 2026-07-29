@@ -11,6 +11,7 @@ import {
   ListRewardAwardsQueryParams,
   ApproveRewardAwardParams,
   RejectRewardAwardParams,
+  SendTestRewardEmailBody,
 } from "@workspace/api-zod";
 import {
   getRewardsConfig,
@@ -32,6 +33,7 @@ import {
 import { runRewardsPoll, startPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
 import { normalizeEmailImage } from "../lib/objectImages";
+import { sendCreditIssuedEmail, sendReminderEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -369,6 +371,48 @@ router.post("/rewards/awards/:id/reject", async (req, res): Promise<void> => {
 });
 
 // ── Manual scan ──────────────────────────────────────────────────────────────
+router.post("/rewards/test-email", async (req, res): Promise<void> => {
+  const parsed = SendTestRewardEmailBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { emailType, recipientEmail, amount, note, expiresAt, imageObjectPath: rawImagePath } = parsed.data;
+
+  let imageObjectPath: string | null = null;
+  if (rawImagePath) {
+    try {
+      imageObjectPath = await normalizeEmailImage(rawImagePath);
+    } catch {
+      res.status(400).json({ error: "Invalid image upload path" });
+      return;
+    }
+  }
+
+  const emailData = {
+    customerName: "Test Customer",
+    customerEmail: recipientEmail,
+    creditCode: "MB-TESTCODE",
+    amount,
+    expiresAt: expiresAt ?? null,
+    note: note ?? null,
+    creditId: 0,
+    imageObjectPath,
+    isTest: true,
+  };
+
+  const sent = emailType === "issued"
+    ? await sendCreditIssuedEmail(emailData)
+    : await sendReminderEmail(emailData);
+
+  if (!sent) {
+    res.status(500).json({ error: "Failed to send test email. Check that your FROM_EMAIL domain is verified in Resend." });
+    return;
+  }
+  res.json({ success: true });
+});
+
 router.post("/rewards/scan", async (_req, res): Promise<void> => {
   const result = await runRewardsPoll();
   if (result === null) {

@@ -64,5 +64,8 @@ export * from './rewardsSettingsMode';
 export * from './rewardsSummary';
 export * from './rewardsSummaryMode';
 export * from './rewardTier';
+export * from './sendTestRewardEmail200';
+export * from './testEmailRequest';
+export * from './testEmailRequestEmailType';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

@@ -871,6 +871,41 @@ paths:
         "404":
           description: Award not found
 
+  /rewards/test-email:
+    post:
+      tags: [rewards]
+      operationId: sendTestRewardEmail
+      summary: Send a test issuance or reminder email (no credit is created)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestEmailRequest"
+      responses:
+        "200":
+          description: Test email sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Email failed to send.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /rewards/scan:
     post:
       operationId: triggerRewardsScan
@@ -1444,6 +1479,26 @@ components:
         startsAt:
           type: ["string", "null"]
         endsAt:
+          type: ["string", "null"]
+
+    TestEmailRequest:
+      type: object
+      required: [emailType, recipientEmail, amount]
+      properties:
+        emailType:
+          type: string
+          enum: [issued, reminder]
+        recipientEmail:
+          type: string
+          format: email
+        amount:
+          type: number
+          minimum: 0.01
+        note:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        imageObjectPath:
           type: ["string", "null"]
 
     RewardAward:

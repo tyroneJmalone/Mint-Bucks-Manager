@@ -61,6 +61,8 @@ import type {
   RewardsSettings,
   RewardsSettingsInput,
   RewardsSummary,
+  SendTestRewardEmail200,
+  TestEmailRequest,
   UploadUrlRequest,
   UploadUrlResponse
 } from './api.schemas';
@@ -3405,6 +3407,76 @@ export const useRejectRewardAward = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRejectRewardAwardMutationOptions(options));
+    }
+
+export const getSendTestRewardEmailUrl = () => {
+
+
+
+
+  return `/api/rewards/test-email`
+}
+
+/**
+ * @summary Send a test issuance or reminder email (no credit is created)
+ */
+export const sendTestRewardEmail = async (testEmailRequest: TestEmailRequest, options?: RequestInit): Promise<SendTestRewardEmail200> => {
+
+  return customFetch<SendTestRewardEmail200>(getSendTestRewardEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(testEmailRequest)
+  }
+);}
+
+
+
+
+export const getSendTestRewardEmailMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestRewardEmail>>, TError,{data: BodyType<TestEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendTestRewardEmail>>, TError,{data: BodyType<TestEmailRequest>}, TContext> => {
+
+const mutationKey = ['sendTestRewardEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTestRewardEmail>>, {data: BodyType<TestEmailRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendTestRewardEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTestRewardEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendTestRewardEmail>>>
+    export type SendTestRewardEmailMutationBody = BodyType<TestEmailRequest>
+    export type SendTestRewardEmailMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Send a test issuance or reminder email (no credit is created)
+ */
+export const useSendTestRewardEmail = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestRewardEmail>>, TError,{data: BodyType<TestEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendTestRewardEmail>>,
+        TError,
+        {data: BodyType<TestEmailRequest>},
+        TContext
+      > => {
+      return useMutation(getSendTestRewardEmailMutationOptions(options));
     }
 
 export const getTriggerRewardsScanUrl = () => {

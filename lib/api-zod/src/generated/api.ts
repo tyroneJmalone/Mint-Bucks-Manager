@@ -987,6 +987,27 @@ export const RejectRewardAwardResponse = zod.object({
 
 
 /**
+ * @summary Send a test issuance or reminder email (no credit is created)
+ */
+export const sendTestRewardEmailBodyAmountMin = 0.01;
+
+
+
+export const SendTestRewardEmailBody = zod.object({
+  "emailType": zod.enum(['issued', 'reminder']),
+  "recipientEmail": zod.string().email(),
+  "amount": zod.number().min(sendTestRewardEmailBodyAmountMin),
+  "note": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "imageObjectPath": zod.string().nullish()
+})
+
+export const SendTestRewardEmailResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Manually run a rewards evaluation pass
  */
 export const TriggerRewardsScanResponse = zod.object({

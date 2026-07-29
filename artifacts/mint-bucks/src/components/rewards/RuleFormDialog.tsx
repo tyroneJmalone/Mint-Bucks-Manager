@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import {
   useCreateRewardRule,
   useUpdateRewardRule,
+  useSendTestRewardEmail,
   getListRewardRulesQueryKey,
   type RewardRule,
   type RewardRuleInput,
@@ -89,6 +90,42 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
     onSuccess: (response) => setImageObjectPath(response.objectPath),
     onError: (err) => toast({ title: "Image upload failed", description: err.message, variant: "destructive" }),
   });
+
+  const [testEmail, setTestEmail] = useState("");
+  const sendTestEmail = useSendTestRewardEmail();
+
+  const sampleAmount = (() => {
+    if (rewardType === "flat" && parseFloat(flatAmount) > 0) return parseFloat(flatAmount);
+    if ((rewardType === "percent_paid" || rewardType === "percent_total") && parseFloat(percent) > 0) {
+      // Sample: percent applied to a $500 order
+      return Math.round(parseFloat(percent) * 5 * 100) / 100;
+    }
+    const tier = tiers.find((t) => parseFloat(t.rewardAmount) > 0);
+    if (tier) return parseFloat(tier.rewardAmount);
+    return 25;
+  })();
+
+  const handleSendTest = (emailType: "issued" | "reminder") => {
+    if (!testEmail.trim()) {
+      toast({ title: "Enter an email address to send the test to", variant: "destructive" });
+      return;
+    }
+    sendTestEmail.mutate(
+      {
+        data: {
+          emailType,
+          recipientEmail: testEmail.trim(),
+          amount: sampleAmount,
+          expiresAt: endsAt || null,
+          imageObjectPath,
+        },
+      },
+      {
+        onSuccess: () => toast({ title: `Test ${emailType === "issued" ? "issuance" : "reminder"} email sent to ${testEmail.trim()}` }),
+        onError: () => toast({ title: "Failed to send test email", description: "Check that your sending domain is verified in Resend.", variant: "destructive" }),
+      },
+    );
+  };
 
   const [showConditions, setShowConditions] = useState(false);
   const [totalMin, setTotalMin] = useState("");
@@ -442,6 +479,49 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                 {isUploading ? "Uploading…" : "Upload image"}
               </Button>
             )}
+          </div>
+
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <div>
+              <Label className="text-sm">Send a test email</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Preview what customers receive — uses this rule's image and a sample amount ({new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(sampleAmount)}). No credit is created.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                className="sm:flex-1"
+                data-testid="input-test-email"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={sendTestEmail.isPending}
+                  onClick={() => handleSendTest("issued")}
+                  data-testid="button-test-issued-email"
+                >
+                  <Send className="w-3.5 h-3.5" /> Test issue email
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={sendTestEmail.isPending}
+                  onClick={() => handleSendTest("reminder")}
+                  data-testid="button-test-reminder-email"
+                >
+                  <Send className="w-3.5 h-3.5" /> Test reminder
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-between rounded-md border border-border p-3">
