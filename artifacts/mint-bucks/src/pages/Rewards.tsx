@@ -6,6 +6,7 @@ import {
   Pencil,
   Trash2,
   CheckCircle2,
+  ImageOff,
   XCircle,
   Clock,
   AlertCircle,
@@ -713,6 +714,7 @@ export function Rewards() {
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left pl-5 pr-2 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Image</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Reward</th>
@@ -724,7 +726,7 @@ export function Rewards() {
                 {rulesLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 5 }).map((_, j) => (
+                      {Array.from({ length: 6 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -732,6 +734,25 @@ export function Rewards() {
                 ) : rules?.length ? (
                   rules.map((rule) => (
                     <tr key={rule.id} data-testid={`row-rule-${rule.id}`} className="hover:bg-muted/30 transition-colors">
+                      <td className="pl-5 pr-2 py-2.5">
+                        {rule.imageObjectPath ? (
+                          <img
+                            src={`/api/storage${rule.imageObjectPath}`}
+                            alt={`${rule.name} email image`}
+                            className="h-10 w-10 rounded-md object-cover border border-border"
+                            title="Email image set"
+                            data-testid={`img-rule-thumb-${rule.id}`}
+                          />
+                        ) : (
+                          <div
+                            className="h-10 w-10 rounded-md border border-dashed border-border bg-muted/40 flex items-center justify-center"
+                            title="No email image"
+                            data-testid={`placeholder-rule-thumb-${rule.id}`}
+                          >
+                            <ImageOff className="w-4 h-4 text-muted-foreground/50" />
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-foreground font-medium">{rule.name}</td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{rewardTypeLabels[rule.rewardType]}</td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{describeRule(rule)}</td>
@@ -782,7 +803,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       No reward rules yet. Create one to start awarding Mint Bucks.
                     </td>
                   </tr>
