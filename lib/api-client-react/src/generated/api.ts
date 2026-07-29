@@ -30,6 +30,7 @@ import type {
   CustomerCreditStat,
   CustomerInput,
   CustomerUpdate,
+  EmailLogEntry,
   ErrorEnvelope,
   GetCreditsOverTimeParams,
   GetExpiringSoonParams,
@@ -38,6 +39,7 @@ import type {
   HealthStatus,
   ListCreditsParams,
   ListCustomersParams,
+  ListEmailLogParams,
   ListRedemptionsParams,
   ListRewardAwardsParams,
   MessageResult,
@@ -3408,6 +3410,90 @@ export const useRejectRewardAward = <TError = ErrorType<void>,
       > => {
       return useMutation(getRejectRewardAwardMutationOptions(options));
     }
+
+export const getListEmailLogUrl = (params?: ListEmailLogParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/emails?${stringifiedParams}` : `/api/emails`
+}
+
+/**
+ * @summary List sent emails, optionally filtered by customer or credit
+ */
+export const listEmailLog = async (params?: ListEmailLogParams, options?: RequestInit): Promise<EmailLogEntry[]> => {
+
+  return customFetch<EmailLogEntry[]>(getListEmailLogUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmailLogQueryKey = (params?: ListEmailLogParams,) => {
+    return [
+    `/api/emails`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEmailLogQueryOptions = <TData = Awaited<ReturnType<typeof listEmailLog>>, TError = ErrorType<unknown>>(params?: ListEmailLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmailLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmailLogQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmailLog>>> = ({ signal }) => listEmailLog(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmailLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmailLogQueryResult = NonNullable<Awaited<ReturnType<typeof listEmailLog>>>
+export type ListEmailLogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List sent emails, optionally filtered by customer or credit
+ */
+
+export function useListEmailLog<TData = Awaited<ReturnType<typeof listEmailLog>>, TError = ErrorType<unknown>>(
+ params?: ListEmailLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmailLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmailLogQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSendTestRewardEmailUrl = () => {
 

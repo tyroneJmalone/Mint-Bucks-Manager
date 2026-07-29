@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Bell, Trash2, Search, CheckCircle2, XCircle, Loade
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { EmailHistoryCard } from "@/components/EmailHistoryCard";
 import {
   useGetCredit,
   useRedeemCredit,
@@ -452,6 +453,11 @@ export function CreditDetail() {
           </div>
         </div>
       )}
+
+      {/* Email history */}
+      <div className="mt-6">
+        <EmailHistoryCard creditId={creditId} />
+      </div>
     </div>
   );
 }

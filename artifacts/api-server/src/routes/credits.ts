@@ -172,6 +172,7 @@ router.post("/credits", async (req, res): Promise<void> => {
     expiresAt: credit.expiresAt?.toISOString() ?? null,
     note: credit.note,
     creditId: credit.id,
+    customerId: customer.id,
     imageObjectPath: credit.imageObjectPath,
   }).catch(() => {});
 
@@ -310,6 +311,8 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
       amountApplied,
       amountRemaining: newRemaining,
       invoiceRef: invoiceRef ?? null,
+      customerId: credit.customerId,
+      creditId: credit.id,
     }).catch(() => {});
   }
 
@@ -363,6 +366,7 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     expiresAt: credit.expiresAt?.toISOString() ?? null,
     note: credit.note,
     creditId: credit.id,
+    customerId: credit.customerId,
     imageObjectPath,
   });
 

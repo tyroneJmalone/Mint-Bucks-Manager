@@ -414,6 +414,41 @@ export interface RewardRuleUpdate {
   endsAt?: string | null;
 }
 
+export type EmailLogEntryEmailType = typeof EmailLogEntryEmailType[keyof typeof EmailLogEntryEmailType];
+
+
+export const EmailLogEntryEmailType = {
+  issued: 'issued',
+  reminder: 'reminder',
+  redemption: 'redemption',
+  printavo_notification: 'printavo_notification',
+  test_issued: 'test_issued',
+  test_reminder: 'test_reminder',
+} as const;
+
+export type EmailLogEntryStatus = typeof EmailLogEntryStatus[keyof typeof EmailLogEntryStatus];
+
+
+export const EmailLogEntryStatus = {
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+export interface EmailLogEntry {
+  id: number;
+  /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  creditId: number | null;
+  emailType: EmailLogEntryEmailType;
+  recipientEmail: string;
+  subject: string;
+  status: EmailLogEntryStatus;
+  sentAt: string;
+  /** @nullable */
+  creditCode?: string | null;
+}
+
 export type TestEmailRequestEmailType = typeof TestEmailRequestEmailType[keyof typeof TestEmailRequestEmailType];
 
 
@@ -631,6 +666,12 @@ limit?: string;
 export type ListRewardAwardsParams = {
 status?: string;
 limit?: string;
+};
+
+export type ListEmailLogParams = {
+customerId?: number;
+creditId?: number;
+limit?: number;
 };
 
 export type SendTestRewardEmail200 = {

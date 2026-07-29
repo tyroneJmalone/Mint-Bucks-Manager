@@ -415,6 +415,7 @@ async function issueClaimedAward(
       expiresAt: credit.expiresAt?.toISOString() ?? null,
       note: credit.note,
       creditId: credit.id,
+      customerId: customer.id,
       imageObjectPath: rule.imageObjectPath ?? null,
     }).catch(() => {});
 
@@ -928,6 +929,7 @@ export async function approveAward(
       expiresAt: credit.expiresAt?.toISOString() ?? null,
       note: credit.note,
       creditId: credit.id,
+      customerId: customer.id,
       imageObjectPath: rule?.imageObjectPath ?? null,
     }).catch(() => {});
 

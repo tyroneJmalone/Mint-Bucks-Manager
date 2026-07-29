@@ -987,6 +987,31 @@ export const RejectRewardAwardResponse = zod.object({
 
 
 /**
+ * @summary List sent emails, optionally filtered by customer or credit
+ */
+export const listEmailLogQueryLimitDefault = 50;
+
+export const ListEmailLogQueryParams = zod.object({
+  "customerId": zod.coerce.number().optional(),
+  "creditId": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().default(listEmailLogQueryLimitDefault)
+})
+
+export const ListEmailLogResponseItem = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number().nullable(),
+  "creditId": zod.number().nullable(),
+  "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder']),
+  "recipientEmail": zod.string(),
+  "subject": zod.string(),
+  "status": zod.enum(['sent', 'failed']),
+  "sentAt": zod.string(),
+  "creditCode": zod.string().nullish()
+})
+export const ListEmailLogResponse = zod.array(ListEmailLogResponseItem)
+
+
+/**
  * @summary Send a test issuance or reminder email (no credit is created)
  */
 export const sendTestRewardEmailBodyAmountMin = 0.01;

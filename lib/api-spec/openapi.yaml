@@ -871,6 +871,35 @@ paths:
         "404":
           description: Award not found
 
+  /emails:
+    get:
+      tags: [credits]
+      operationId: listEmailLog
+      summary: List sent emails, optionally filtered by customer or credit
+      parameters:
+        - name: customerId
+          in: query
+          schema:
+            type: integer
+        - name: creditId
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Email log entries, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailLogEntry"
+
   /rewards/test-email:
     post:
       tags: [rewards]
@@ -1479,6 +1508,31 @@ components:
         startsAt:
           type: ["string", "null"]
         endsAt:
+          type: ["string", "null"]
+
+    EmailLogEntry:
+      type: object
+      required: [id, customerId, creditId, emailType, recipientEmail, subject, status, sentAt]
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: ["integer", "null"]
+        creditId:
+          type: ["integer", "null"]
+        emailType:
+          type: string
+          enum: [issued, reminder, redemption, printavo_notification, test_issued, test_reminder]
+        recipientEmail:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [sent, failed]
+        sentAt:
+          type: string
+        creditCode:
           type: ["string", "null"]
 
     TestEmailRequest:

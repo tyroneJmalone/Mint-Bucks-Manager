@@ -2,7 +2,14 @@
 // Replit-managed Resend connection (handles auth automatically).
 // FROM_EMAIL must be an address on a domain verified in your Resend account.
 import { ReplitConnectors } from "@replit/connectors-sdk";
+import { db, emailLogTable } from "@workspace/db";
 import { logger } from "./logger";
+
+interface EmailLogMeta {
+  emailType: string;
+  customerId?: number | null;
+  creditId?: number | null;
+}
 
 const BUSINESS_NAME = "Mint Printworks";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? `noreply@mintprintworks.com`;
@@ -19,7 +26,26 @@ function logoImgTag(): string {
   return `<img src="${url}/logo.png" alt="Mint Printworks" style="height:68px;width:auto">`;
 }
 
-async function send(opts: { from: string; to: string; subject: string; html: string }): Promise<boolean> {
+async function send(opts: { from: string; to: string; subject: string; html: string; log?: EmailLogMeta }): Promise<boolean> {
+  const ok = await sendViaResend(opts);
+  if (opts.log) {
+    // Extract the bare address from "Name <addr>" format.
+    const recipient = opts.to.match(/<([^>]+)>/)?.[1] ?? opts.to;
+    db.insert(emailLogTable)
+      .values({
+        customerId: opts.log.customerId ?? null,
+        creditId: opts.log.creditId ?? null,
+        emailType: opts.log.emailType,
+        recipientEmail: recipient,
+        subject: opts.subject,
+        status: ok ? "sent" : "failed",
+      })
+      .catch((err) => logger.error({ err }, "Failed to write email log"));
+  }
+  return ok;
+}
+
+async function sendViaResend(opts: { from: string; to: string; subject: string; html: string }): Promise<boolean> {
   try {
     const connectors = new ReplitConnectors();
     const response = await connectors.proxy("resend", "/emails", {
@@ -55,6 +81,8 @@ interface CreditEmailData {
   imageObjectPath?: string | null;
   /** When true, the email is a staff test: subject is prefixed, a banner is added, and links are omitted. */
   isTest?: boolean;
+  /** Used only for the email log. */
+  customerId?: number | null;
 }
 
 function testBanner(isTest?: boolean): string {
@@ -80,6 +108,9 @@ interface RedemptionEmailData {
   amountApplied: number;
   amountRemaining: number;
   invoiceRef?: string | null;
+  /** Used only for the email log. */
+  customerId?: number | null;
+  creditId?: number | null;
 }
 
 function formatCurrency(amount: number): string {
@@ -141,7 +172,17 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
 </div>
 </body></html>`;
 
-  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
+  return send({
+    from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+    to: `${data.customerName} <${data.customerEmail}>`,
+    subject,
+    html,
+    log: {
+      emailType: data.isTest ? "test_issued" : "issued",
+      customerId: data.customerId ?? null,
+      creditId: data.isTest ? null : data.creditId,
+    },
+  });
 }
 
 export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData): Promise<boolean> {
@@ -178,7 +219,17 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
 </div>
 </body></html>`;
 
-  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
+  return send({
+    from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+    to: `${data.customerName} <${data.customerEmail}>`,
+    subject,
+    html,
+    log: {
+      emailType: "redemption",
+      customerId: data.customerId ?? null,
+      creditId: data.creditId ?? null,
+    },
+  });
 }
 
 export async function sendReminderEmail(data: CreditEmailData): Promise<boolean> {
@@ -204,7 +255,17 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
 </div>
 </body></html>`;
 
-  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
+  return send({
+    from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+    to: `${data.customerName} <${data.customerEmail}>`,
+    subject,
+    html,
+    log: {
+      emailType: data.isTest ? "test_reminder" : "reminder",
+      customerId: data.customerId ?? null,
+      creditId: data.isTest ? null : data.creditId,
+    },
+  });
 }
 
 export interface PrintavoNotificationData {
@@ -216,6 +277,8 @@ export interface PrintavoNotificationData {
   orderTotal?: number;
   /** Object storage path (e.g. /objects/uploads/<id>) of a rule image to feature in the email. */
   imageObjectPath?: string | null;
+  /** Used only for the email log. */
+  customerId?: number | null;
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
@@ -244,5 +307,14 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
 </div>
 </body></html>`;
 
-  return send({ from: `${BUSINESS_NAME} <${FROM_EMAIL}>`, to: `${data.customerName} <${data.customerEmail}>`, subject, html });
+  return send({
+    from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+    to: `${data.customerName} <${data.customerEmail}>`,
+    subject,
+    html,
+    log: {
+      emailType: "printavo_notification",
+      customerId: data.customerId ?? null,
+    },
+  });
 }
