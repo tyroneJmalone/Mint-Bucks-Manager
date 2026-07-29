@@ -66,15 +66,17 @@ function decryptValue(stored: string): string {
 }
 
 export async function getSetting(key: SettingsKey): Promise<string | null> {
-  const override = process.env[key.toUpperCase()];
-  if (override) return override;
-
+  // Values saved in the app (database) take precedence; environment variables
+  // are only a fallback for keys never configured through the UI. (A stale
+  // PRINTAVO_API_KEY env var once shadowed freshly saved tokens.)
   const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
-  if (!row) return null;
+  if (row) {
+    const raw = row.value ?? "";
+    const value = SENSITIVE_KEYS.has(key) ? decryptValue(raw) : raw;
+    if (value) return value;
+  }
 
-  const raw = row.value ?? "";
-  if (SENSITIVE_KEYS.has(key)) return decryptValue(raw) || null;
-  return raw || null;
+  return process.env[key.toUpperCase()] || null;
 }
 
 export async function setSetting(key: SettingsKey, value: string | null): Promise<void> {
