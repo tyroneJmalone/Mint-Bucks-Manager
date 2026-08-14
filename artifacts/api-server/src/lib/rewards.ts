@@ -18,7 +18,7 @@ import {
   type PrintavoConfig,
   type PrintavoPaidInvoice,
 } from "./printavo";
-import { sendCreditIssuedEmail } from "./email";
+import { sendCreditIssuedEmail, sendAwardDeclinedEmail } from "./email";
 
 // A single fixed advisory-lock key serializes every reward issuance (scan +
 // manual approval) so the annual-limit check and the ledger claim happen
@@ -357,6 +357,8 @@ async function claimAward(
         invoiceTotal: inv.total != null ? inv.total.toFixed(2) : null,
         amount: amount.toFixed(2),
         datePaid: inv.datePaid ?? null,
+        ownerEmail: inv.ownerEmail ?? null,
+        ownerName: inv.ownerName ?? null,
         status: claimStatus,
         note: `${rule.name} · order #${inv.visualId}`,
       })
@@ -417,6 +419,7 @@ async function issueClaimedAward(
       creditId: credit.id,
       customerId: customer.id,
       imageObjectPath: rule.imageObjectPath ?? null,
+      ccEmail: award.ownerEmail ?? null,
     }).catch(() => {});
 
     logger.info(
@@ -931,6 +934,7 @@ export async function approveAward(
       creditId: credit.id,
       customerId: customer.id,
       imageObjectPath: rule?.imageObjectPath ?? null,
+      ccEmail: award.ownerEmail ?? null,
     }).catch(() => {});
 
     logger.info({ awardId, creditId: credit.id }, "Rewards: award approved and credit issued");
@@ -952,6 +956,72 @@ export async function rejectAward(awardId: number): Promise<boolean> {
     .update(rewardAwardsTable)
     .set({ status: "rejected" })
     .where(and(eq(rewardAwardsTable.id, awardId), eq(rewardAwardsTable.status, "pending")))
-    .returning({ id: rewardAwardsTable.id });
-  return updated.length > 0;
+    .returning();
+  if (!updated.length) return false;
+
+  // Notify the internal Printavo order owner (non-blocking, best-effort).
+  const award = updated[0];
+  if (award.ownerEmail) {
+    Promise.all([
+      db.select().from(customersTable).where(eq(customersTable.id, award.customerId)),
+      db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, award.ruleId)),
+    ])
+      .then(([[customer], [rule]]) =>
+        sendAwardDeclinedEmail({
+          ownerEmail: award.ownerEmail!,
+          ownerName: award.ownerName,
+          customerName: customer?.name ?? "Unknown customer",
+          ruleName: rule?.name ?? "Deleted rule",
+          amount: parseFloat(award.amount as unknown as string),
+          orderNumber: award.printavoVisualId,
+        }),
+      )
+      .catch((err) => logger.error({ err, awardId }, "Rewards: failed to send decline notification"));
+  }
+  return true;
+}
+
+/**
+ * Undo a decline: flip rejected -> pending, re-checking the annual limit under
+ * the advisory lock so the restored award can't blow the budget.
+ */
+export async function unrejectAward(
+  awardId: number,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const cfg = await getRewardsConfig();
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
+
+    const [award] = await tx.select().from(rewardAwardsTable).where(eq(rewardAwardsTable.id, awardId));
+    if (!award) return { ok: false as const, status: 404, error: "Award not found" };
+    if (award.status !== "rejected") {
+      return { ok: false as const, status: 400, error: `Award is ${award.status}, not rejected` };
+    }
+
+    if (cfg.annualLimit != null) {
+      const yearStart = startOfCurrentYear(cfg.timezone);
+      const rows = await tx
+        .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
+        .from(rewardAwardsTable)
+        .where(
+          and(
+            inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
+            gte(rewardAwardsTable.awardedAt, yearStart),
+          ),
+        );
+      const used = parseFloat(rows[0]?.total ?? "0");
+      const amount = parseFloat(award.amount as unknown as string);
+      if (used + amount > cfg.annualLimit + 1e-9) {
+        return { ok: false as const, status: 409, error: "Restoring this award would exceed the annual rewards limit" };
+      }
+    }
+
+    const updated = await tx
+      .update(rewardAwardsTable)
+      .set({ status: "pending" })
+      .where(and(eq(rewardAwardsTable.id, awardId), eq(rewardAwardsTable.status, "rejected")))
+      .returning({ id: rewardAwardsTable.id });
+    if (!updated.length) return { ok: false as const, status: 409, error: "Award already handled" };
+    return { ok: true as const };
+  });
 }

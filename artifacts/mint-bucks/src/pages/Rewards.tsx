@@ -31,6 +31,7 @@ import {
   getListRewardAwardsQueryKey,
   useApproveRewardAward,
   useRejectRewardAward,
+  useUnrejectRewardAward,
   useTriggerRewardsScan,
   useGetRewardsPipeline,
   getGetRewardsPipelineQueryKey,
@@ -303,6 +304,7 @@ export function Rewards() {
   }
   const approveAward = useApproveRewardAward();
   const rejectAward = useRejectRewardAward();
+  const unrejectAward = useUnrejectRewardAward();
   const triggerScan = useTriggerRewardsScan();
 
   function handleScan() {
@@ -341,6 +343,18 @@ export function Rewards() {
         onSuccess: () => {
           invalidateAll();
           toast({ title: "Award rejected" });
+        },
+        onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+      },
+    );
+  }
+  function handleUnreject(a: RewardAward) {
+    unrejectAward.mutate(
+      { id: String(a.id) },
+      {
+        onSuccess: () => {
+          invalidateAll();
+          toast({ title: "Award restored to the pending queue" });
         },
         onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
       },
@@ -863,14 +877,28 @@ export function Rewards() {
                       </td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-foreground">{formatCurrency(a.amount)}</td>
                       <td className="px-5 py-3.5">
-                        <span
-                          className={cn(
-                            "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
-                            awardStatusStyles[a.status],
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
+                              awardStatusStyles[a.status],
+                            )}
+                          >
+                            {awardStatusLabels[a.status]}
+                          </span>
+                          {a.status === "rejected" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => handleUnreject(a)}
+                              disabled={unrejectAward.isPending}
+                              data-testid={`button-unreject-${a.id}`}
+                            >
+                              Undo
+                            </Button>
                           )}
-                        >
-                          {awardStatusLabels[a.status]}
-                        </span>
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{formatDateTime(a.awardedAt)}</td>
                     </tr>

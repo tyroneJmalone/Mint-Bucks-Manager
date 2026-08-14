@@ -3411,6 +3411,76 @@ export const useRejectRewardAward = <TError = ErrorType<void>,
       return useMutation(getRejectRewardAwardMutationOptions(options));
     }
 
+export const getUnrejectRewardAwardUrl = (id: string,) => {
+
+
+
+
+  return `/api/rewards/awards/${id}/unreject`
+}
+
+/**
+ * @summary Undo a decline, returning a rejected award to the pending queue
+ */
+export const unrejectRewardAward = async (id: string, options?: RequestInit): Promise<MessageResult> => {
+
+  return customFetch<MessageResult>(getUnrejectRewardAwardUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUnrejectRewardAwardMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unrejectRewardAward>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unrejectRewardAward>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['unrejectRewardAward'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unrejectRewardAward>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unrejectRewardAward(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnrejectRewardAwardMutationResult = NonNullable<Awaited<ReturnType<typeof unrejectRewardAward>>>
+
+    export type UnrejectRewardAwardMutationError = ErrorType<void>
+
+    /**
+ * @summary Undo a decline, returning a rejected award to the pending queue
+ */
+export const useUnrejectRewardAward = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unrejectRewardAward>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unrejectRewardAward>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getUnrejectRewardAwardMutationOptions(options));
+    }
+
 export const getListEmailLogUrl = (params?: ListEmailLogParams,) => {
   const normalizedParams = new URLSearchParams();
 

@@ -1,6 +1,6 @@
 import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 
-export const emailTypeEnum = ["issued", "reminder", "redemption", "printavo_notification", "test_issued", "test_reminder"] as const;
+export const emailTypeEnum = ["issued", "reminder", "redemption", "printavo_notification", "test_issued", "test_reminder", "award_declined"] as const;
 export type EmailType = (typeof emailTypeEnum)[number];
 
 export const emailLogTable = pgTable("email_log", {

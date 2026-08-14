@@ -25,6 +25,7 @@ import {
   validateConditions,
   approveAward,
   rejectAward,
+  unrejectAward,
   getRewardsStats,
   computePipelinePreview,
   invalidatePipelineCache,
@@ -368,6 +369,21 @@ router.post("/rewards/awards/:id/reject", async (req, res): Promise<void> => {
     return;
   }
   res.json({ success: true, message: "Award rejected" });
+});
+
+router.post("/rewards/awards/:id/unreject", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid award ID" });
+    return;
+  }
+
+  const result = await unrejectAward(id);
+  if (!result.ok) {
+    res.status(result.status).json({ success: false, message: result.error });
+    return;
+  }
+  res.json({ success: true, message: "Award restored to pending" });
 });
 
 // ── Manual scan ──────────────────────────────────────────────────────────────

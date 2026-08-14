@@ -46,6 +46,10 @@ export interface PrintavoPaidInvoice {
    * derived from the transactions connection.
    */
   datePaid: string | null;
+  /** Email of the internal Printavo user who owns the order, if any. */
+  ownerEmail: string | null;
+  /** Display name of the internal Printavo user who owns the order, if any. */
+  ownerName: string | null;
 }
 
 const PRINTAVO_ENDPOINT = "https://www.printavo.com/api/v2";
@@ -118,6 +122,7 @@ interface RawInvoice {
   customerDueAt: string | null;
   contact: RawContact | null;
   transactions: { nodes: RawTransactionNode[] } | null;
+  owner: { id: string; email: string | null; name: string | null } | null;
 }
 
 function buildHeaders(config: PrintavoConfig): Record<string, string> {
@@ -317,6 +322,8 @@ function mapInvoice(inv: RawInvoice, stage: "quote" | "invoice" = "invoice"): Pr
     stage,
     nickname: inv.nickname ?? null,
     datePaid: latestPaymentDate(inv),
+    ownerEmail: inv.owner?.email?.toLowerCase().trim() || null,
+    ownerName: inv.owner?.name ?? null,
   };
 }
 
@@ -333,6 +340,7 @@ const PAID_INVOICE_FIELDS = `
   customerDueAt
   contact { ${CONTACT_FIELDS} }
   transactions(first: 25) { nodes { __typename ... on Payment { transactionDate } } }
+  owner { id email name }
 `;
 
 // Printavo's server-side payment filter. `PARTIAL_PAYMENT` covers invoices with a

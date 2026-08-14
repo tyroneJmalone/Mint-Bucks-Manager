@@ -987,6 +987,19 @@ export const RejectRewardAwardResponse = zod.object({
 
 
 /**
+ * @summary Undo a decline, returning a rejected award to the pending queue
+ */
+export const UnrejectRewardAwardParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UnrejectRewardAwardResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List sent emails, optionally filtered by customer or credit
  */
 export const listEmailLogQueryLimitDefault = 50;
@@ -1001,7 +1014,7 @@ export const ListEmailLogResponseItem = zod.object({
   "id": zod.number(),
   "customerId": zod.number().nullable(),
   "creditId": zod.number().nullable(),
-  "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder']),
+  "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder', 'award_declined']),
   "recipientEmail": zod.string(),
   "subject": zod.string(),
   "status": zod.enum(['sent', 'failed']),

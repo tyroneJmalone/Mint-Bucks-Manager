@@ -26,7 +26,7 @@ function logoImgTag(): string {
   return `<img src="${url}/logo.png" alt="Mint Printworks" style="height:68px;width:auto">`;
 }
 
-async function send(opts: { from: string; to: string; subject: string; html: string; log?: EmailLogMeta }): Promise<boolean> {
+async function send(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; log?: EmailLogMeta }): Promise<boolean> {
   const ok = await sendViaResend(opts);
   if (opts.log) {
     // Extract the bare address from "Name <addr>" format.
@@ -45,12 +45,12 @@ async function send(opts: { from: string; to: string; subject: string; html: str
   return ok;
 }
 
-async function sendViaResend(opts: { from: string; to: string; subject: string; html: string }): Promise<boolean> {
+async function sendViaResend(opts: { from: string; to: string; subject: string; html: string; cc?: string | null }): Promise<boolean> {
   try {
     const connectors = new ReplitConnectors();
     const response = await connectors.proxy("resend", "/emails", {
       method: "POST",
-      body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html }),
+      body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, ...(opts.cc ? { cc: opts.cc } : {}) }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -83,6 +83,8 @@ interface CreditEmailData {
   isTest?: boolean;
   /** Used only for the email log. */
   customerId?: number | null;
+  /** Internal address (e.g. the Printavo order owner) to CC on the email. */
+  ccEmail?: string | null;
 }
 
 function testBanner(isTest?: boolean): string {
@@ -177,11 +179,50 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
+    cc: data.isTest ? null : data.ccEmail ?? null,
     log: {
       emailType: data.isTest ? "test_issued" : "issued",
       customerId: data.customerId ?? null,
       creditId: data.isTest ? null : data.creditId,
     },
+  });
+}
+
+export interface AwardDeclinedEmailData {
+  ownerEmail: string;
+  ownerName?: string | null;
+  customerName: string;
+  ruleName: string;
+  amount: number;
+  orderNumber?: string | null;
+}
+
+/** Internal notification to the Printavo order owner when a pending reward is declined. */
+export async function sendAwardDeclinedEmail(data: AwardDeclinedEmailData): Promise<boolean> {
+  const subject = `Mint Bucks reward declined — ${data.customerName}${data.orderNumber ? ` (order #${data.orderNumber})` : ""}`;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+<div class="wrap">
+  <div class="hd">${logoImgTag()}</div>
+  <div class="bd">
+    <p>Hi${data.ownerName ? ` ${data.ownerName}` : ""},</p>
+    <p>A pending Mint Bucks reward on one of your orders was <strong>declined</strong> and no credit was issued.</p>
+    <div class="note">
+      <strong>Customer:</strong> ${data.customerName}<br/>
+      <strong>Reward rule:</strong> ${data.ruleName}<br/>
+      <strong>Amount:</strong> ${formatCurrency(data.amount)}${data.orderNumber ? `<br/><strong>Order:</strong> #${data.orderNumber}` : ""}
+    </div>
+    <p>No action is needed — this is just a heads-up. If it was declined by mistake, the credit can still be issued manually from the Issue Mint Bucks page.</p>
+  </div>
+  <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program · Internal notification</p></div>
+</div>
+</body></html>`;
+
+  return send({
+    from: `${BUSINESS_NAME} <${FROM_EMAIL}>`,
+    to: data.ownerEmail,
+    subject,
+    html,
+    log: { emailType: "award_declined" },
   });
 }
 

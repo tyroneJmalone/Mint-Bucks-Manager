@@ -13,6 +13,8 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   invoiceTotal: numeric("invoice_total", { precision: 12, scale: 2 }),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   datePaid: text("date_paid"),
+  ownerEmail: text("owner_email"),
+  ownerName: text("owner_name"),
   status: text("status").notNull().default("pending"),
   creditId: integer("credit_id"),
   note: text("note"),

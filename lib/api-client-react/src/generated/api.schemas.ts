@@ -424,6 +424,7 @@ export const EmailLogEntryEmailType = {
   printavo_notification: 'printavo_notification',
   test_issued: 'test_issued',
   test_reminder: 'test_reminder',
+  award_declined: 'award_declined',
 } as const;
 
 export type EmailLogEntryStatus = typeof EmailLogEntryStatus[keyof typeof EmailLogEntryStatus];
