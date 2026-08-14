@@ -18,6 +18,10 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   status: text("status").notNull().default("pending"),
   creditId: integer("credit_id"),
   note: text("note"),
+  /** Email of the staff member who approved this award (null for auto-issued). */
+  approvedBy: text("approved_by"),
+  /** Email of the staff member who rejected this award (cleared on unreject). */
+  rejectedBy: text("rejected_by"),
   awardedAt: timestamp("awarded_at", { withTimezone: true }).notNull().defaultNow(),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -19,6 +19,11 @@ export interface Redemption {
   invoiceRef?: string | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * Email of the staff member who recorded this redemption.
+     * @nullable
+     */
+  performedBy?: string | null;
   redeemedAt: string;
   createdAt: string;
   /** @nullable */

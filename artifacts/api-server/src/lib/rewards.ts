@@ -870,6 +870,7 @@ export async function getRewardsStats(
 
 export async function approveAward(
   awardId: number,
+  approvedBy?: string | null,
 ): Promise<{ ok: true; creditId: number } | { ok: false; status: number; error: string }> {
   const [award] = await db.select().from(rewardAwardsTable).where(eq(rewardAwardsTable.id, awardId));
   if (!award) return { ok: false, status: 404, error: "Award not found" };
@@ -911,13 +912,14 @@ export async function approveAward(
           status: "active",
           note: `Reward: ${rule?.name ?? "rule"} (order #${award.printavoVisualId ?? ""})`,
           sourceRuleId: award.ruleId,
+          issuedBy: approvedBy ?? null,
           expiresAt,
         })
         .returning();
 
       const updated = await tx
         .update(rewardAwardsTable)
-        .set({ status: "issued", creditId: c.id, issuedAt: new Date() })
+        .set({ status: "issued", creditId: c.id, issuedAt: new Date(), approvedBy: approvedBy ?? null })
         .where(and(eq(rewardAwardsTable.id, awardId), eq(rewardAwardsTable.status, "processing")))
         .returning({ id: rewardAwardsTable.id });
       if (!updated.length) throw new Error("award claim lost before issue");
@@ -935,9 +937,10 @@ export async function approveAward(
       customerId: customer.id,
       imageObjectPath: rule?.imageObjectPath ?? null,
       ccEmail: award.ownerEmail ?? null,
+      triggeredBy: approvedBy ?? null,
     }).catch(() => {});
 
-    logger.info({ awardId, creditId: credit.id }, "Rewards: award approved and credit issued");
+    logger.info({ awardId, creditId: credit.id, approvedBy }, "Rewards: award approved and credit issued");
     return { ok: true, creditId: credit.id };
   } catch (err) {
     // Revert to pending (only if still processing) so the owner can retry.
@@ -951,10 +954,10 @@ export async function approveAward(
   }
 }
 
-export async function rejectAward(awardId: number): Promise<boolean> {
+export async function rejectAward(awardId: number, rejectedBy?: string | null): Promise<boolean> {
   const updated = await db
     .update(rewardAwardsTable)
-    .set({ status: "rejected" })
+    .set({ status: "rejected", rejectedBy: rejectedBy ?? null })
     .where(and(eq(rewardAwardsTable.id, awardId), eq(rewardAwardsTable.status, "pending")))
     .returning();
   if (!updated.length) return false;
@@ -974,6 +977,7 @@ export async function rejectAward(awardId: number): Promise<boolean> {
           ruleName: rule?.name ?? "Deleted rule",
           amount: parseFloat(award.amount as unknown as string),
           orderNumber: award.printavoVisualId,
+          triggeredBy: rejectedBy ?? null,
         }),
       )
       .catch((err) => logger.error({ err, awardId }, "Rewards: failed to send decline notification"));
@@ -987,6 +991,7 @@ export async function rejectAward(awardId: number): Promise<boolean> {
  */
 export async function unrejectAward(
   awardId: number,
+  restoredBy?: string | null,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const cfg = await getRewardsConfig();
   return db.transaction(async (tx) => {
@@ -1018,10 +1023,11 @@ export async function unrejectAward(
 
     const updated = await tx
       .update(rewardAwardsTable)
-      .set({ status: "pending" })
+      .set({ status: "pending", rejectedBy: null })
       .where(and(eq(rewardAwardsTable.id, awardId), eq(rewardAwardsTable.status, "rejected")))
       .returning({ id: rewardAwardsTable.id });
     if (!updated.length) return { ok: false as const, status: 409, error: "Award already handled" };
+    logger.info({ awardId, restoredBy }, "Rewards: rejected award restored to pending");
     return { ok: true as const };
   });
 }

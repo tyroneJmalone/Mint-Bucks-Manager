@@ -9,6 +9,8 @@ interface EmailLogMeta {
   emailType: string;
   customerId?: number | null;
   creditId?: number | null;
+  /** Email of the staff member whose action triggered this send (null for automated sends). */
+  triggeredBy?: string | null;
 }
 
 const BUSINESS_NAME = "Mint Printworks";
@@ -39,6 +41,7 @@ async function send(opts: { from: string; to: string; subject: string; html: str
         recipientEmail: recipient,
         subject: opts.subject,
         status: ok ? "sent" : "failed",
+        triggeredBy: opts.log.triggeredBy ?? null,
       })
       .catch((err) => logger.error({ err }, "Failed to write email log"));
   }
@@ -85,6 +88,8 @@ interface CreditEmailData {
   customerId?: number | null;
   /** Internal address (e.g. the Printavo order owner) to CC on the email. */
   ccEmail?: string | null;
+  /** Staff member whose action triggered this send (for the email log). */
+  triggeredBy?: string | null;
 }
 
 function testBanner(isTest?: boolean): string {
@@ -113,6 +118,8 @@ interface RedemptionEmailData {
   /** Used only for the email log. */
   customerId?: number | null;
   creditId?: number | null;
+  /** Staff member whose action triggered this send (for the email log). */
+  triggeredBy?: string | null;
 }
 
 function formatCurrency(amount: number): string {
@@ -184,6 +191,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
       emailType: data.isTest ? "test_issued" : "issued",
       customerId: data.customerId ?? null,
       creditId: data.isTest ? null : data.creditId,
+      triggeredBy: data.triggeredBy ?? null,
     },
   });
 }
@@ -195,6 +203,8 @@ export interface AwardDeclinedEmailData {
   ruleName: string;
   amount: number;
   orderNumber?: string | null;
+  /** Staff member whose action triggered this send (for the email log). */
+  triggeredBy?: string | null;
 }
 
 /** Internal notification to the Printavo order owner when a pending reward is declined. */
@@ -222,7 +232,7 @@ export async function sendAwardDeclinedEmail(data: AwardDeclinedEmailData): Prom
     to: data.ownerEmail,
     subject,
     html,
-    log: { emailType: "award_declined" },
+    log: { emailType: "award_declined", triggeredBy: data.triggeredBy ?? null },
   });
 }
 
@@ -269,6 +279,7 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
       emailType: "redemption",
       customerId: data.customerId ?? null,
       creditId: data.creditId ?? null,
+      triggeredBy: data.triggeredBy ?? null,
     },
   });
 }
@@ -305,6 +316,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
       emailType: data.isTest ? "test_reminder" : "reminder",
       customerId: data.customerId ?? null,
       creditId: data.isTest ? null : data.creditId,
+      triggeredBy: data.triggeredBy ?? null,
     },
   });
 }

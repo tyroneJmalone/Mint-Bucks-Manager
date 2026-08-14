@@ -29,6 +29,7 @@ router.get("/emails", async (req, res): Promise<void> => {
       status: emailLogTable.status,
       sentAt: emailLogTable.sentAt,
       creditCode: creditsTable.code,
+      triggeredBy: emailLogTable.triggeredBy,
     })
     .from(emailLogTable)
     .leftJoin(creditsTable, eq(emailLogTable.creditId, creditsTable.id))

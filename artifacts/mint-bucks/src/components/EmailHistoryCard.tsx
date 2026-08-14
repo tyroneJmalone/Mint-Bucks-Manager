@@ -68,6 +68,7 @@ export function EmailHistoryCard({ customerId, creditId }: EmailHistoryCardProps
                 <div className="text-sm text-foreground truncate">{email.subject}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   To {email.recipientEmail} · {formatDateTime(email.sentAt)}
+                  {email.triggeredBy && <> · Sent by {email.triggeredBy}</>}
                 </div>
               </div>
             </div>

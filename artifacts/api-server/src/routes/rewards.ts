@@ -327,6 +327,8 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       note: r.award.note ?? null,
       awardedAt: new Date(r.award.awardedAt).toISOString(),
       issuedAt: r.award.issuedAt ? new Date(r.award.issuedAt).toISOString() : null,
+      approvedBy: r.award.approvedBy ?? null,
+      rejectedBy: r.award.rejectedBy ?? null,
     })),
   );
 });
@@ -343,7 +345,7 @@ router.post("/rewards/awards/:id/approve", async (req, res): Promise<void> => {
     return;
   }
 
-  const result = await approveAward(id);
+  const result = await approveAward(id, req.staffEmail ?? null);
   if (!result.ok) {
     res.status(result.status).json({ success: false, message: result.error });
     return;
@@ -363,7 +365,7 @@ router.post("/rewards/awards/:id/reject", async (req, res): Promise<void> => {
     return;
   }
 
-  const ok = await rejectAward(id);
+  const ok = await rejectAward(id, req.staffEmail ?? null);
   if (!ok) {
     res.status(404).json({ success: false, message: "Award not found or not pending" });
     return;
@@ -378,7 +380,7 @@ router.post("/rewards/awards/:id/unreject", async (req, res): Promise<void> => {
     return;
   }
 
-  const result = await unrejectAward(id);
+  const result = await unrejectAward(id, req.staffEmail ?? null);
   if (!result.ok) {
     res.status(result.status).json({ success: false, message: result.error });
     return;
@@ -416,6 +418,7 @@ router.post("/rewards/test-email", async (req, res): Promise<void> => {
     creditId: 0,
     imageObjectPath,
     isTest: true,
+    triggeredBy: req.staffEmail ?? null,
   };
 
   const sent = emailType === "issued"

@@ -188,7 +188,8 @@ export const GetCustomerCreditsResponseItem = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 export const GetCustomerCreditsResponse = zod.array(GetCustomerCreditsResponseItem)
 
@@ -220,7 +221,8 @@ export const ListCreditsResponseItem = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 export const ListCreditsResponse = zod.array(ListCreditsResponseItem)
 
@@ -258,7 +260,8 @@ export const IssueCreditResponse = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 
 
@@ -287,7 +290,8 @@ export const GetCreditResponse = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 
 
@@ -322,7 +326,8 @@ export const UpdateCreditResponse = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 
 
@@ -364,6 +369,7 @@ export const RedeemCreditResponse = zod.object({
   "amountApplied": zod.number(),
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "performedBy": zod.string().nullish().describe('Email of the staff member who recorded this redemption.'),
   "redeemedAt": zod.string(),
   "createdAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
@@ -387,7 +393,8 @@ export const RedeemCreditResponse = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 })
 
@@ -461,6 +468,7 @@ export const ListRedemptionsResponseItem = zod.object({
   "amountApplied": zod.number(),
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "performedBy": zod.string().nullish().describe('Email of the staff member who recorded this redemption.'),
   "redeemedAt": zod.string(),
   "createdAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
@@ -486,6 +494,7 @@ export const GetRedemptionResponse = zod.object({
   "amountApplied": zod.number(),
   "invoiceRef": zod.string().nullish(),
   "note": zod.string().nullish(),
+  "performedBy": zod.string().nullish().describe('Email of the staff member who recorded this redemption.'),
   "redeemedAt": zod.string(),
   "createdAt": zod.string(),
   "sourceOrderVisualId": zod.string().nullish(),
@@ -568,7 +577,8 @@ export const GetExpiringSoonResponseItem = zod.object({
   "sourceOrderVisualId": zod.string().nullish(),
   "sourceOrderNickname": zod.string().nullish(),
   "sourceRuleName": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "issuedBy": zod.string().nullish().describe('Email of the staff member who issued this credit (null for automated issues).')
 })
 export const GetExpiringSoonResponse = zod.array(GetExpiringSoonResponseItem)
 
@@ -955,7 +965,9 @@ export const ListRewardAwardsResponseItem = zod.object({
   "creditId": zod.number().nullish(),
   "note": zod.string().nullish(),
   "awardedAt": zod.string(),
-  "issuedAt": zod.string().nullish()
+  "issuedAt": zod.string().nullish(),
+  "approvedBy": zod.string().nullish().describe('Email of the staff member who approved this award (null for auto-issued).'),
+  "rejectedBy": zod.string().nullish().describe('Email of the staff member who rejected this award.')
 })
 export const ListRewardAwardsResponse = zod.array(ListRewardAwardsResponseItem)
 
@@ -1019,7 +1031,8 @@ export const ListEmailLogResponseItem = zod.object({
   "subject": zod.string(),
   "status": zod.enum(['sent', 'failed']),
   "sentAt": zod.string(),
-  "creditCode": zod.string().nullish()
+  "creditCode": zod.string().nullish(),
+  "triggeredBy": zod.string().nullish().describe('Email of the staff member whose action triggered this send (null for automated sends).')
 })
 export const ListEmailLogResponse = zod.array(ListEmailLogResponseItem)
 

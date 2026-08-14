@@ -94,6 +94,11 @@ export interface Credit {
   sourceRuleName?: string | null;
   /** @nullable */
   imageObjectPath?: string | null;
+  /**
+     * Email of the staff member who issued this credit (null for automated issues).
+     * @nullable
+     */
+  issuedBy?: string | null;
 }
 
 export interface CreditInput {
@@ -144,6 +149,11 @@ export interface Redemption {
   invoiceRef?: string | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * Email of the staff member who recorded this redemption.
+     * @nullable
+     */
+  performedBy?: string | null;
   redeemedAt: string;
   createdAt: string;
   /** @nullable */
@@ -448,6 +458,11 @@ export interface EmailLogEntry {
   sentAt: string;
   /** @nullable */
   creditCode?: string | null;
+  /**
+     * Email of the staff member whose action triggered this send (null for automated sends).
+     * @nullable
+     */
+  triggeredBy?: string | null;
 }
 
 export type TestEmailRequestEmailType = typeof TestEmailRequestEmailType[keyof typeof TestEmailRequestEmailType];
@@ -520,6 +535,16 @@ export interface RewardAward {
   awardedAt: string;
   /** @nullable */
   issuedAt?: string | null;
+  /**
+     * Email of the staff member who approved this award (null for auto-issued).
+     * @nullable
+     */
+  approvedBy?: string | null;
+  /**
+     * Email of the staff member who rejected this award.
+     * @nullable
+     */
+  rejectedBy?: string | null;
 }
 
 export type RewardsSettingsMode = typeof RewardsSettingsMode[keyof typeof RewardsSettingsMode];

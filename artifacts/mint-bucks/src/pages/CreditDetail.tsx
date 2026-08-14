@@ -313,7 +313,10 @@ export function CreditDetail() {
         </div>
 
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-          <span>Issued {formatDate(credit.issuedAt)}</span>
+          <span data-testid="text-issued-by">
+            Issued {formatDate(credit.issuedAt)}
+            {credit.issuedBy && <> by <span className="text-foreground font-medium">{credit.issuedBy}</span></>}
+          </span>
           {credit.expiresAt && <span>Expires {formatDate(credit.expiresAt)}</span>}
           {credit.note && <span className="italic">"{credit.note}"</span>}
         </div>
@@ -437,6 +440,7 @@ export function CreditDetail() {
                 <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice Ref</th>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Note</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Recorded By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -446,6 +450,7 @@ export function CreditDetail() {
                   <td className="px-5 py-3 text-right text-sm font-semibold text-foreground">{formatCurrency(r.amountApplied)}</td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">{r.invoiceRef ?? "—"}</td>
                   <td className="px-5 py-3 text-sm text-muted-foreground italic">{r.note ?? ""}</td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground" data-testid={`text-redemption-by-${r.id}`}>{r.performedBy ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

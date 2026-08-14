@@ -886,6 +886,16 @@ export function Rewards() {
                           >
                             {awardStatusLabels[a.status]}
                           </span>
+                          {a.status === "issued" && a.approvedBy && (
+                            <span className="text-xs text-muted-foreground" data-testid={`text-approved-by-${a.id}`}>
+                              by {a.approvedBy}
+                            </span>
+                          )}
+                          {a.status === "rejected" && a.rejectedBy && (
+                            <span className="text-xs text-muted-foreground" data-testid={`text-rejected-by-${a.id}`}>
+                              by {a.rejectedBy}
+                            </span>
+                          )}
                           {a.status === "rejected" && (
                             <Button
                               size="sm"

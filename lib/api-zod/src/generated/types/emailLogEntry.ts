@@ -21,4 +21,9 @@ export interface EmailLogEntry {
   sentAt: string;
   /** @nullable */
   creditCode?: string | null;
+  /**
+     * Email of the staff member whose action triggered this send (null for automated sends).
+     * @nullable
+     */
+  triggeredBy?: string | null;
 }

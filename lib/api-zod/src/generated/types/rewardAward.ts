@@ -46,4 +46,14 @@ export interface RewardAward {
   awardedAt: string;
   /** @nullable */
   issuedAt?: string | null;
+  /**
+     * Email of the staff member who approved this award (null for auto-issued).
+     * @nullable
+     */
+  approvedBy?: string | null;
+  /**
+     * Email of the staff member who rejected this award.
+     * @nullable
+     */
+  rejectedBy?: string | null;
 }

@@ -1120,6 +1120,9 @@ components:
           type: ["string", "null"]
         imageObjectPath:
           type: ["string", "null"]
+        issuedBy:
+          type: ["string", "null"]
+          description: Email of the staff member who issued this credit (null for automated issues).
 
     CreditInput:
       type: object
@@ -1183,6 +1186,9 @@ components:
           type: ["string", "null"]
         note:
           type: ["string", "null"]
+        performedBy:
+          type: ["string", "null"]
+          description: Email of the staff member who recorded this redemption.
         redeemedAt:
           type: string
         createdAt:
@@ -1556,6 +1562,9 @@ components:
           type: string
         creditCode:
           type: ["string", "null"]
+        triggeredBy:
+          type: ["string", "null"]
+          description: Email of the staff member whose action triggered this send (null for automated sends).
 
     TestEmailRequest:
       type: object
@@ -1621,6 +1630,12 @@ components:
           type: string
         issuedAt:
           type: ["string", "null"]
+        approvedBy:
+          type: ["string", "null"]
+          description: Email of the staff member who approved this award (null for auto-issued).
+        rejectedBy:
+          type: ["string", "null"]
+          description: Email of the staff member who rejected this award.
 
     RewardsSettings:
       type: object

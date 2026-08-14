@@ -33,4 +33,9 @@ export interface Credit {
   sourceRuleName?: string | null;
   /** @nullable */
   imageObjectPath?: string | null;
+  /**
+     * Email of the staff member who issued this credit (null for automated issues).
+     * @nullable
+     */
+  issuedBy?: string | null;
 }

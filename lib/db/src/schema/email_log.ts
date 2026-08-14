@@ -11,6 +11,8 @@ export const emailLogTable = pgTable("email_log", {
   recipientEmail: text("recipient_email").notNull(),
   subject: text("subject").notNull(),
   status: text("status").notNull().default("sent"), // sent | failed
+  /** Email of the staff member whose action triggered this send (null for automated sends). */
+  triggeredBy: text("triggered_by"),
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

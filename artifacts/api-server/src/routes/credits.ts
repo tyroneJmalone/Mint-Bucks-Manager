@@ -160,6 +160,7 @@ router.post("/credits", async (req, res): Promise<void> => {
       note: note ?? null,
       imageObjectPath,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      issuedBy: req.staffEmail ?? null,
     })
     .returning();
 
@@ -174,6 +175,7 @@ router.post("/credits", async (req, res): Promise<void> => {
     creditId: credit.id,
     customerId: customer.id,
     imageObjectPath: credit.imageObjectPath,
+    triggeredBy: req.staffEmail ?? null,
   }).catch(() => {});
 
   res.status(201).json(formatCredit(credit as unknown as Record<string, unknown>, customer.name, customer.email, customer.companyName ?? null));
@@ -298,6 +300,7 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
         amountApplied: amountApplied.toFixed(2),
         invoiceRef: invoiceRef ?? null,
         note: note ?? null,
+        performedBy: req.staffEmail ?? null,
       })
       .returning(),
   ]);
@@ -313,6 +316,7 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
       invoiceRef: invoiceRef ?? null,
       customerId: credit.customerId,
       creditId: credit.id,
+      triggeredBy: req.staffEmail ?? null,
     }).catch(() => {});
   }
 
@@ -368,6 +372,7 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     creditId: credit.id,
     customerId: credit.customerId,
     imageObjectPath,
+    triggeredBy: req.staffEmail ?? null,
   });
 
   if (!sent) {

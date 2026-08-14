@@ -9,6 +9,8 @@ export const redemptionsTable = pgTable("redemptions", {
   amountApplied: numeric("amount_applied", { precision: 10, scale: 2 }).notNull(),
   invoiceRef: text("invoice_ref"),
   note: text("note"),
+  /** Email of the staff member who recorded this redemption. */
+  performedBy: text("performed_by"),
   redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
