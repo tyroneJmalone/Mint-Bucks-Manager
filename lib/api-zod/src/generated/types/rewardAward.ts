@@ -43,6 +43,11 @@ export interface RewardAward {
   creditId?: number | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * Internal staff note attached to the Printavo order (shared with the Pipeline view).
+     * @nullable
+     */
+  internalNote?: string | null;
   awardedAt: string;
   /** @nullable */
   issuedAt?: string | null;

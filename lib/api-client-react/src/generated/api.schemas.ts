@@ -532,6 +532,11 @@ export interface RewardAward {
   creditId?: number | null;
   /** @nullable */
   note?: string | null;
+  /**
+     * Internal staff note attached to the Printavo order (shared with the Pipeline view).
+     * @nullable
+     */
+  internalNote?: string | null;
   awardedAt: string;
   /** @nullable */
   issuedAt?: string | null;
@@ -614,6 +619,20 @@ export interface RewardsScanResult {
   removedStale: number;
 }
 
+export interface OrderNoteRequest {
+  /**
+     * The note text. An empty string clears the note.
+     * @maxLength 2000
+     */
+  note: string;
+}
+
+export interface OrderNoteResult {
+  printavoInvoiceId: string;
+  /** @nullable */
+  note: string | null;
+}
+
 export type RewardsPipelineItemStage = typeof RewardsPipelineItemStage[keyof typeof RewardsPipelineItemStage];
 
 
@@ -649,6 +668,11 @@ export interface RewardsPipelineItem {
   ruleName: string;
   potentialAmount: number;
   createdAt: string;
+  /**
+     * Internal staff note attached to the Printavo order (shared with the Pending view).
+     * @nullable
+     */
+  internalNote?: string | null;
 }
 
 export interface RewardsPipelineResult {

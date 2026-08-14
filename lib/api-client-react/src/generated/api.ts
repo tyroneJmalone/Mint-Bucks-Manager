@@ -44,6 +44,8 @@ import type {
   ListRewardAwardsParams,
   MessageResult,
   NotificationLogItem,
+  OrderNoteRequest,
+  OrderNoteResult,
   PrintavoConnectionResult,
   PrintavoOrderSummary,
   PrintavoSettings,
@@ -3479,6 +3481,77 @@ export const useUnrejectRewardAward = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUnrejectRewardAwardMutationOptions(options));
+    }
+
+export const getUpsertOrderNoteUrl = (invoiceId: string,) => {
+
+
+
+
+  return `/api/rewards/order-notes/${invoiceId}`
+}
+
+/**
+ * @summary Create, update, or clear the internal staff note for a Printavo order
+ */
+export const upsertOrderNote = async (invoiceId: string,
+    orderNoteRequest: OrderNoteRequest, options?: RequestInit): Promise<OrderNoteResult> => {
+
+  return customFetch<OrderNoteResult>(getUpsertOrderNoteUrl(invoiceId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(orderNoteRequest)
+  }
+);}
+
+
+
+
+export const getUpsertOrderNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertOrderNote>>, TError,{invoiceId: string;data: BodyType<OrderNoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertOrderNote>>, TError,{invoiceId: string;data: BodyType<OrderNoteRequest>}, TContext> => {
+
+const mutationKey = ['upsertOrderNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertOrderNote>>, {invoiceId: string;data: BodyType<OrderNoteRequest>}> = (props) => {
+          const {invoiceId,data} = props ?? {};
+
+          return  upsertOrderNote(invoiceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertOrderNoteMutationResult = NonNullable<Awaited<ReturnType<typeof upsertOrderNote>>>
+    export type UpsertOrderNoteMutationBody = BodyType<OrderNoteRequest>
+    export type UpsertOrderNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create, update, or clear the internal staff note for a Printavo order
+ */
+export const useUpsertOrderNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertOrderNote>>, TError,{invoiceId: string;data: BodyType<OrderNoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertOrderNote>>,
+        TError,
+        {invoiceId: string;data: BodyType<OrderNoteRequest>},
+        TContext
+      > => {
+      return useMutation(getUpsertOrderNoteMutationOptions(options));
     }
 
 export const getListEmailLogUrl = (params?: ListEmailLogParams,) => {

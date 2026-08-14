@@ -34,4 +34,9 @@ export interface RewardsPipelineItem {
   ruleName: string;
   potentialAmount: number;
   createdAt: string;
+  /**
+     * Internal staff note attached to the Printavo order (shared with the Pending view).
+     * @nullable
+     */
+  internalNote?: string | null;
 }

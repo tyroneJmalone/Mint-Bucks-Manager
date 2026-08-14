@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { rewardRulesTable, rewardAwardsTable, customersTable } from "@workspace/db";
+import { rewardRulesTable, rewardAwardsTable, customersTable, orderNotesTable } from "@workspace/db";
 import {
   UpdateRewardsSettingsBody,
   CreateRewardRuleBody,
@@ -12,6 +12,7 @@ import {
   ApproveRewardAwardParams,
   RejectRewardAwardParams,
   SendTestRewardEmailBody,
+  UpsertOrderNoteBody,
 } from "@workspace/api-zod";
 import {
   getRewardsConfig,
@@ -285,10 +286,12 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       customerName: customersTable.name,
       customerEmail: customersTable.email,
       customerCompany: customersTable.companyName,
+      internalNote: orderNotesTable.note,
     })
     .from(rewardAwardsTable)
     .leftJoin(rewardRulesTable, eq(rewardAwardsTable.ruleId, rewardRulesTable.id))
     .leftJoin(customersTable, eq(rewardAwardsTable.customerId, customersTable.id))
+    .leftJoin(orderNotesTable, eq(rewardAwardsTable.printavoInvoiceId, orderNotesTable.printavoInvoiceId))
     .$dynamic();
 
   if (status) {
@@ -325,6 +328,7 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       status: r.award.status,
       creditId: r.award.creditId ?? null,
       note: r.award.note ?? null,
+      internalNote: r.internalNote ?? null,
       awardedAt: new Date(r.award.awardedAt).toISOString(),
       issuedAt: r.award.issuedAt ? new Date(r.award.issuedAt).toISOString() : null,
       approvedBy: r.award.approvedBy ?? null,
@@ -452,11 +456,53 @@ router.get("/rewards/pipeline", async (_req, res): Promise<void> => {
   }
   try {
     const result = await computePipelinePreview(config);
-    res.json(result);
+    // Attach internal order notes (stored locally, keyed by Printavo invoice ID).
+    const ids = result.items.map((i) => i.printavoInvoiceId);
+    const notes = ids.length
+      ? await db.select().from(orderNotesTable).where(inArray(orderNotesTable.printavoInvoiceId, ids))
+      : [];
+    const noteById = new Map(notes.map((n) => [n.printavoInvoiceId, n.note]));
+    res.json({
+      ...result,
+      items: result.items.map((i) => ({ ...i, internalNote: noteById.get(i.printavoInvoiceId) ?? null })),
+    });
   } catch (err) {
     logger.error({ err }, "Rewards: pipeline preview failed");
     res.status(502).json({ error: "Failed to fetch pipeline from Printavo" });
   }
+});
+
+// ── Internal order notes ─────────────────────────────────────────────────────
+// Staff-facing notes keyed by Printavo order, shared by the Pipeline and
+// Pending views. Empty note deletes the record.
+router.put("/rewards/order-notes/:invoiceId", async (req, res): Promise<void> => {
+  const invoiceId = String(req.params.invoiceId ?? "").trim();
+  if (!invoiceId) {
+    res.status(400).json({ error: "Invalid invoice ID" });
+    return;
+  }
+  const body = UpsertOrderNoteBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const note = body.data.note.trim();
+
+  if (!note) {
+    await db.delete(orderNotesTable).where(eq(orderNotesTable.printavoInvoiceId, invoiceId));
+    res.json({ printavoInvoiceId: invoiceId, note: null });
+    return;
+  }
+
+  const [row] = await db
+    .insert(orderNotesTable)
+    .values({ printavoInvoiceId: invoiceId, note, updatedBy: req.staffEmail ?? null })
+    .onConflictDoUpdate({
+      target: orderNotesTable.printavoInvoiceId,
+      set: { note, updatedBy: req.staffEmail ?? null, updatedAt: new Date() },
+    })
+    .returning();
+  res.json({ printavoInvoiceId: row.printavoInvoiceId, note: row.note });
 });
 
 export default router;

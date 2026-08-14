@@ -893,6 +893,30 @@ paths:
         "409":
           description: Restoring the award would exceed the annual rewards limit
 
+  /rewards/order-notes/{invoiceId}:
+    put:
+      operationId: upsertOrderNote
+      tags: [rewards]
+      summary: Create, update, or clear the internal staff note for a Printavo order
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderNoteRequest"
+      responses:
+        "200":
+          description: The saved note (note is null when cleared)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderNoteResult"
+
   /emails:
     get:
       tags: [credits]
@@ -1626,6 +1650,9 @@ components:
           type: ["integer", "null"]
         note:
           type: ["string", "null"]
+        internalNote:
+          type: ["string", "null"]
+          description: Internal staff note attached to the Printavo order (shared with the Pipeline view).
         awardedAt:
           type: string
         issuedAt:
@@ -1713,6 +1740,24 @@ components:
         removedStale:
           type: integer
 
+    OrderNoteRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          maxLength: 2000
+          description: The note text. An empty string clears the note.
+
+    OrderNoteResult:
+      type: object
+      required: [printavoInvoiceId, note]
+      properties:
+        printavoInvoiceId:
+          type: string
+        note:
+          type: ["string", "null"]
+
     RewardsPipelineItem:
       type: object
       required: [printavoInvoiceId, printavoVisualId, customerName, customerEmail, customerLinked, ruleId, ruleName, potentialAmount, createdAt, stage]
@@ -1750,6 +1795,9 @@ components:
           type: number
         createdAt:
           type: string
+        internalNote:
+          type: ["string", "null"]
+          description: Internal staff note attached to the Printavo order (shared with the Pending view).
 
     RewardsPipelineResult:
       type: object

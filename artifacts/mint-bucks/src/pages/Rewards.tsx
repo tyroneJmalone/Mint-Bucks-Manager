@@ -16,6 +16,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Search,
+  StickyNote,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -35,6 +37,7 @@ import {
   useTriggerRewardsScan,
   useGetRewardsPipeline,
   getGetRewardsPipelineQueryKey,
+  useUpsertOrderNote,
   type RewardRule,
   type RewardAward,
   type RewardsSettingsInput,
@@ -64,6 +67,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RuleFormDialog } from "@/components/rewards/RuleFormDialog";
@@ -93,6 +98,105 @@ function formatDateTime(s?: string | null) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/**
+ * Inline-editable internal note, keyed by Printavo order. Shared between the
+ * Pipeline and Pending views — a note written on a quote follows the order.
+ */
+function OrderNoteCell({ invoiceId, note, testId }: { invoiceId: string; note: string | null | undefined; testId: string }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const upsertNote = useUpsertOrderNote();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  function save() {
+    upsertNote.mutate(
+      { invoiceId, data: { note: draft.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetRewardsPipelineQueryKey() });
+          setOpen(false);
+        },
+        onError: (err: Error) => toast({ title: err.message || "Couldn't save note", variant: "destructive" }),
+      },
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setDraft(note ?? ""); }}>
+      <PopoverTrigger asChild>
+        {note ? (
+          <button
+            type="button"
+            className="group flex items-start gap-1.5 text-left text-sm text-foreground/90 hover:text-primary max-w-[240px]"
+            title={note}
+            data-testid={`button-note-${testId}`}
+          >
+            <StickyNote className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500" />
+            <span className="line-clamp-2 whitespace-pre-wrap break-words">{note}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-primary transition-colors"
+            data-testid={`button-note-${testId}`}
+          >
+            <StickyNote className="w-3.5 h-3.5" /> Add note
+          </button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-3" align="start">
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">Internal note (staff only)</div>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Anything to remember or communicate about this order…"
+            rows={4}
+            maxLength={2000}
+            autoFocus
+            data-testid={`input-note-${testId}`}
+          />
+          <div className="flex justify-end gap-2">
+            {note && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => { setDraft(""); upsertNote.mutate(
+                  { invoiceId, data: { note: "" } },
+                  {
+                    onSuccess: () => {
+                      queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
+                      queryClient.invalidateQueries({ queryKey: getGetRewardsPipelineQueryKey() });
+                      setOpen(false);
+                    },
+                    onError: (err: Error) => toast({ title: err.message || "Couldn't clear note", variant: "destructive" }),
+                  },
+                ); }}
+                disabled={upsertNote.isPending}
+                data-testid={`button-clear-note-${testId}`}
+              >
+                Clear
+              </Button>
+            )}
+            <Button size="sm" onClick={save} disabled={upsertNote.isPending} data-testid={`button-save-note-${testId}`}>
+              {upsertNote.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function matchesSearch(q: string, fields: Array<string | null | undefined>) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
 const rewardTypeLabels: Record<string, string> = {
@@ -234,7 +338,22 @@ export function Rewards() {
     },
   });
 
-  const pendingAwards = awards?.filter((a) => a.status === "pending") ?? [];
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [pipelineSearch, setPipelineSearch] = useState("");
+
+  const allPendingCount = awards?.filter((a) => a.status === "pending").length ?? 0;
+  const pendingAwards = (awards?.filter((a) => a.status === "pending") ?? []).filter((a) =>
+    matchesSearch(pendingSearch, [
+      a.customerName,
+      a.customerCompany,
+      a.customerEmail,
+      a.printavoVisualId ? `#${a.printavoVisualId}` : null,
+      a.printavoVisualId,
+      a.nickname,
+      a.ruleName,
+      a.internalNote,
+    ]),
+  );
 
   // Client-side sorting for the Pipeline table. null = server order (potential, high→low).
   const [pipelineSort, setPipelineSort] = useState<PipelineSort | null>(null);
@@ -246,7 +365,18 @@ export function Rewards() {
     );
   }
   const sortedPipelineItems = useMemo(() => {
-    const items = pipeline?.items ?? [];
+    const items = (pipeline?.items ?? []).filter((i) =>
+      matchesSearch(pipelineSearch, [
+        i.customerName,
+        i.customerCompany,
+        i.customerEmail,
+        i.printavoVisualId ? `#${i.printavoVisualId}` : null,
+        i.printavoVisualId,
+        i.nickname,
+        i.ruleName,
+        i.internalNote,
+      ]),
+    );
     if (!pipelineSort) return items;
     const { key, dir } = pipelineSort;
     const mul = dir === "asc" ? 1 : -1;
@@ -263,7 +393,7 @@ export function Rewards() {
       // numeric:true keeps #22462 above #9999.
       return mul * String(va).localeCompare(String(vb), undefined, { sensitivity: "base", numeric: true });
     });
-  }, [pipeline, pipelineSort]);
+  }, [pipeline, pipelineSort, pipelineSearch]);
 
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() });
@@ -443,9 +573,9 @@ export function Rewards() {
         <TabsList>
           <TabsTrigger value="pending" data-testid="tab-pending">
             Pending
-            {pendingAwards.length > 0 && (
+            {allPendingCount > 0 && (
               <span className="ml-1.5 text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-0.5 leading-none">
-                {pendingAwards.length}
+                {allPendingCount}
               </span>
             )}
           </TabsTrigger>
@@ -471,14 +601,25 @@ export function Rewards() {
               Auto-issue mode is on — awards are issued automatically and won't appear here for approval.
             </div>
           )}
+          <div className="mb-3 relative max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+              placeholder="Search customer, order #, nickname, rule, note…"
+              className="pl-9"
+              data-testid="input-search-pending"
+            />
+          </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
+            <table className="w-full min-w-[860px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Note</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
@@ -489,7 +630,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 7 }).map((_, j) => (
+                      {Array.from({ length: 8 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -518,6 +659,9 @@ export function Rewards() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
+                      <td className="px-5 py-3.5">
+                        <OrderNoteCell invoiceId={a.printavoInvoiceId} note={a.internalNote} testId={`pending-${a.id}`} />
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-invoice-total-pending-${a.id}`}>
                         {a.invoiceTotal != null ? formatCurrency(a.invoiceTotal) : "—"}
                       </td>
@@ -552,9 +696,9 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                      No awards waiting for approval
+                      {pendingSearch.trim() ? "No pending awards match your search" : "No awards waiting for approval"}
                     </td>
                   </tr>
                 )}
@@ -601,15 +745,26 @@ export function Rewards() {
             </div>
           )}
 
+          <div className="mb-3 relative max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={pipelineSearch}
+              onChange={(e) => setPipelineSearch(e.target.value)}
+              placeholder="Search customer, order #, nickname, rule, note…"
+              className="pl-9"
+              data-testid="input-search-pipeline"
+            />
+          </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
+            <table className="w-full min-w-[980px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <SortableTh label="Customer" sortKey="customerName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Order" sortKey="printavoVisualId" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Nickname" sortKey="nickname" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Rule" sortKey="ruleName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Note</th>
                   <SortableTh label="Total" sortKey="total" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Date Paid" sortKey="datePaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Paid" sortKey="amountPaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
@@ -620,14 +775,14 @@ export function Rewards() {
                 {pipelineLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: 9 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
                   ))
                 ) : pipelineError ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={9} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
                     </td>
@@ -678,6 +833,13 @@ export function Rewards() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.ruleName}</td>
+                      <td className="px-5 py-3.5">
+                        <OrderNoteCell
+                          invoiceId={item.printavoInvoiceId}
+                          note={item.internalNote}
+                          testId={`pipeline-${item.printavoInvoiceId}-${item.ruleId}`}
+                        />
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
                         {item.total != null ? formatCurrency(item.total) : "—"}
                       </td>
@@ -697,9 +859,11 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={9} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Building2 className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                      No open quotes or invoices match your active rules right now
+                      {pipelineSearch.trim()
+                        ? "No pipeline items match your search"
+                        : "No open quotes or invoices match your active rules right now"}
                     </td>
                   </tr>
                 )}

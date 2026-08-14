@@ -6,3 +6,4 @@ export * from "./notification_log";
 export * from "./email_log";
 export * from "./reward_rules";
 export * from "./reward_awards";
+export * from "./order_notes";

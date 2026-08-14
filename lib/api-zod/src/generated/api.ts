@@ -964,6 +964,7 @@ export const ListRewardAwardsResponseItem = zod.object({
   "status": zod.enum(['processing', 'pending', 'issued', 'rejected']),
   "creditId": zod.number().nullish(),
   "note": zod.string().nullish(),
+  "internalNote": zod.string().nullish().describe('Internal staff note attached to the Printavo order (shared with the Pipeline view).'),
   "awardedAt": zod.string(),
   "issuedAt": zod.string().nullish(),
   "approvedBy": zod.string().nullish().describe('Email of the staff member who approved this award (null for auto-issued).'),
@@ -1008,6 +1009,27 @@ export const UnrejectRewardAwardParams = zod.object({
 export const UnrejectRewardAwardResponse = zod.object({
   "success": zod.boolean(),
   "message": zod.string()
+})
+
+
+/**
+ * @summary Create, update, or clear the internal staff note for a Printavo order
+ */
+export const UpsertOrderNoteParams = zod.object({
+  "invoiceId": zod.coerce.string()
+})
+
+export const upsertOrderNoteBodyNoteMax = 2000;
+
+
+
+export const UpsertOrderNoteBody = zod.object({
+  "note": zod.string().max(upsertOrderNoteBodyNoteMax).describe('The note text. An empty string clears the note.')
+})
+
+export const UpsertOrderNoteResponse = zod.object({
+  "printavoInvoiceId": zod.string(),
+  "note": zod.string().nullable()
 })
 
 
@@ -1090,7 +1112,8 @@ export const GetRewardsPipelineResponse = zod.object({
   "ruleId": zod.number(),
   "ruleName": zod.string(),
   "potentialAmount": zod.number(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "internalNote": zod.string().nullish().describe('Internal staff note attached to the Printavo order (shared with the Pending view).')
 })),
   "totalPotential": zod.number(),
   "fetchedAt": zod.string()

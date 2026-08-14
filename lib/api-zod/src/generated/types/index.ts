@@ -37,6 +37,8 @@ export * from './listRewardAwardsParams';
 export * from './messageResult';
 export * from './notificationLogItem';
 export * from './notificationLogItemDeliveryStatus';
+export * from './orderNoteRequest';
+export * from './orderNoteResult';
 export * from './printavoConnectionResult';
 export * from './printavoOrderSummary';
 export * from './printavoSettings';
