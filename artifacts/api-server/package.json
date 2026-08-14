@@ -10,6 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.56",
+    "@clerk/shared": "^4.29.0",
     "@google-cloud/storage": "^7.21.0",
     "@replit/connectors-sdk": "^0.4.1",
     "@swc/helpers": "^0.5.23",
@@ -24,6 +26,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "google-auth-library": "^10.9.1",
+    "http-proxy-middleware": "^4.2.0",
     "nodemailer": "^9.0.1",
     "pdfkit": "^0.19.1",
     "pino": "^9.14.0",

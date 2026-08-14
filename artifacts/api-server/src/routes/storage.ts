@@ -25,8 +25,8 @@ const objectStorageService = new ObjectStorageService();
 router.post(
   '/storage/uploads/request-url',
   async (req: Request, res: Response) => {
-    // NOTE: this app is an internal staff tool with no auth layer; the upload
-    // endpoint follows the same posture as the rest of the API.
+    // Staff auth is enforced upstream (see routes/index.ts): only signed-in
+    // staff can mint write-capable upload URLs.
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Missing or invalid required fields' });

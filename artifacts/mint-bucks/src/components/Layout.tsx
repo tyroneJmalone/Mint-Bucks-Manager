@@ -9,8 +9,12 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { useClerk, useUser } from "@clerk/react";
 import { cn } from "@/lib/utils";
 import logoSrc from "@assets/MINT_Scripty_1782772632177.png";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -29,6 +33,8 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   return (
     <div className="flex h-screen bg-background">
@@ -63,9 +69,27 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        <div className="hidden md:block px-5 py-4 border-t border-sidebar-border">
-          <p className="text-sidebar-primary font-display text-base leading-none">Look fresh. Be happy.</p>
-          <p className="text-sidebar-foreground/30 text-[10px] uppercase tracking-widest mt-1.5">Staff Portal</p>
+        <div className="px-2 md:px-5 py-4 border-t border-sidebar-border">
+          <p className="hidden md:block text-sidebar-primary font-display text-base leading-none">Look fresh. Be happy.</p>
+          <p className="hidden md:block text-sidebar-foreground/30 text-[10px] uppercase tracking-widest mt-1.5">Staff Portal</p>
+          {user && (
+            <p
+              className="hidden md:block text-sidebar-foreground/60 text-xs mt-3 truncate"
+              data-testid="text-staff-email"
+              title={user.primaryEmailAddress?.emailAddress ?? undefined}
+            >
+              {user.primaryEmailAddress?.emailAddress ?? user.fullName}
+            </p>
+          )}
+          <button
+            type="button"
+            data-testid="button-sign-out"
+            onClick={() => signOut({ redirectUrl: basePath || "/" })}
+            className="mt-2 flex w-full items-center justify-center md:justify-start gap-2 rounded-md px-2 md:px-0 py-1.5 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Sign out</span>
+          </button>
         </div>
       </aside>
 
