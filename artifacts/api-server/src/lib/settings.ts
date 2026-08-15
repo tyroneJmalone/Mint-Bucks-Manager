@@ -22,7 +22,8 @@ export type SettingsKey =
   | "rewards_start_date"
   | "rewards_lookback_days"
   | "rewards_shop_timezone"
-  | "rewards_last_scan_at";
+  | "rewards_last_scan_at"
+  | "staff_allowlist";
 
 const SENSITIVE_KEYS: Set<SettingsKey> = new Set(["printavo_api_key"]);
 const ALGORITHM = "aes-256-gcm";
@@ -159,4 +160,31 @@ export async function getRewardsConfig(): Promise<RewardsConfig> {
 export async function isRewardsEnabled(): Promise<boolean> {
   const val = await getSetting("rewards_enabled");
   return val === "true";
+}
+
+/**
+ * Staff allowlist: entries are exact emails ("jo@shop.com") or whole domains
+ * ("@shop.com"). Stored comma-separated. `null` means "never configured",
+ * which is distinct from an empty (deny-all) list.
+ */
+export async function getStaffAllowlist(): Promise<string[] | null> {
+  const raw = await getSetting("staff_allowlist");
+  if (raw === null) return null;
+  return raw
+    .split(/[,\n]/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export async function setStaffAllowlist(entries: string[]): Promise<void> {
+  const normalized = [...new Set(entries.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  await setSetting("staff_allowlist", normalized.join(","));
+}
+
+export function emailMatchesAllowlist(email: string, entries: string[]): boolean {
+  const lower = email.trim().toLowerCase();
+  const domain = lower.includes("@") ? lower.slice(lower.lastIndexOf("@")) : "";
+  return entries.some((entry) =>
+    entry.startsWith("@") ? domain === entry : lower === entry,
+  );
 }

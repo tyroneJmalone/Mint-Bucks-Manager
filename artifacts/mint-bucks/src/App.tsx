@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
@@ -21,6 +21,7 @@ import { CheckCredit } from "@/pages/CheckCredit";
 import { CertificateHistory } from "@/pages/CertificateHistory";
 import NotFound from "@/pages/not-found";
 import { SignedOutLanding } from "@/pages/SignedOutLanding";
+import { PendingAccess } from "@/pages/PendingAccess";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -136,6 +137,42 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+interface AuthMe {
+  userId: string;
+  email: string | null;
+  approved: boolean;
+}
+
+/**
+ * Gate between "signed in" and "approved staff". Unapproved accounts (open
+ * sign-up) see the access-pending screen instead of the dashboard.
+ */
+function AccessGate({ children }: { children: React.ReactNode }) {
+  const { data, isLoading, isError } = useQuery<AuthMe>({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const res = await fetch(`${basePath}/api/auth/me`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (isError || !data?.approved) {
+    return <PendingAccess />;
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <Switch>
@@ -153,7 +190,8 @@ function Router() {
               <SignedOutLanding />
             </Show>
             <Show when="signed-in">
-              <Layout>
+              <AccessGate>
+                <Layout>
                 <Switch>
                   <Route path="/" component={Dashboard} />
                   <Route path="/customers" component={Customers} />
@@ -168,7 +206,8 @@ function Router() {
                   <Route path="/settings" component={Settings} />
                   <Route component={NotFound} />
                 </Switch>
-              </Layout>
+                </Layout>
+              </AccessGate>
             </Show>
           </>
         )}

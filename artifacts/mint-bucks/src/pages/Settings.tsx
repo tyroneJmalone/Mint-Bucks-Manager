@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Settings as SettingsIcon, Plug, RefreshCw, Users, Play, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Settings as SettingsIcon, Plug, RefreshCw, Users, Play, CheckCircle2, XCircle, AlertCircle, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -54,6 +54,102 @@ const settingsSchema = z.object({
 type SettingsFormData = z.infer<typeof settingsSchema>;
 
 const SETTINGS_KEY = ["settings", "printavo"];
+const STAFF_ACCESS_KEY = ["settings", "staff-access"];
+
+function StaffAccessCard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [newEntry, setNewEntry] = useState("");
+
+  const { data } = useQuery<{ allowlist: string[] }>({
+    queryKey: STAFF_ACCESS_KEY,
+    queryFn: () => apiFetch("/settings/staff-access") as Promise<{ allowlist: string[] }>,
+  });
+  const allowlist = data?.allowlist ?? [];
+
+  const save = useMutation({
+    mutationFn: (entries: string[]) =>
+      apiFetch("/settings/staff-access", {
+        method: "PUT",
+        body: JSON.stringify({ allowlist: entries }),
+      }) as Promise<{ allowlist: string[] }>,
+    onSuccess: (updated) => {
+      queryClient.setQueryData(STAFF_ACCESS_KEY, updated);
+      setNewEntry("");
+      toast({ title: "Staff access list updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message, variant: "destructive" });
+    },
+  });
+
+  const addEntry = () => {
+    const entry = newEntry.trim().toLowerCase();
+    if (!entry) return;
+    if (allowlist.includes(entry)) {
+      toast({ title: "Already on the list", variant: "destructive" });
+      return;
+    }
+    save.mutate([...allowlist, entry]);
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-6 mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <ShieldCheck className="w-4 h-4 text-primary" />
+        <h2 className="text-sm font-semibold text-foreground">Staff Access</h2>
+      </div>
+      <p className="text-sm text-muted-foreground mb-4">
+        Only these people can use the dashboard. Add a full email (<span className="font-mono text-xs">jo@shop.com</span>) or
+        a whole domain (<span className="font-mono text-xs">@shop.com</span>). Anyone else who signs up sees an
+        &ldquo;access pending&rdquo; screen.
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <Input
+          placeholder="email@company.com or @company.com"
+          value={newEntry}
+          onChange={(e) => setNewEntry(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addEntry();
+            }
+          }}
+        />
+        <Button onClick={addEntry} disabled={save.isPending || !newEntry.trim()}>
+          {save.isPending ? "Saving…" : "Add"}
+        </Button>
+      </div>
+
+      {allowlist.length === 0 ? (
+        <p className="text-xs text-amber-600 flex items-center gap-1">
+          <AlertCircle className="w-3.5 h-3.5" /> No entries yet — your account was approved automatically as the first user.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {allowlist.map((entry) => (
+            <li
+              key={entry}
+              className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm"
+            >
+              <span className="font-mono text-xs">{entry}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${entry}`}
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => save.mutate(allowlist.filter((e) => e !== entry))}
+                disabled={save.isPending}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function Settings() {
   const { toast } = useToast();
@@ -159,6 +255,9 @@ export function Settings() {
         </div>
         <p className="text-muted-foreground text-sm">Configure Printavo integration and automation</p>
       </div>
+
+      {/* Staff Access */}
+      <StaffAccessCard />
 
       {/* Printavo Credentials */}
       <div className="bg-card border border-border rounded-lg p-6 mb-6">

@@ -57,3 +57,8 @@ POST /api/printavo/sync-customers (Settings "Sync Customers") pages through ever
 Unpaid/quote invoices have null `datePaid`, so rule paid-date windows would exclude ALL pipeline items if matched raw. The pipeline preview must match against a forecast invoice: `amountPaid = total`, `datePaid = max(today in shop TZ, rule.paidDateFrom)` — only an already-closed window (paidDateTo < today) excludes an unpaid order.
 **Why:** Rule 3's July paid window emptied the Pipeline tab because forecast matching reused the strict scan matcher on null datePaid.
 **How to apply:** Any new matcher condition keyed on payment state needs an explicit forecast semantics decision in `buildPipelinePreview`. Pipeline result is cached ~5min with single-flight + generation counter (`invalidatePipelineCache()` on rule/settings mutations) because the Printavo fetch takes ~45s throttled.
+
+## Staff access authorization (open Clerk sign-up, gated dashboard)
+Sign-up stays open; authorization happens server-side. `requireApprovedStaff` (after `requireAuth`) admits users whose email/domain matches the `staff_allowlist` setting or whose Clerk `publicMetadata.staffApproved === true`. Unapproved → 403 `ACCESS_PENDING`; frontend `AccessGate` (via `GET /api/auth/me`, reachable without approval) shows a pending screen.
+
+**Bootstrap:** if the allowlist was never configured AND Clerk has exactly one user, that user is auto-approved and seeded into the allowlist — prevents owner lockout. Allowlist edits reject removing the editor's own email (self-lockout guard) and clear a 60s approval cache.

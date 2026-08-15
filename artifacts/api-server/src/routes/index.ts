@@ -9,7 +9,7 @@ import printavoRouter from "./printavo";
 import rewardsRouter from "./rewards";
 import storageRouter from "./storage";
 import emailsRouter from "./emails";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireApprovedStaff, isApprovedStaff } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
@@ -38,7 +38,22 @@ router.use((req, res, next) => {
   ) {
     return next();
   }
-  return requireAuth(req, res, next);
+  return requireAuth(req, res, (err?: unknown) => {
+    if (err) return next(err);
+    // /auth/me must stay reachable for signed-in-but-unapproved users so the
+    // frontend can show the "access pending" screen instead of the dashboard.
+    if (req.path === "/auth/me") return next();
+    return requireApprovedStaff(req, res, next);
+  });
+});
+
+// Who am I, and am I approved staff? (Authenticated, but no approval needed.)
+router.get("/auth/me", async (req, res) => {
+  res.json({
+    userId: req.userId,
+    email: req.staffEmail ?? null,
+    approved: await isApprovedStaff(req.userId!),
+  });
 });
 
 router.use(healthRouter);
