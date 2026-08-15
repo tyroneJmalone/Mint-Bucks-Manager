@@ -527,6 +527,8 @@ router.post("/rewards/test-email", async (req, res): Promise<void> => {
         customerEmail: recipientEmail,
         totalOutstanding: amount,
         orderNumber: "1234",
+        // Sample link so the clickable order number can be previewed in tests.
+        orderPublicUrl: "https://www.printavo.com",
         orderTotal: 500,
         imageObjectPath,
         isTest: true,

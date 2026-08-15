@@ -172,6 +172,7 @@ router.post("/credits", async (req, res): Promise<void> => {
       sendCreditIssuedEmail({
         customerName: customer.name,
         customerEmail: customer.email,
+        companyName: customer.companyName ?? null,
         creditCode: credit.code,
         amount,
         expiresAt: credit.expiresAt?.toISOString() ?? null,

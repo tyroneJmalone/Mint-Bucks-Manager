@@ -374,7 +374,7 @@ async function claimAward(
 async function issueClaimedAward(
   award: RewardAward,
   inv: PrintavoPaidInvoice,
-  customer: { id: number; name: string; email: string },
+  customer: { id: number; name: string; email: string; companyName?: string | null },
   rule: RewardRule,
   cfg: RewardsConfig,
 ): Promise<boolean> {
@@ -412,6 +412,7 @@ async function issueClaimedAward(
     sendCreditIssuedEmail({
       customerName: customer.name,
       customerEmail: customer.email,
+      companyName: customer.companyName ?? null,
       creditCode: credit.code,
       amount: amountNum,
       expiresAt: credit.expiresAt?.toISOString() ?? null,
@@ -931,6 +932,7 @@ export async function approveAward(
     sendCreditIssuedEmail({
       customerName: customer.name,
       customerEmail: customer.email,
+      companyName: customer.companyName ?? null,
       creditCode: credit.code,
       amount: amountNum,
       expiresAt: credit.expiresAt?.toISOString() ?? null,

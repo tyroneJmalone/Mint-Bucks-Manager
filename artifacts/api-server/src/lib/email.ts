@@ -75,6 +75,8 @@ async function sendViaResend(opts: { from: string; to: string; subject: string; 
 interface CreditEmailData {
   customerName: string;
   customerEmail: string;
+  /** Company name shown alongside the customer in the "Issued to" details. */
+  companyName?: string | null;
   creditCode: string;
   amount: number;
   expiresAt?: string | null;
@@ -121,10 +123,14 @@ export function renderTemplate(tpl: string, vars: Record<string, string>): strin
   });
 }
 
-/** Render a plain-text custom body into HTML paragraphs (values HTML-escaped first). */
-function renderBodyHtml(tpl: string, vars: Record<string, string>): string {
+/**
+ * Render a plain-text custom body into HTML paragraphs (values HTML-escaped first).
+ * `rawVars` are trusted HTML snippets substituted AFTER escaping (e.g. links).
+ */
+function renderBodyHtml(tpl: string, vars: Record<string, string>, rawVars?: Record<string, string>): string {
   const escapedVars = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, escapeHtml(v)]));
-  const rendered = renderTemplate(escapeHtml(tpl), escapedVars);
+  let rendered = renderTemplate(escapeHtml(tpl), escapedVars);
+  if (rawVars) rendered = renderTemplate(rendered, rawVars);
   return rendered
     .split(/\n\s*\n/)
     .map(p => p.trim())
@@ -177,7 +183,7 @@ interface RedemptionEmailData {
 const MINT_BUCKS_INFO_URL = "https://mintprintworks.com/mint-bucks/";
 
 function whatAreMintBucksLink(): string {
-  return `<p style="text-align:center;margin:24px 0"><a href="${MINT_BUCKS_INFO_URL}" style="color:#5f7c44;font-weight:600">What are Mint Bucks? Click to find out.</a></p>`;
+  return `<p style="text-align:center;margin:24px 0;line-height:1.5"><a href="${MINT_BUCKS_INFO_URL}" style="color:#5f7c44;font-weight:600"><span style="white-space:nowrap">What are Mint Bucks?</span><br/><span style="white-space:nowrap">Click to find out.</span></a></p>`;
 }
 
 function formatCurrency(amount: number): string {
@@ -195,7 +201,7 @@ const CSS = `
   .hd img{height:68px;width:auto}
   .bd{padding:40px 32px}
   .amt{background:#f5faee;border:2px solid #7CC24D;border-radius:8px;padding:32px;text-align:center;margin:24px 0}
-  .amt .n{font-size:56px;font-weight:800;color:#16261c;margin:0}
+  .amt .n{font-size:56px;font-weight:800;color:#16261c;margin:0;white-space:nowrap}
   .amt .l{color:#5f7c44;font-size:14px;margin:4px 0 0;text-transform:uppercase;letter-spacing:1px}
   .code{background:#16261c;border-radius:6px;padding:16px;text-align:center;margin:24px 0}
   .code .c{color:#7CC24D;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px}
@@ -232,7 +238,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Mint Bucks Credit</div></div>
     ${whatAreMintBucksLink()}
     <div class="dl"><dl>
-      <dt>Issued to</dt><dd>${data.customerName}</dd>
+      <dt>Issued to</dt><dd>${escapeHtml(data.customerName)}${data.companyName ? `<br/>${escapeHtml(data.companyName)}` : ""}<br/>${escapeHtml(data.customerEmail)}</dd>
       ${data.expiresAt ? `<dt>Expires</dt><dd>${formatDate(data.expiresAt)}</dd>` : ""}
       ${data.note ? `<dt>Note</dt><dd>${data.note}</dd>` : ""}
     </dl></div>
@@ -410,9 +416,21 @@ export interface PrintavoNotificationData {
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
-  const orderRef = data.orderPublicUrl
-    ? `<a href="${data.orderPublicUrl}" style="color:#16261c;font-weight:bold;text-decoration:underline">#${data.orderNumber}</a>`
-    : `<strong>#${data.orderNumber}</strong>`;
+  // Order number and public URL come from the Printavo API — treat as
+  // untrusted. Only link when the URL parses as https; escape everything.
+  const safeOrderNumber = escapeHtml(data.orderNumber);
+  let safeOrderUrl: string | null = null;
+  if (data.orderPublicUrl) {
+    try {
+      const u = new URL(data.orderPublicUrl);
+      if (u.protocol === "https:") safeOrderUrl = escapeHtml(u.href);
+    } catch {
+      // invalid URL — fall back to plain text
+    }
+  }
+  const orderRef = safeOrderUrl
+    ? `<a href="${safeOrderUrl}" style="color:#16261c;font-weight:bold;text-decoration:underline">#${safeOrderNumber}</a>`
+    : `<strong>#${safeOrderNumber}</strong>`;
 
   const vars: Record<string, string> = {
     customername: data.customerName,
@@ -426,8 +444,11 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
   const subject = `${data.isTest ? "[TEST] " : ""}${data.customSubject?.trim()
     ? renderTemplate(data.customSubject.trim(), vars)
     : `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`}`;
+  // {{orderNumber}} in a custom body renders as a clickable link to the
+  // Printavo public invoice view when a URL is available (raw HTML, applied
+  // after escaping).
   const introHtml = data.customBody?.trim()
-    ? renderBodyHtml(data.customBody.trim(), vars)
+    ? renderBodyHtml(data.customBody.trim(), (({ ordernumber: _omit, ...rest }) => rest)(vars), { ordernumber: orderRef })
     : `<p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
