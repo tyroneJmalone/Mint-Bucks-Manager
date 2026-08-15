@@ -38,6 +38,16 @@ export interface RewardAward {
      * @nullable
      */
   datePaid?: string | null;
+  /**
+     * Printavo order status name at the last scan (refreshed while pending).
+     * @nullable
+     */
+  statusName?: string | null;
+  /**
+     * Printavo production due date at the last scan (refreshed while pending).
+     * @nullable
+     */
+  productionDueAt?: string | null;
   status: RewardAwardStatus;
   /** @nullable */
   creditId?: number | null;

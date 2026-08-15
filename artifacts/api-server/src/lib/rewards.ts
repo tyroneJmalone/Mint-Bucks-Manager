@@ -49,6 +49,7 @@ export type RewardParams = z.infer<typeof rewardParamsSchema>;
 export const conditionsSchema = z.object({
   tagAny: z.array(z.string()).optional(),
   statusNameAny: z.array(z.string()).optional(),
+  statusNameExclude: z.array(z.string()).optional(),
   totalMin: z.number().nonnegative().optional(),
   totalMax: z.number().nonnegative().optional(),
   invoiceDateFrom: z.string().optional(),
@@ -133,6 +134,12 @@ export function invoiceMatchesRule(inv: PrintavoPaidInvoice, rule: RewardRule): 
     if (!inv.statusName) return false;
     const s = inv.statusName.toLowerCase();
     if (!cond.statusNameAny.some((n) => n.toLowerCase() === s)) return false;
+  }
+
+  // Excluded statuses fail eligibility outright (case-insensitive exact match).
+  if (cond.statusNameExclude?.length && inv.statusName) {
+    const s = inv.statusName.toLowerCase();
+    if (cond.statusNameExclude.some((n) => n.trim().toLowerCase() === s)) return false;
   }
 
   const total = inv.total ?? 0;
@@ -357,6 +364,8 @@ async function claimAward(
         invoiceTotal: inv.total != null ? inv.total.toFixed(2) : null,
         amount: amount.toFixed(2),
         datePaid: inv.datePaid ?? null,
+        statusName: inv.statusName ?? null,
+        productionDueAt: inv.productionDueAt ?? null,
         ownerEmail: inv.ownerEmail ?? null,
         ownerName: inv.ownerName ?? null,
         status: claimStatus,
@@ -499,7 +508,7 @@ async function removeStalePendingAwards(
   const invById = new Map(invoices.map((i) => [i.id, i]));
 
   const staleIds: number[] = [];
-  const backfills: { id: number; nickname: string | null; invoiceTotal: string | null }[] = [];
+  const backfills: { id: number; nickname: string | null; invoiceTotal: string | null; statusName: string | null; productionDueAt: string | null }[] = [];
   for (const award of pendingAwards) {
     const rule = ruleById.get(award.ruleId);
     if (!rule) {
@@ -537,12 +546,22 @@ async function removeStalePendingAwards(
       staleIds.push(award.id); // amount changed — re-claimed below at the new amount
       continue;
     }
-    // Kept — backfill display fields added after this row was claimed.
-    if (award.nickname == null || award.invoiceTotal == null) {
+    // Kept — backfill display fields added after this row was claimed, and
+    // refresh the live Printavo status / production date shown in reviews.
+    const freshStatus = inv.statusName ?? null;
+    const freshProduction = inv.productionDueAt ?? null;
+    if (
+      award.nickname == null ||
+      award.invoiceTotal == null ||
+      award.statusName !== freshStatus ||
+      award.productionDueAt !== freshProduction
+    ) {
       backfills.push({
         id: award.id,
-        nickname: inv.nickname ?? null,
-        invoiceTotal: inv.total != null ? inv.total.toFixed(2) : null,
+        nickname: award.nickname ?? inv.nickname ?? null,
+        invoiceTotal: award.invoiceTotal ?? (inv.total != null ? inv.total.toFixed(2) : null),
+        statusName: freshStatus,
+        productionDueAt: freshProduction,
       });
     }
   }
@@ -550,7 +569,7 @@ async function removeStalePendingAwards(
   for (const b of backfills) {
     await db
       .update(rewardAwardsTable)
-      .set({ nickname: b.nickname, invoiceTotal: b.invoiceTotal })
+      .set({ nickname: b.nickname, invoiceTotal: b.invoiceTotal, statusName: b.statusName, productionDueAt: b.productionDueAt })
       .where(and(eq(rewardAwardsTable.id, b.id), eq(rewardAwardsTable.status, "pending")));
   }
 
@@ -703,6 +722,10 @@ export interface PipelinePreviewItem {
   nickname: string | null;
   /** Date (YYYY-MM-DD) of the most recent payment, or null if none yet. */
   datePaid: string | null;
+  /** Current Printavo order status name. */
+  statusName: string | null;
+  /** Printavo production due date, if set. */
+  productionDueAt: string | null;
 }
 
 export interface PipelinePreviewResult {
@@ -828,6 +851,8 @@ async function buildPipelinePreview(config: PrintavoConfig): Promise<PipelinePre
         stage: inv.stage,
         nickname: inv.nickname,
         datePaid: inv.datePaid,
+        statusName: inv.statusName ?? null,
+        productionDueAt: inv.productionDueAt ?? null,
       });
       totalPotential += potential;
     }

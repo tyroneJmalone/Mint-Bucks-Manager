@@ -13,6 +13,10 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   invoiceTotal: numeric("invoice_total", { precision: 12, scale: 2 }),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   datePaid: text("date_paid"),
+  /** Printavo order status name at last scan (refreshed while pending). */
+  statusName: text("status_name"),
+  /** Printavo production due date at last scan (refreshed while pending). */
+  productionDueAt: text("production_due_at"),
   ownerEmail: text("owner_email"),
   ownerName: text("owner_name"),
   status: text("status").notNull().default("pending"),

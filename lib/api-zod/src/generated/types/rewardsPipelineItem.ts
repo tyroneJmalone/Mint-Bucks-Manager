@@ -21,6 +21,16 @@ export interface RewardsPipelineItem {
      * @nullable
      */
   datePaid?: string | null;
+  /**
+     * Current Printavo order status name.
+     * @nullable
+     */
+  statusName?: string | null;
+  /**
+     * Printavo production due date, if set.
+     * @nullable
+     */
+  productionDueAt?: string | null;
   customerName: string;
   customerEmail: string;
   /** @nullable */

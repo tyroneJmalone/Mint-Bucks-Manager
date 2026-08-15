@@ -9,6 +9,8 @@
 export interface RewardConditions {
   tagAny?: string[];
   statusNameAny?: string[];
+  /** Printavo status names to exclude from eligibility (case-insensitive). */
+  statusNameExclude?: string[];
   totalMin?: number;
   totalMax?: number;
   invoiceDateFrom?: string;

@@ -336,6 +336,8 @@ export interface RewardParams {
 export interface RewardConditions {
   tagAny?: string[];
   statusNameAny?: string[];
+  /** Printavo status names to exclude from eligibility (case-insensitive). */
+  statusNameExclude?: string[];
   totalMin?: number;
   totalMax?: number;
   invoiceDateFrom?: string;
@@ -650,6 +652,16 @@ export interface RewardAward {
      * @nullable
      */
   datePaid?: string | null;
+  /**
+     * Printavo order status name at the last scan (refreshed while pending).
+     * @nullable
+     */
+  statusName?: string | null;
+  /**
+     * Printavo production due date at the last scan (refreshed while pending).
+     * @nullable
+     */
+  productionDueAt?: string | null;
   status: RewardAwardStatus;
   /** @nullable */
   creditId?: number | null;
@@ -778,6 +790,16 @@ export interface RewardsPipelineItem {
      * @nullable
      */
   datePaid?: string | null;
+  /**
+     * Current Printavo order status name.
+     * @nullable
+     */
+  statusName?: string | null;
+  /**
+     * Printavo production due date, if set.
+     * @nullable
+     */
+  productionDueAt?: string | null;
   customerName: string;
   customerEmail: string;
   /** @nullable */

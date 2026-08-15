@@ -854,6 +854,7 @@ export const ListRewardRulesResponseItem = zod.object({
   "conditions": zod.object({
   "tagAny": zod.array(zod.string()).optional(),
   "statusNameAny": zod.array(zod.string()).optional(),
+  "statusNameExclude": zod.array(zod.string()).optional().describe('Printavo status names to exclude from eligibility (case-insensitive).'),
   "totalMin": zod.number().optional(),
   "totalMax": zod.number().optional(),
   "invoiceDateFrom": zod.string().optional(),
@@ -911,6 +912,7 @@ export const CreateRewardRuleBody = zod.object({
   "conditions": zod.object({
   "tagAny": zod.array(zod.string()).optional(),
   "statusNameAny": zod.array(zod.string()).optional(),
+  "statusNameExclude": zod.array(zod.string()).optional().describe('Printavo status names to exclude from eligibility (case-insensitive).'),
   "totalMin": zod.number().optional(),
   "totalMax": zod.number().optional(),
   "invoiceDateFrom": zod.string().optional(),
@@ -949,6 +951,7 @@ export const CreateRewardRuleResponse = zod.object({
   "conditions": zod.object({
   "tagAny": zod.array(zod.string()).optional(),
   "statusNameAny": zod.array(zod.string()).optional(),
+  "statusNameExclude": zod.array(zod.string()).optional().describe('Printavo status names to exclude from eligibility (case-insensitive).'),
   "totalMin": zod.number().optional(),
   "totalMax": zod.number().optional(),
   "invoiceDateFrom": zod.string().optional(),
@@ -1009,6 +1012,7 @@ export const UpdateRewardRuleBody = zod.object({
   "conditions": zod.object({
   "tagAny": zod.array(zod.string()).optional(),
   "statusNameAny": zod.array(zod.string()).optional(),
+  "statusNameExclude": zod.array(zod.string()).optional().describe('Printavo status names to exclude from eligibility (case-insensitive).'),
   "totalMin": zod.number().optional(),
   "totalMax": zod.number().optional(),
   "invoiceDateFrom": zod.string().optional(),
@@ -1047,6 +1051,7 @@ export const UpdateRewardRuleResponse = zod.object({
   "conditions": zod.object({
   "tagAny": zod.array(zod.string()).optional(),
   "statusNameAny": zod.array(zod.string()).optional(),
+  "statusNameExclude": zod.array(zod.string()).optional().describe('Printavo status names to exclude from eligibility (case-insensitive).'),
   "totalMin": zod.number().optional(),
   "totalMax": zod.number().optional(),
   "invoiceDateFrom": zod.string().optional(),
@@ -1105,6 +1110,8 @@ export const ListRewardAwardsResponseItem = zod.object({
   "invoiceTotal": zod.number().nullish().describe('Total order value of the invoice, captured when the award was created.'),
   "amount": zod.number(),
   "datePaid": zod.string().nullish().describe('Date (YYYY-MM-DD) the invoice was last paid, captured when the award was created.'),
+  "statusName": zod.string().nullish().describe('Printavo order status name at the last scan (refreshed while pending).'),
+  "productionDueAt": zod.string().nullish().describe('Printavo production due date at the last scan (refreshed while pending).'),
   "status": zod.enum(['processing', 'pending', 'issued', 'rejected']),
   "creditId": zod.number().nullish(),
   "note": zod.string().nullish(),
@@ -1253,6 +1260,8 @@ export const GetRewardsPipelineResponse = zod.object({
   "stage": zod.enum(['quote', 'invoice']),
   "nickname": zod.string().nullish().describe('Order nickname (job title) from Printavo.'),
   "datePaid": zod.string().nullish().describe('Date (YYYY-MM-DD) of the most recent payment, null if none.'),
+  "statusName": zod.string().nullish().describe('Current Printavo order status name.'),
+  "productionDueAt": zod.string().nullish().describe('Printavo production due date, if set.'),
   "customerName": zod.string(),
   "customerEmail": zod.string(),
   "customerCompany": zod.string().nullish(),

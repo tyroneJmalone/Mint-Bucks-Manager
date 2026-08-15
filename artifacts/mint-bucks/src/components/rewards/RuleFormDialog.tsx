@@ -151,6 +151,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
   const [totalMin, setTotalMin] = useState("");
   const [totalMax, setTotalMax] = useState("");
   const [statusNameAny, setStatusNameAny] = useState("");
+  const [statusNameExclude, setStatusNameExclude] = useState("");
   const [tagAny, setTagAny] = useState("");
   const [invoiceDateFrom, setInvoiceDateFrom] = useState("");
   const [invoiceDateTo, setInvoiceDateTo] = useState("");
@@ -192,6 +193,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setTotalMin(c.totalMin != null ? String(c.totalMin) : "");
       setTotalMax(c.totalMax != null ? String(c.totalMax) : "");
       setStatusNameAny(toCsv(c.statusNameAny));
+      setStatusNameExclude(toCsv(c.statusNameExclude));
       setTagAny(toCsv(c.tagAny));
       setInvoiceDateFrom(toDateInput(c.invoiceDateFrom));
       setInvoiceDateTo(toDateInput(c.invoiceDateTo));
@@ -203,6 +205,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
         c.totalMin != null ||
           c.totalMax != null ||
           !!c.statusNameAny?.length ||
+          !!c.statusNameExclude?.length ||
           !!c.tagAny?.length ||
           !!c.invoiceDateFrom ||
           !!c.invoiceDateTo ||
@@ -228,6 +231,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setTotalMin("");
       setTotalMax("");
       setStatusNameAny("");
+      setStatusNameExclude("");
       setTagAny("");
       setInvoiceDateFrom("");
       setInvoiceDateTo("");
@@ -260,6 +264,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       if (totalMax !== "") c.totalMax = parseFloat(totalMax);
       const s = fromCsv(statusNameAny);
       if (s.length) c.statusNameAny = s;
+      const sx = fromCsv(statusNameExclude);
+      if (sx.length) c.statusNameExclude = sx;
       const t = fromCsv(tagAny);
       if (t.length) c.tagAny = t;
       if (invoiceDateFrom) c.invoiceDateFrom = invoiceDateFrom;
@@ -778,6 +784,21 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                     onChange={(e) => setStatusNameAny(e.target.value)}
                     data-testid="input-status-any"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="status-exclude" className="text-xs">
+                    Exclude invoice statuses
+                  </Label>
+                  <Input
+                    id="status-exclude"
+                    placeholder="Comma-separated, e.g. Cancelled, On Hold"
+                    value={statusNameExclude}
+                    onChange={(e) => setStatusNameExclude(e.target.value)}
+                    data-testid="input-status-exclude"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Orders in these Printavo statuses are skipped entirely — they won't appear in the pipeline or pending views.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="tag-any" className="text-xs">

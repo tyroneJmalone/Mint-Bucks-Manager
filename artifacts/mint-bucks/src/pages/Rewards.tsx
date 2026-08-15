@@ -244,6 +244,8 @@ type PipelineSortKey =
   | "ruleName"
   | "total"
   | "datePaid"
+  | "statusName"
+  | "productionDueAt"
   | "amountPaid"
   | "potentialAmount";
 type PipelineSort = { key: PipelineSortKey; dir: "asc" | "desc" };
@@ -256,6 +258,8 @@ const defaultSortDir: Record<PipelineSortKey, "asc" | "desc"> = {
   ruleName: "asc",
   total: "desc",
   datePaid: "desc",
+  statusName: "asc",
+  productionDueAt: "desc",
   amountPaid: "desc",
   potentialAmount: "desc",
 };
@@ -616,15 +620,17 @@ export function Rewards() {
           </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px]">
+            <table className="w-full min-w-[1060px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rule</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Note</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date Paid</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Production</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
@@ -633,7 +639,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: 10 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -661,6 +667,9 @@ export function Rewards() {
                           </div>
                         )}
                       </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-status-pending-${a.id}`}>
+                        {a.statusName || "—"}
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
                       <td className="px-5 py-3.5">
                         <OrderNoteCell invoiceId={a.printavoInvoiceId} note={a.internalNote} testId={`pending-${a.id}`} />
@@ -670,6 +679,9 @@ export function Rewards() {
                       </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-date-paid-pending-${a.id}`}>
                         {formatDateOnly(a.datePaid)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-production-pending-${a.id}`}>
+                        {formatDateOnly(a.productionDueAt)}
                       </td>
                       <td className="px-5 py-3.5 text-right text-sm font-semibold text-primary">{formatCurrency(a.amount)}</td>
                       <td className="px-5 py-3.5">
@@ -699,7 +711,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={10} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {pendingSearch.trim() ? "No pending awards match your search" : "No awards waiting for approval"}
                     </td>
@@ -760,16 +772,18 @@ export function Rewards() {
           </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px]">
+            <table className="w-full min-w-[1180px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <SortableTh label="Customer" sortKey="customerName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Order" sortKey="printavoVisualId" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Nickname" sortKey="nickname" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Status" sortKey="statusName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Rule" sortKey="ruleName" align="left" sort={pipelineSort} onSort={togglePipelineSort} />
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Note</th>
                   <SortableTh label="Total" sortKey="total" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Date Paid" sortKey="datePaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
+                  <SortableTh label="Production" sortKey="productionDueAt" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Paid" sortKey="amountPaid" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                   <SortableTh label="Potential" sortKey="potentialAmount" align="right" sort={pipelineSort} onSort={togglePipelineSort} />
                 </tr>
@@ -778,14 +792,14 @@ export function Rewards() {
                 {pipelineLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 9 }).map((_, j) => (
+                      {Array.from({ length: 11 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
                   ))
                 ) : pipelineError ? (
                   <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
                     </td>
@@ -835,6 +849,9 @@ export function Rewards() {
                           {item.nickname || "—"}
                         </div>
                       </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-status-${item.printavoInvoiceId}-${item.ruleId}`}>
+                        {item.statusName || "—"}
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.ruleName}</td>
                       <td className="px-5 py-3.5">
                         <OrderNoteCell
@@ -852,6 +869,12 @@ export function Rewards() {
                       >
                         {formatDateOnly(item.datePaid)}
                       </td>
+                      <td
+                        className="px-5 py-3.5 text-right text-sm text-muted-foreground whitespace-nowrap"
+                        data-testid={`text-production-${item.printavoInvoiceId}-${item.ruleId}`}
+                      >
+                        {formatDateOnly(item.productionDueAt)}
+                      </td>
                       <td className="px-5 py-3.5 text-right text-sm text-muted-foreground">
                         {item.amountPaid != null ? formatCurrency(item.amountPaid) : "—"}
                       </td>
@@ -862,7 +885,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Building2 className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {pipelineSearch.trim()
                         ? "No pipeline items match your search"
