@@ -130,9 +130,9 @@ export async function runPoll(): Promise<void> {
       const delivered = await sendPrintavoNotificationEmail({
         customerName: localCustomer.name,
         customerEmail: localCustomer.email,
-        creditCodes: credits.map(c => c.code),
         totalOutstanding,
         orderNumber: order.visualId,
+        orderPublicUrl: order.publicUrl ?? null,
         orderTotal: order.total ?? undefined,
         imageObjectPath,
         customerId: localCustomer.id,

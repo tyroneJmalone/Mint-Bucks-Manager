@@ -122,6 +122,12 @@ interface RedemptionEmailData {
   triggeredBy?: string | null;
 }
 
+const MINT_BUCKS_INFO_URL = "https://mintprintworks.com/mint-bucks/";
+
+function whatAreMintBucksLink(): string {
+  return `<p style="text-align:center;margin:24px 0"><a href="${MINT_BUCKS_INFO_URL}" style="color:#5f7c44;font-weight:600">What are Mint Bucks? Click to find out.</a></p>`;
+}
+
 function formatCurrency(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -167,13 +173,13 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Mint Bucks Credit</div></div>
-    <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your unique credit code</div></div>
+    ${whatAreMintBucksLink()}
     <div class="dl"><dl>
       <dt>Issued to</dt><dd>${data.customerName}</dd>
       ${data.expiresAt ? `<dt>Expires</dt><dd>${formatDate(data.expiresAt)}</dd>` : ""}
       ${data.note ? `<dt>Note</dt><dd>${data.note}</dd>` : ""}
     </dl></div>
-    <div class="note">To redeem: mention your credit code when placing your next order with ${BUSINESS_NAME}.</div>
+    <div class="note">To redeem: mention your Mint Bucks when placing your next order with ${BUSINESS_NAME}.</div>
     ${checkUrl ? `<p style="text-align:center"><a href="${checkUrl}" class="btn">Check Your Balance</a></p>` : ""}
     ${certificateUrl ? `<p style="text-align:center;margin-top:8px"><a href="${certificateUrl}" style="color:#5f7c44;font-size:13px">Download certificate (PDF)</a></p>` : ""}
   </div>
@@ -298,10 +304,10 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
     <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Available Balance</div></div>
-    <div class="code"><div class="c">${data.creditCode}</div><div class="cl">Your credit code</div></div>
+    ${whatAreMintBucksLink()}
     ${data.expiresAt ? `<p><strong>Expires:</strong> ${formatDate(data.expiresAt)} — don't let it go to waste!</p>` : ""}
     ${checkUrl ? `<p style="text-align:center"><a href="${checkUrl}" class="btn">Check Your Balance</a></p>` : ""}
-    <p>Mention your credit code when you place your next order with us.</p>
+    <p>Just mention your Mint Bucks when you place your next order with us.</p>
   </div>
   <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
 </div>
@@ -324,9 +330,10 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
 export interface PrintavoNotificationData {
   customerName: string;
   customerEmail: string;
-  creditCodes: string[];
   totalOutstanding: number;
   orderNumber: string;
+  /** Printavo public (customer-facing) invoice/quote URL for the order. */
+  orderPublicUrl?: string | null;
   orderTotal?: number;
   /** Object storage path (e.g. /objects/uploads/<id>) of a rule image to feature in the email. */
   imageObjectPath?: string | null;
@@ -335,9 +342,9 @@ export interface PrintavoNotificationData {
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
-  const codesHtml = data.creditCodes
-    .map(code => `<div style="font-family:monospace;letter-spacing:3px;font-size:18px;font-weight:bold;color:#7CC24D;margin:4px 0">${code}</div>`)
-    .join("");
+  const orderRef = data.orderPublicUrl
+    ? `<a href="${data.orderPublicUrl}" style="color:#16261c;font-weight:bold;text-decoration:underline">#${data.orderNumber}</a>`
+    : `<strong>#${data.orderNumber}</strong>`;
 
   const subject = `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
 
@@ -349,12 +356,9 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
     <p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.totalOutstanding)}</div><div class="l">Available Balance</div></div>
-    <div class="code">
-      <div style="color:#a8c5b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Credit Code${data.creditCodes.length > 1 ? "s" : ""}</div>
-      ${codesHtml}
-    </div>
-    <div class="note"><strong>Order Reference:</strong> #${data.orderNumber}${data.orderTotal ? ` &nbsp;·&nbsp; Total: ${formatCurrency(data.orderTotal)}` : ""}</div>
-    <p>To apply your Mint Bucks, mention your credit code when you speak with our team about order <strong>#${data.orderNumber}</strong>.</p>
+    ${whatAreMintBucksLink()}
+    <div class="note"><strong>Order Reference:</strong> ${orderRef}${data.orderTotal ? ` &nbsp;·&nbsp; Total: ${formatCurrency(data.orderTotal)}` : ""}</div>
+    <p>To apply your Mint Bucks, just mention them when you speak with our team about order ${orderRef}.</p>
   </div>
   <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
 </div>
