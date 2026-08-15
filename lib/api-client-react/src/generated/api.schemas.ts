@@ -356,6 +356,24 @@ export const RewardRuleRewardType = {
   tiered: 'tiered',
 } as const;
 
+export type RuleReminderAnchor = typeof RuleReminderAnchor[keyof typeof RuleReminderAnchor];
+
+
+export const RuleReminderAnchor = {
+  after_issue: 'after_issue',
+  before_expiry: 'before_expiry',
+} as const;
+
+export interface RuleReminder {
+  id: number;
+  anchor: RuleReminderAnchor;
+  offsetDays: number;
+  /** @nullable */
+  emailSubject?: string | null;
+  /** @nullable */
+  emailBody?: string | null;
+}
+
 export interface RewardRule {
   id: number;
   name: string;
@@ -372,8 +390,46 @@ export interface RewardRule {
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
+  /**
+     * Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * Custom body text for the credit-issued email. Blank lines split paragraphs.
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
+  reminders?: RuleReminder[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type RuleReminderInputAnchor = typeof RuleReminderInputAnchor[keyof typeof RuleReminderInputAnchor];
+
+
+export const RuleReminderInputAnchor = {
+  after_issue: 'after_issue',
+  before_expiry: 'before_expiry',
+} as const;
+
+export interface RuleReminderInput {
+  anchor: RuleReminderInputAnchor;
+  /**
+     * @minimum 1
+     * @maximum 3650
+     */
+  offsetDays: number;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  emailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  emailBody?: string | null;
 }
 
 export type RewardRuleInputRewardType = typeof RewardRuleInputRewardType[keyof typeof RewardRuleInputRewardType];
@@ -398,6 +454,17 @@ export interface RewardRuleInput {
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
+  reminders?: RuleReminderInput[];
 }
 
 export type RewardRuleUpdateRewardType = typeof RewardRuleUpdateRewardType[keyof typeof RewardRuleUpdateRewardType];
@@ -422,6 +489,30 @@ export interface RewardRuleUpdate {
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
+  reminders?: RuleReminderInput[];
+}
+
+export interface ManualEmailTemplate {
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
 }
 
 export type EmailLogEntryEmailType = typeof EmailLogEntryEmailType[keyof typeof EmailLogEntryEmailType];
@@ -484,6 +575,16 @@ export interface TestEmailRequest {
   expiresAt?: string | null;
   /** @nullable */
   imageObjectPath?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  customSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  customBody?: string | null;
 }
 
 export type RewardAwardStatus = typeof RewardAwardStatus[keyof typeof RewardAwardStatus];

@@ -7,3 +7,5 @@ export * from "./email_log";
 export * from "./reward_rules";
 export * from "./reward_awards";
 export * from "./order_notes";
+export * from "./rule_reminders";
+export * from "./reminder_sends";

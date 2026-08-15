@@ -5,4 +5,5 @@
 - [Drizzle array queries](drizzle-array-queries.md) — filter by array of IDs with inArray(col, ids), NOT sql`= ANY(...)` (throws at runtime); guard the empty-array case.
 - [Reward-rule email images](rule-email-images.md) — email-visible objects must be ACL-public + canonical /objects/ paths; storage reads 403 otherwise.
 - [Settings vs env precedence](settings-env-precedence.md) — DB settings must beat env vars; a stale PRINTAVO_API_KEY env var silently shadowed newly saved tokens.
+- [Email send claim tables](email-claim-tables.md) — exactly-once automated emails: atomic claim + stale-pending sweep; balance = active OR partially_redeemed; templates via renderTemplate helpers.
 - [Sensitive env vars](sensitive-env-vars.md) — keys/tokens/encryption keys must be Replit Secrets (requestEnvVar secret), NEVER setEnvVars shared (writes git-tracked .replit → leaks).

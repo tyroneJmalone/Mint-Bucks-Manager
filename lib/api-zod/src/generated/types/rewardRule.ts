@@ -8,6 +8,7 @@
 import type { RewardConditions } from './rewardConditions';
 import type { RewardParams } from './rewardParams';
 import type { RewardRuleRewardType } from './rewardRuleRewardType';
+import type { RuleReminder } from './ruleReminder';
 
 export interface RewardRule {
   id: number;
@@ -25,6 +26,17 @@ export interface RewardRule {
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
+  /**
+     * Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * Custom body text for the credit-issued email. Blank lines split paragraphs.
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
+  reminders?: RuleReminder[];
   createdAt: string;
   updatedAt: string;
 }

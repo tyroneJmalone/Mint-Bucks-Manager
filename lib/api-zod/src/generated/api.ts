@@ -616,6 +616,47 @@ export const UpdateSettingsPrintavoResponse = zod.object({
 
 
 /**
+ * @summary Get the custom email verbiage for manually issued credits
+ */
+export const getManualEmailTemplateResponseIssuedEmailSubjectMax = 300;
+
+export const getManualEmailTemplateResponseIssuedEmailBodyMax = 5000;
+
+
+
+export const GetManualEmailTemplateResponse = zod.object({
+  "issuedEmailSubject": zod.string().max(getManualEmailTemplateResponseIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(getManualEmailTemplateResponseIssuedEmailBodyMax).nullish()
+})
+
+
+/**
+ * @summary Update the custom email verbiage for manually issued credits
+ */
+export const updateManualEmailTemplateBodyIssuedEmailSubjectMax = 300;
+
+export const updateManualEmailTemplateBodyIssuedEmailBodyMax = 5000;
+
+
+
+export const UpdateManualEmailTemplateBody = zod.object({
+  "issuedEmailSubject": zod.string().max(updateManualEmailTemplateBodyIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(updateManualEmailTemplateBodyIssuedEmailBodyMax).nullish()
+})
+
+export const updateManualEmailTemplateResponseIssuedEmailSubjectMax = 300;
+
+export const updateManualEmailTemplateResponseIssuedEmailBodyMax = 5000;
+
+
+
+export const UpdateManualEmailTemplateResponse = zod.object({
+  "issuedEmailSubject": zod.string().max(updateManualEmailTemplateResponseIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(updateManualEmailTemplateResponseIssuedEmailBodyMax).nullish()
+})
+
+
+/**
  * @summary Test Printavo API connection
  */
 export const TestPrintavoConnectionBody = zod.object({
@@ -789,6 +830,15 @@ export const ListRewardRulesResponseItem = zod.object({
   "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
+  "issuedEmailSubject": zod.string().nullish().describe('Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.'),
+  "issuedEmailBody": zod.string().nullish().describe('Custom body text for the credit-issued email. Blank lines split paragraphs.'),
+  "reminders": zod.array(zod.object({
+  "id": zod.number(),
+  "anchor": zod.enum(['after_issue', 'before_expiry']),
+  "offsetDays": zod.number(),
+  "emailSubject": zod.string().nullish(),
+  "emailBody": zod.string().nullish()
+})).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -798,6 +848,18 @@ export const ListRewardRulesResponse = zod.array(ListRewardRulesResponseItem)
 /**
  * @summary Create a reward rule
  */
+export const createRewardRuleBodyIssuedEmailSubjectMax = 300;
+
+export const createRewardRuleBodyIssuedEmailBodyMax = 5000;
+
+export const createRewardRuleBodyRemindersItemOffsetDaysMax = 3650;
+
+export const createRewardRuleBodyRemindersItemEmailSubjectMax = 300;
+
+export const createRewardRuleBodyRemindersItemEmailBodyMax = 5000;
+
+
+
 export const CreateRewardRuleBody = zod.object({
   "name": zod.string(),
   "enabled": zod.boolean().optional(),
@@ -824,7 +886,15 @@ export const CreateRewardRuleBody = zod.object({
 }).optional(),
   "imageObjectPath": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
-  "endsAt": zod.string().nullish()
+  "endsAt": zod.string().nullish(),
+  "issuedEmailSubject": zod.string().max(createRewardRuleBodyIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(createRewardRuleBodyIssuedEmailBodyMax).nullish(),
+  "reminders": zod.array(zod.object({
+  "anchor": zod.enum(['after_issue', 'before_expiry']),
+  "offsetDays": zod.number().min(1).max(createRewardRuleBodyRemindersItemOffsetDaysMax),
+  "emailSubject": zod.string().max(createRewardRuleBodyRemindersItemEmailSubjectMax).nullish(),
+  "emailBody": zod.string().max(createRewardRuleBodyRemindersItemEmailBodyMax).nullish()
+})).optional()
 })
 
 export const CreateRewardRuleResponse = zod.object({
@@ -855,6 +925,15 @@ export const CreateRewardRuleResponse = zod.object({
   "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
+  "issuedEmailSubject": zod.string().nullish().describe('Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.'),
+  "issuedEmailBody": zod.string().nullish().describe('Custom body text for the credit-issued email. Blank lines split paragraphs.'),
+  "reminders": zod.array(zod.object({
+  "id": zod.number(),
+  "anchor": zod.enum(['after_issue', 'before_expiry']),
+  "offsetDays": zod.number(),
+  "emailSubject": zod.string().nullish(),
+  "emailBody": zod.string().nullish()
+})).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -866,6 +945,18 @@ export const CreateRewardRuleResponse = zod.object({
 export const UpdateRewardRuleParams = zod.object({
   "id": zod.coerce.string()
 })
+
+export const updateRewardRuleBodyIssuedEmailSubjectMax = 300;
+
+export const updateRewardRuleBodyIssuedEmailBodyMax = 5000;
+
+export const updateRewardRuleBodyRemindersItemOffsetDaysMax = 3650;
+
+export const updateRewardRuleBodyRemindersItemEmailSubjectMax = 300;
+
+export const updateRewardRuleBodyRemindersItemEmailBodyMax = 5000;
+
+
 
 export const UpdateRewardRuleBody = zod.object({
   "name": zod.string().optional(),
@@ -893,7 +984,15 @@ export const UpdateRewardRuleBody = zod.object({
 }).optional(),
   "imageObjectPath": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
-  "endsAt": zod.string().nullish()
+  "endsAt": zod.string().nullish(),
+  "issuedEmailSubject": zod.string().max(updateRewardRuleBodyIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(updateRewardRuleBodyIssuedEmailBodyMax).nullish(),
+  "reminders": zod.array(zod.object({
+  "anchor": zod.enum(['after_issue', 'before_expiry']),
+  "offsetDays": zod.number().min(1).max(updateRewardRuleBodyRemindersItemOffsetDaysMax),
+  "emailSubject": zod.string().max(updateRewardRuleBodyRemindersItemEmailSubjectMax).nullish(),
+  "emailBody": zod.string().max(updateRewardRuleBodyRemindersItemEmailBodyMax).nullish()
+})).optional()
 })
 
 export const UpdateRewardRuleResponse = zod.object({
@@ -924,6 +1023,15 @@ export const UpdateRewardRuleResponse = zod.object({
   "imageObjectPath": zod.string().nullish().describe('Object storage path of the image attached to award emails.'),
   "startsAt": zod.string().nullish(),
   "endsAt": zod.string().nullish(),
+  "issuedEmailSubject": zod.string().nullish().describe('Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.'),
+  "issuedEmailBody": zod.string().nullish().describe('Custom body text for the credit-issued email. Blank lines split paragraphs.'),
+  "reminders": zod.array(zod.object({
+  "id": zod.number(),
+  "anchor": zod.enum(['after_issue', 'before_expiry']),
+  "offsetDays": zod.number(),
+  "emailSubject": zod.string().nullish(),
+  "emailBody": zod.string().nullish()
+})).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1064,6 +1172,10 @@ export const ListEmailLogResponse = zod.array(ListEmailLogResponseItem)
  */
 export const sendTestRewardEmailBodyAmountMin = 0.01;
 
+export const sendTestRewardEmailBodyCustomSubjectMax = 300;
+
+export const sendTestRewardEmailBodyCustomBodyMax = 5000;
+
 
 
 export const SendTestRewardEmailBody = zod.object({
@@ -1072,7 +1184,9 @@ export const SendTestRewardEmailBody = zod.object({
   "amount": zod.number().min(sendTestRewardEmailBodyAmountMin),
   "note": zod.string().nullish(),
   "expiresAt": zod.string().nullish(),
-  "imageObjectPath": zod.string().nullish()
+  "imageObjectPath": zod.string().nullish(),
+  "customSubject": zod.string().max(sendTestRewardEmailBodyCustomSubjectMax).nullish(),
+  "customBody": zod.string().max(sendTestRewardEmailBodyCustomBodyMax).nullish()
 })
 
 export const SendTestRewardEmailResponse = zod.object({

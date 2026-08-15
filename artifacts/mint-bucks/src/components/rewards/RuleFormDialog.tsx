@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -39,6 +40,16 @@ interface TierRow {
   minAmount: string;
   rewardAmount: string;
 }
+
+interface ReminderRow {
+  anchor: "after_issue" | "before_expiry";
+  offsetDays: string;
+  emailSubject: string;
+  emailBody: string;
+}
+
+export const PLACEHOLDER_HINT =
+  "Placeholders: {{customerName}}, {{firstName}}, {{amount}}, {{expiresAt}}, {{note}}, {{businessName}}. Blank lines start a new paragraph.";
 
 interface RuleFormDialogProps {
   open: boolean;
@@ -91,6 +102,10 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
     onError: (err) => toast({ title: "Image upload failed", description: err.message, variant: "destructive" }),
   });
 
+  const [issuedSubject, setIssuedSubject] = useState("");
+  const [issuedBody, setIssuedBody] = useState("");
+  const [reminders, setReminders] = useState<ReminderRow[]>([]);
+
   const [testEmail, setTestEmail] = useState("");
   const sendTestEmail = useSendTestRewardEmail();
 
@@ -110,6 +125,9 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       toast({ title: "Enter an email address to send the test to", variant: "destructive" });
       return;
     }
+    // Tests use the custom verbiage currently in the form (issued fields, or
+    // the first reminder step's content for reminder tests).
+    const firstReminder = reminders.find((r) => r.emailSubject.trim() || r.emailBody.trim());
     sendTestEmail.mutate(
       {
         data: {
@@ -118,6 +136,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
           amount: sampleAmount,
           expiresAt: endsAt || null,
           imageObjectPath,
+          customSubject: (emailType === "issued" ? issuedSubject : firstReminder?.emailSubject ?? "").trim() || null,
+          customBody: (emailType === "issued" ? issuedBody : firstReminder?.emailBody ?? "").trim() || null,
         },
       },
       {
@@ -158,6 +178,16 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setStartsAt(toDateInput(rule.startsAt));
       setEndsAt(toDateInput(rule.endsAt));
       setImageObjectPath(rule.imageObjectPath ?? null);
+      setIssuedSubject(rule.issuedEmailSubject ?? "");
+      setIssuedBody(rule.issuedEmailBody ?? "");
+      setReminders(
+        (rule.reminders ?? []).map((r) => ({
+          anchor: r.anchor,
+          offsetDays: String(r.offsetDays),
+          emailSubject: r.emailSubject ?? "",
+          emailBody: r.emailBody ?? "",
+        })),
+      );
       const c = rule.conditions ?? {};
       setTotalMin(c.totalMin != null ? String(c.totalMin) : "");
       setTotalMax(c.totalMax != null ? String(c.totalMax) : "");
@@ -191,6 +221,9 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setStartsAt("");
       setEndsAt("");
       setImageObjectPath(null);
+      setIssuedSubject("");
+      setIssuedBody("");
+      setReminders([]);
       setShowConditions(false);
       setTotalMin("");
       setTotalMax("");
@@ -245,6 +278,19 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
+    const parsedReminders = reminders
+      .filter((r) => r.offsetDays.trim() !== "")
+      .map((r) => ({
+        anchor: r.anchor,
+        offsetDays: parseInt(r.offsetDays, 10),
+        emailSubject: r.emailSubject.trim() || null,
+        emailBody: r.emailBody.trim() || null,
+      }));
+    if (parsedReminders.some((r) => isNaN(r.offsetDays) || r.offsetDays < 1)) {
+      toast({ title: "Reminder days must be a number of at least 1", variant: "destructive" });
+      return;
+    }
+
     const body: RewardRuleInput = {
       name: name.trim(),
       enabled,
@@ -254,6 +300,9 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       imageObjectPath,
       startsAt: startsAt || null,
       endsAt: endsAt || null,
+      issuedEmailSubject: issuedSubject.trim() || null,
+      issuedEmailBody: issuedBody.trim() || null,
+      reminders: parsedReminders,
     };
 
     const onSuccess = () => {
@@ -479,6 +528,112 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                 {isUploading ? "Uploading…" : "Upload image"}
               </Button>
             )}
+          </div>
+
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <div>
+              <Label className="text-sm">Issue email verbiage (optional)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Customize the email sent when this rule issues Mint Bucks. Leave blank to use the standard wording. {PLACEHOLDER_HINT}
+              </p>
+            </div>
+            <Input
+              placeholder="Subject — e.g. You earned {{amount}} in Mint Bucks!"
+              value={issuedSubject}
+              onChange={(e) => setIssuedSubject(e.target.value)}
+              maxLength={300}
+              data-testid="input-issued-subject"
+            />
+            <Textarea
+              placeholder="Message — e.g. Thanks for your order! You've earned {{amount}} in Mint Bucks to spend with us."
+              value={issuedBody}
+              onChange={(e) => setIssuedBody(e.target.value)}
+              rows={4}
+              maxLength={5000}
+              data-testid="textarea-issued-body"
+            />
+          </div>
+
+          <div className="rounded-md border border-border p-3 space-y-3">
+            <div>
+              <Label className="text-sm">Reminder schedule (optional)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Automatically remind customers who still have unspent Mint Bucks from this rule. Credits with a $0 balance are skipped. Each reminder can have its own message; blank uses the standard wording.
+              </p>
+            </div>
+            {reminders.map((r, i) => (
+              <div key={i} className="rounded-md bg-muted/40 border border-border p-2.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Send</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="w-20"
+                    value={r.offsetDays}
+                    onChange={(e) =>
+                      setReminders((prev) => prev.map((row, j) => (j === i ? { ...row, offsetDays: e.target.value } : row)))
+                    }
+                    data-testid={`input-reminder-days-${i}`}
+                  />
+                  <span className="text-xs text-muted-foreground">days</span>
+                  <Select
+                    value={r.anchor}
+                    onValueChange={(v) =>
+                      setReminders((prev) => prev.map((row, j) => (j === i ? { ...row, anchor: v as ReminderRow["anchor"] } : row)))
+                    }
+                  >
+                    <SelectTrigger className="flex-1" data-testid={`select-reminder-anchor-${i}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="after_issue">after Mint Bucks are issued</SelectItem>
+                      <SelectItem value="before_expiry">before they expire</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => setReminders((prev) => prev.filter((_, j) => j !== i))}
+                    data-testid={`button-remove-reminder-${i}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  placeholder="Custom subject (optional)"
+                  value={r.emailSubject}
+                  maxLength={300}
+                  onChange={(e) =>
+                    setReminders((prev) => prev.map((row, j) => (j === i ? { ...row, emailSubject: e.target.value } : row)))
+                  }
+                  data-testid={`input-reminder-subject-${i}`}
+                />
+                <Textarea
+                  placeholder="Custom message (optional)"
+                  value={r.emailBody}
+                  rows={3}
+                  maxLength={5000}
+                  onChange={(e) =>
+                    setReminders((prev) => prev.map((row, j) => (j === i ? { ...row, emailBody: e.target.value } : row)))
+                  }
+                  data-testid={`textarea-reminder-body-${i}`}
+                />
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() =>
+                setReminders((prev) => [...prev, { anchor: "after_issue", offsetDays: "30", emailSubject: "", emailBody: "" }])
+              }
+              data-testid="button-add-reminder"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add reminder
+            </Button>
           </div>
 
           <div className="rounded-md border border-border p-3 space-y-2">

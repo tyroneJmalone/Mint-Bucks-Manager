@@ -420,6 +420,8 @@ async function issueClaimedAward(
       customerId: customer.id,
       imageObjectPath: rule.imageObjectPath ?? null,
       ccEmail: award.ownerEmail ?? null,
+      customSubject: rule.issuedEmailSubject ?? null,
+      customBody: rule.issuedEmailBody ?? null,
     }).catch(() => {});
 
     logger.info(
@@ -938,6 +940,8 @@ export async function approveAward(
       imageObjectPath: rule?.imageObjectPath ?? null,
       ccEmail: award.ownerEmail ?? null,
       triggeredBy: approvedBy ?? null,
+      customSubject: rule?.issuedEmailSubject ?? null,
+      customBody: rule?.issuedEmailBody ?? null,
     }).catch(() => {});
 
     logger.info({ awardId, creditId: credit.id, approvedBy }, "Rewards: award approved and credit issued");

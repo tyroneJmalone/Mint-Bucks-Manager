@@ -18,4 +18,14 @@ export interface TestEmailRequest {
   expiresAt?: string | null;
   /** @nullable */
   imageObjectPath?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  customSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  customBody?: string | null;
 }

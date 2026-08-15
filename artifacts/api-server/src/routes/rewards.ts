@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { rewardRulesTable, rewardAwardsTable, customersTable, orderNotesTable } from "@workspace/db";
+import { rewardRulesTable, rewardAwardsTable, customersTable, orderNotesTable, ruleRemindersTable, reminderSendsTable, type RuleReminder } from "@workspace/db";
 import {
   UpdateRewardsSettingsBody,
   CreateRewardRuleBody,
@@ -51,14 +51,88 @@ function toSettingsResponse(cfg: RewardsConfig) {
   };
 }
 
-function serializeRule(rule: typeof rewardRulesTable.$inferSelect) {
+function serializeRule(rule: typeof rewardRulesTable.$inferSelect, reminders: RuleReminder[] = []) {
   return {
     ...rule,
     startsAt: rule.startsAt ? new Date(rule.startsAt).toISOString() : null,
     endsAt: rule.endsAt ? new Date(rule.endsAt).toISOString() : null,
     createdAt: new Date(rule.createdAt).toISOString(),
     updatedAt: new Date(rule.updatedAt).toISOString(),
+    reminders: reminders.map(r => ({
+      id: r.id,
+      anchor: r.anchor,
+      offsetDays: r.offsetDays,
+      emailSubject: r.emailSubject,
+      emailBody: r.emailBody,
+    })),
   };
+}
+
+async function loadReminders(ruleIds: number[]): Promise<Map<number, RuleReminder[]>> {
+  if (!ruleIds.length) return new Map();
+  const rows = await db
+    .select()
+    .from(ruleRemindersTable)
+    .where(inArray(ruleRemindersTable.ruleId, ruleIds))
+    .orderBy(ruleRemindersTable.offsetDays, ruleRemindersTable.id);
+  const byRule = new Map<number, RuleReminder[]>();
+  for (const row of rows) {
+    const list = byRule.get(row.ruleId) ?? [];
+    list.push(row);
+    byRule.set(row.ruleId, list);
+  }
+  return byRule;
+}
+
+interface ReminderInput {
+  anchor: "after_issue" | "before_expiry";
+  offsetDays: number;
+  emailSubject?: string | null;
+  emailBody?: string | null;
+}
+
+/**
+ * Replace a rule's reminder schedule. Existing rows whose (anchor, offsetDays)
+ * survive are updated in place so reminder_sends claims (keyed by reminder id)
+ * stay valid and credits are not re-reminded for the same step.
+ */
+async function replaceReminders(ruleId: number, rawInputs: ReminderInput[]): Promise<void> {
+  // Drop duplicate (anchor, offsetDays) steps — the DB also enforces this, but
+  // deduping here keeps saves from failing when the UI submits repeats.
+  const seen = new Set<string>();
+  const inputs = rawInputs.filter((r) => {
+    const key = `${r.anchor}:${r.offsetDays}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  await db.transaction(async (tx) => {
+    const existing = await tx.select().from(ruleRemindersTable).where(eq(ruleRemindersTable.ruleId, ruleId));
+    const keep = new Set<number>();
+    for (const input of inputs) {
+      const match = existing.find(e => !keep.has(e.id) && e.anchor === input.anchor && e.offsetDays === input.offsetDays);
+      if (match) {
+        keep.add(match.id);
+        await tx
+          .update(ruleRemindersTable)
+          .set({ emailSubject: input.emailSubject?.trim() || null, emailBody: input.emailBody?.trim() || null })
+          .where(eq(ruleRemindersTable.id, match.id));
+      } else {
+        await tx.insert(ruleRemindersTable).values({
+          ruleId,
+          anchor: input.anchor,
+          offsetDays: input.offsetDays,
+          emailSubject: input.emailSubject?.trim() || null,
+          emailBody: input.emailBody?.trim() || null,
+        });
+      }
+    }
+    const removed = existing.filter(e => !keep.has(e.id)).map(e => e.id);
+    if (removed.length) {
+      await tx.delete(ruleRemindersTable).where(inArray(ruleRemindersTable.id, removed));
+      await tx.delete(reminderSendsTable).where(inArray(reminderSendsTable.ruleReminderId, removed));
+    }
+  });
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -127,7 +201,8 @@ router.get("/rewards/summary", async (_req, res): Promise<void> => {
 // ── Rules ────────────────────────────────────────────────────────────────────
 router.get("/rewards/rules", async (_req, res): Promise<void> => {
   const rows = await db.select().from(rewardRulesTable).orderBy(desc(rewardRulesTable.createdAt));
-  res.json(rows.map(serializeRule));
+  const remindersByRule = await loadReminders(rows.map(r => r.id));
+  res.json(rows.map(r => serializeRule(r, remindersByRule.get(r.id) ?? [])));
 });
 
 router.post("/rewards/rules", async (req, res): Promise<void> => {
@@ -171,11 +246,18 @@ router.post("/rewards/rules", async (req, res): Promise<void> => {
       imageObjectPath,
       startsAt: b.startsAt ? new Date(b.startsAt) : null,
       endsAt: b.endsAt ? new Date(b.endsAt) : null,
+      issuedEmailSubject: b.issuedEmailSubject?.trim() || null,
+      issuedEmailBody: b.issuedEmailBody?.trim() || null,
     })
     .returning();
 
+  if (b.reminders?.length) {
+    await replaceReminders(rule.id, b.reminders);
+  }
+
   invalidatePipelineCache();
-  res.status(201).json(serializeRule(rule));
+  const remindersByRule = await loadReminders([rule.id]);
+  res.status(201).json(serializeRule(rule, remindersByRule.get(rule.id) ?? []));
 });
 
 router.patch("/rewards/rules/:id", async (req, res): Promise<void> => {
@@ -242,15 +324,24 @@ router.patch("/rewards/rules/:id", async (req, res): Promise<void> => {
     }
     updateData.conditions = condCheck.value;
   }
+  if (b.issuedEmailSubject !== undefined) updateData.issuedEmailSubject = b.issuedEmailSubject?.trim() || null;
+  if (b.issuedEmailBody !== undefined) updateData.issuedEmailBody = b.issuedEmailBody?.trim() || null;
 
-  const [rule] = await db
-    .update(rewardRulesTable)
-    .set(updateData)
-    .where(eq(rewardRulesTable.id, id))
-    .returning();
+  const [rule] = Object.keys(updateData).length
+    ? await db
+        .update(rewardRulesTable)
+        .set(updateData)
+        .where(eq(rewardRulesTable.id, id))
+        .returning()
+    : [existing];
+
+  if (b.reminders !== undefined) {
+    await replaceReminders(id, b.reminders ?? []);
+  }
 
   invalidatePipelineCache();
-  res.json(serializeRule(rule));
+  const remindersByRule = await loadReminders([id]);
+  res.json(serializeRule(rule, remindersByRule.get(id) ?? []));
 });
 
 router.delete("/rewards/rules/:id", async (req, res): Promise<void> => {
@@ -270,6 +361,9 @@ router.delete("/rewards/rules/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+  // Clean up the rule's reminder schedule (claims in reminder_sends are kept
+  // as an audit trail; they reference reminder ids that no longer exist).
+  await db.delete(ruleRemindersTable).where(eq(ruleRemindersTable.ruleId, id)).catch(() => {});
   invalidatePipelineCache();
   res.sendStatus(204);
 });
@@ -400,7 +494,7 @@ router.post("/rewards/test-email", async (req, res): Promise<void> => {
     return;
   }
 
-  const { emailType, recipientEmail, amount, note, expiresAt, imageObjectPath: rawImagePath } = parsed.data;
+  const { emailType, recipientEmail, amount, note, expiresAt, imageObjectPath: rawImagePath, customSubject, customBody } = parsed.data;
 
   let imageObjectPath: string | null = null;
   if (rawImagePath) {
@@ -423,6 +517,8 @@ router.post("/rewards/test-email", async (req, res): Promise<void> => {
     imageObjectPath,
     isTest: true,
     triggeredBy: req.staffEmail ?? null,
+    customSubject: customSubject ?? null,
+    customBody: customBody ?? null,
   };
 
   const sent = emailType === "issued"

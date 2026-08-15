@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { getSetting, setSetting, getStaffAllowlist, setStaffAllowlist } from "../lib/settings";
+import { UpdateManualEmailTemplateBody } from "@workspace/api-zod";
 import { invalidateApprovalCache } from "../middlewares/requireAuth";
 import { startPoller, stopPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
@@ -81,6 +82,36 @@ router.put("/settings/printavo", async (req, res): Promise<void> => {
     enabled: newEnabled === "true",
     pollingIntervalMinutes: parseInt(newPollingInterval ?? "15", 10) || 15,
   });
+});
+
+// ---- Manual-issue email template ---------------------------------------------
+
+router.get("/settings/manual-email", async (_req, res): Promise<void> => {
+  const [subject, body] = await Promise.all([
+    getSetting("manual_issued_email_subject"),
+    getSetting("manual_issued_email_body"),
+  ]);
+  res.json({ issuedEmailSubject: subject ?? null, issuedEmailBody: body ?? null });
+});
+
+router.put("/settings/manual-email", async (req, res): Promise<void> => {
+  const parsed = UpdateManualEmailTemplateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const b = parsed.data;
+  if (b.issuedEmailSubject !== undefined) {
+    await setSetting("manual_issued_email_subject", b.issuedEmailSubject?.trim() || null);
+  }
+  if (b.issuedEmailBody !== undefined) {
+    await setSetting("manual_issued_email_body", b.issuedEmailBody?.trim() || null);
+  }
+  const [subject, body] = await Promise.all([
+    getSetting("manual_issued_email_subject"),
+    getSetting("manual_issued_email_body"),
+  ]);
+  res.json({ issuedEmailSubject: subject ?? null, issuedEmailBody: body ?? null });
 });
 
 // ---- Staff access allowlist -------------------------------------------------

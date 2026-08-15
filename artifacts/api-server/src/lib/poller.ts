@@ -1,10 +1,10 @@
 import { db } from "@workspace/db";
-import { creditsTable, customersTable, notificationLogTable, rewardRulesTable } from "@workspace/db";
-import { eq, and, inArray, lt } from "drizzle-orm";
+import { creditsTable, customersTable, notificationLogTable, rewardRulesTable, ruleRemindersTable, reminderSendsTable } from "@workspace/db";
+import { eq, and, inArray, lt, gt, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { getPrintavoConfig, getSetting, setSetting, isPrintavoEnabled, isRewardsEnabled, getPollingIntervalMinutes } from "./settings";
 import { fetchRecentOrders } from "./printavo";
-import { sendPrintavoNotificationEmail } from "./email";
+import { sendPrintavoNotificationEmail, sendReminderEmail } from "./email";
 import { runRewardsScan, type RewardsScanResult } from "./rewards";
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -276,7 +276,115 @@ async function tick(): Promise<void> {
         isScanning = false;
       }
     }
+
+    try {
+      await runReminderPass();
+    } catch (err) {
+      logger.error({ err }, "Rule reminder pass error");
+    }
   }
+}
+
+// ── Scheduled rule reminders ─────────────────────────────────────────────────
+// For every enabled rule with a reminder schedule, find its issued credits that
+// are due for a reminder step ("N days after issue" or "N days before expiry"),
+// atomically claim each (credit, reminder) pair in reminder_sends, and email
+// the customer with the step's custom verbiage. Zero-balance, non-active, and
+// already-expired credits are skipped.
+// Claims stuck in "pending" longer than this are considered orphaned (process
+// died between claim and send) and are released for retry.
+const STALE_CLAIM_MS = 30 * 60 * 1000;
+
+export async function runReminderPass(): Promise<void> {
+  // Release orphaned claims so a crash between claim and send can't
+  // permanently block that credit/reminder pair.
+  await db
+    .delete(reminderSendsTable)
+    .where(and(
+      eq(reminderSendsTable.deliveryStatus, "pending"),
+      lt(reminderSendsTable.sentAt, new Date(Date.now() - STALE_CLAIM_MS)),
+    ))
+    .catch(() => {});
+
+  const reminders = await db
+    .select({
+      reminder: ruleRemindersTable,
+      ruleEnabled: rewardRulesTable.enabled,
+      ruleImage: rewardRulesTable.imageObjectPath,
+    })
+    .from(ruleRemindersTable)
+    .innerJoin(rewardRulesTable, eq(rewardRulesTable.id, ruleRemindersTable.ruleId));
+
+  const active = reminders.filter(r => r.ruleEnabled);
+  if (!active.length) return;
+
+  const now = new Date();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let sentCount = 0;
+
+  for (const { reminder, ruleImage } of active) {
+    // Credits from this rule that still have a balance and are active.
+    const dueCondition = reminder.anchor === "after_issue"
+      ? lt(creditsTable.issuedAt, new Date(now.getTime() - reminder.offsetDays * DAY_MS))
+      : and(
+          sql`${creditsTable.expiresAt} IS NOT NULL`,
+          lt(creditsTable.expiresAt, new Date(now.getTime() + reminder.offsetDays * DAY_MS)),
+        );
+
+    const candidates = await db
+      .select({ credit: creditsTable, customer: customersTable })
+      .from(creditsTable)
+      .innerJoin(customersTable, eq(customersTable.id, creditsTable.customerId))
+      .where(and(
+        eq(creditsTable.sourceRuleId, reminder.ruleId),
+        // Partially redeemed credits still have unspent Mint Bucks.
+        inArray(creditsTable.status, ["active", "partially_redeemed"]),
+        sql`${creditsTable.amountRemaining} > 0`,
+        dueCondition,
+      ));
+
+    for (const { credit, customer } of candidates) {
+      // Never remind about an already-expired credit.
+      if (credit.expiresAt && credit.expiresAt.getTime() <= now.getTime()) continue;
+      if (!customer.email) continue;
+
+      // Atomic claim — a concurrent pass or earlier send wins.
+      const claimed = await db
+        .insert(reminderSendsTable)
+        .values({ creditId: credit.id, ruleReminderId: reminder.id, deliveryStatus: "pending" })
+        .onConflictDoNothing()
+        .returning({ id: reminderSendsTable.id });
+      if (!claimed.length) continue;
+
+      const delivered = await sendReminderEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        creditCode: credit.code,
+        amount: parseFloat(credit.amountRemaining as unknown as string),
+        expiresAt: credit.expiresAt?.toISOString() ?? null,
+        note: credit.note,
+        creditId: credit.id,
+        customerId: customer.id,
+        imageObjectPath: credit.imageObjectPath ?? ruleImage ?? null,
+        customSubject: reminder.emailSubject,
+        customBody: reminder.emailBody,
+      }).catch(() => false);
+
+      if (delivered) {
+        await db
+          .update(reminderSendsTable)
+          .set({ deliveryStatus: "sent", sentAt: new Date() })
+          .where(eq(reminderSendsTable.id, claimed[0].id));
+        sentCount++;
+      } else {
+        // Release the claim so the next pass retries.
+        await db.delete(reminderSendsTable).where(eq(reminderSendsTable.id, claimed[0].id)).catch(() => {});
+        logger.warn({ creditId: credit.id, reminderId: reminder.id }, "Rule reminder email failed — will retry next pass");
+      }
+    }
+  }
+
+  if (sentCount > 0) logger.info({ sentCount }, "Rule reminder pass complete");
 }
 
 export function stopPoller(): void {

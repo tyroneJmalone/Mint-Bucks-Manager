@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { v4 as uuidv4 } from "uuid";
 import { sendCreditIssuedEmail, sendRedemptionConfirmationEmail, sendReminderEmail } from "../lib/email";
+import { getSetting } from "../lib/settings";
 import { generateCertificatePdf, generateQrPng } from "../lib/certificate";
 import { normalizeEmailImage } from "../lib/objectImages";
 
@@ -164,19 +165,26 @@ router.post("/credits", async (req, res): Promise<void> => {
     })
     .returning();
 
-  // Send issuance email (non-blocking)
-  sendCreditIssuedEmail({
-    customerName: customer.name,
-    customerEmail: customer.email,
-    creditCode: credit.code,
-    amount,
-    expiresAt: credit.expiresAt?.toISOString() ?? null,
-    note: credit.note,
-    creditId: credit.id,
-    customerId: customer.id,
-    imageObjectPath: credit.imageObjectPath,
-    triggeredBy: req.staffEmail ?? null,
-  }).catch(() => {});
+  // Send issuance email (non-blocking). Manual issues use the custom verbiage
+  // saved in settings (null = default template).
+  Promise.all([getSetting("manual_issued_email_subject"), getSetting("manual_issued_email_body")])
+    .then(([customSubject, customBody]) =>
+      sendCreditIssuedEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        creditCode: credit.code,
+        amount,
+        expiresAt: credit.expiresAt?.toISOString() ?? null,
+        note: credit.note,
+        creditId: credit.id,
+        customerId: customer.id,
+        imageObjectPath: credit.imageObjectPath,
+        triggeredBy: req.staffEmail ?? null,
+        customSubject,
+        customBody,
+      })
+    )
+    .catch(() => {});
 
   res.status(201).json(formatCredit(credit as unknown as Record<string, unknown>, customer.name, customer.email, customer.companyName ?? null));
 });

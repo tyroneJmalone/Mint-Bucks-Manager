@@ -8,6 +8,7 @@
 import type { RewardConditions } from './rewardConditions';
 import type { RewardParams } from './rewardParams';
 import type { RewardRuleUpdateRewardType } from './rewardRuleUpdateRewardType';
+import type { RuleReminderInput } from './ruleReminderInput';
 
 export interface RewardRuleUpdate {
   name?: string;
@@ -21,4 +22,15 @@ export interface RewardRuleUpdate {
   startsAt?: string | null;
   /** @nullable */
   endsAt?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  issuedEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  issuedEmailBody?: string | null;
+  reminders?: RuleReminderInput[];
 }

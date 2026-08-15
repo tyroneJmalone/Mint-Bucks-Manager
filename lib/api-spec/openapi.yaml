@@ -585,6 +585,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrintavoSettings"
 
+  /settings/manual-email:
+    get:
+      operationId: getManualEmailTemplate
+      tags: [settings]
+      summary: Get the custom email verbiage for manually issued credits
+      responses:
+        "200":
+          description: Current template (nulls = default verbiage)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualEmailTemplate"
+    put:
+      operationId: updateManualEmailTemplate
+      tags: [settings]
+      summary: Update the custom email verbiage for manually issued credits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualEmailTemplate"
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualEmailTemplate"
+
   # ── Printavo ─────────────────────────────────────────────────────────────────
   /printavo/test:
     post:
@@ -1514,10 +1544,54 @@ components:
           type: ["string", "null"]
         endsAt:
           type: ["string", "null"]
+        issuedEmailSubject:
+          type: ["string", "null"]
+          description: Custom subject for the credit-issued email ({{placeholders}} supported). Null = default.
+        issuedEmailBody:
+          type: ["string", "null"]
+          description: Custom body text for the credit-issued email. Blank lines split paragraphs.
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleReminder"
         createdAt:
           type: string
         updatedAt:
           type: string
+
+    RuleReminder:
+      type: object
+      required: [id, anchor, offsetDays]
+      properties:
+        id:
+          type: integer
+        anchor:
+          type: string
+          enum: [after_issue, before_expiry]
+        offsetDays:
+          type: integer
+        emailSubject:
+          type: ["string", "null"]
+        emailBody:
+          type: ["string", "null"]
+
+    RuleReminderInput:
+      type: object
+      required: [anchor, offsetDays]
+      properties:
+        anchor:
+          type: string
+          enum: [after_issue, before_expiry]
+        offsetDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        emailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        emailBody:
+          type: ["string", "null"]
+          maxLength: 5000
 
     RewardRuleInput:
       type: object
@@ -1540,6 +1614,16 @@ components:
           type: ["string", "null"]
         endsAt:
           type: ["string", "null"]
+        issuedEmailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        issuedEmailBody:
+          type: ["string", "null"]
+          maxLength: 5000
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleReminderInput"
 
     RewardRuleUpdate:
       type: object
@@ -1561,6 +1645,26 @@ components:
           type: ["string", "null"]
         endsAt:
           type: ["string", "null"]
+        issuedEmailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        issuedEmailBody:
+          type: ["string", "null"]
+          maxLength: 5000
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleReminderInput"
+
+    ManualEmailTemplate:
+      type: object
+      properties:
+        issuedEmailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        issuedEmailBody:
+          type: ["string", "null"]
+          maxLength: 5000
 
     EmailLogEntry:
       type: object
@@ -1609,6 +1713,12 @@ components:
           type: ["string", "null"]
         imageObjectPath:
           type: ["string", "null"]
+        customSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        customBody:
+          type: ["string", "null"]
+          maxLength: 5000
 
     RewardAward:
       type: object

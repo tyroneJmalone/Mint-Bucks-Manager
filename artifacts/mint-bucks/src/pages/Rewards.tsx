@@ -18,6 +18,7 @@ import {
   ArrowUpDown,
   Search,
   StickyNote,
+  Mail,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -72,6 +73,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RuleFormDialog } from "@/components/rewards/RuleFormDialog";
+import { ManualEmailDialog } from "@/components/rewards/ManualEmailDialog";
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -314,6 +316,7 @@ export function Rewards() {
   const queryClient = useQueryClient();
 
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
+  const [manualEmailDialogOpen, setManualEmailDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RewardRule | null>(null);
   const [deletingRule, setDeletingRule] = useState<RewardRule | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
@@ -875,7 +878,15 @@ export function Rewards() {
 
         {/* Rules */}
         <TabsContent value="rules" className="mt-4">
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-end gap-2 mb-3">
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setManualEmailDialogOpen(true)}
+              data-testid="button-manual-email"
+            >
+              <Mail className="w-4 h-4" /> Manual Issue Email
+            </Button>
             <Button
               className="gap-1.5"
               onClick={() => {
@@ -1152,6 +1163,8 @@ export function Rewards() {
         rule={editingRule}
         onSaved={handleScan}
       />
+
+      <ManualEmailDialog open={manualEmailDialogOpen} onOpenChange={setManualEmailDialogOpen} />
 
       <AlertDialog open={!!deletingRule} onOpenChange={(o) => !o && setDeletingRule(null)}>
         <AlertDialogContent>

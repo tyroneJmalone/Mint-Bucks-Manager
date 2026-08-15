@@ -23,7 +23,9 @@ export type SettingsKey =
   | "rewards_lookback_days"
   | "rewards_shop_timezone"
   | "rewards_last_scan_at"
-  | "staff_allowlist";
+  | "staff_allowlist"
+  | "manual_issued_email_subject"
+  | "manual_issued_email_body";
 
 const SENSITIVE_KEYS: Set<SettingsKey> = new Set(["printavo_api_key"]);
 const ALGORITHM = "aes-256-gcm";

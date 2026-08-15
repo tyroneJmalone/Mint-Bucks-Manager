@@ -90,6 +90,58 @@ interface CreditEmailData {
   ccEmail?: string | null;
   /** Staff member whose action triggered this send (for the email log). */
   triggeredBy?: string | null;
+  /** Custom subject line ({{placeholders}} supported). Null/empty = default. */
+  customSubject?: string | null;
+  /** Custom body text (plain text, {{placeholders}}, blank lines = paragraphs). Null/empty = default. */
+  customBody?: string | null;
+  /** Override the email_log type (e.g. "reminder" for scheduled rule reminders). */
+  emailTypeOverride?: string | null;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Substitute {{placeholder}} tokens (case-insensitive, optional spaces) with
+ * provided values. Unknown placeholders are left as-is so typos are visible
+ * in test emails rather than silently dropped.
+ */
+export function renderTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (match, key: string) => {
+    const norm = key.toLowerCase();
+    for (const [k, v] of Object.entries(vars)) {
+      if (k.toLowerCase() === norm) return v;
+    }
+    return match;
+  });
+}
+
+/** Render a plain-text custom body into HTML paragraphs (values HTML-escaped first). */
+function renderBodyHtml(tpl: string, vars: Record<string, string>): string {
+  const escapedVars = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, escapeHtml(v)]));
+  const rendered = renderTemplate(escapeHtml(tpl), escapedVars);
+  return rendered
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`)
+    .join("\n");
+}
+
+function templateVars(data: CreditEmailData): Record<string, string> {
+  return {
+    customerName: data.customerName,
+    firstName: data.customerName.split(/\s+/)[0] ?? data.customerName,
+    amount: formatCurrency(data.amount),
+    expiresAt: data.expiresAt ? formatDate(data.expiresAt) : "",
+    note: data.note ?? "",
+    businessName: BUSINESS_NAME,
+  };
 }
 
 function testBanner(isTest?: boolean): string {
@@ -162,7 +214,12 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
   const certificateUrl = appUrl && !data.isTest ? `${appUrl}/api/credits/${data.creditId}/certificate` : null;
   const checkUrl = appUrl && !data.isTest ? `${appUrl}/check/${data.creditCode}` : null;
 
-  const subject = `${data.isTest ? "[TEST] " : ""}You've received ${formatCurrency(data.amount)} in Mint Bucks — ${BUSINESS_NAME}`;
+  const vars = templateVars(data);
+  const defaultSubject = `You've received ${formatCurrency(data.amount)} in Mint Bucks — ${BUSINESS_NAME}`;
+  const subject = `${data.isTest ? "[TEST] " : ""}${data.customSubject?.trim() ? renderTemplate(data.customSubject.trim(), vars) : defaultSubject}`;
+  const bodyHtml = data.customBody?.trim()
+    ? renderBodyHtml(data.customBody.trim(), vars)
+    : `<p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
@@ -170,7 +227,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
   <div class="bd">
     ${testBanner(data.isTest)}
     <p>Hi ${data.customerName},</p>
-    <p>You've been issued Mint Bucks — store credit you can apply to any future order at ${BUSINESS_NAME}.</p>
+    ${bodyHtml}
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Mint Bucks Credit</div></div>
     ${whatAreMintBucksLink()}
@@ -293,7 +350,12 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
 export async function sendReminderEmail(data: CreditEmailData): Promise<boolean> {
   const appUrl = getAppUrl();
   const checkUrl = appUrl && !data.isTest ? `${appUrl}/check/${data.creditCode}` : null;
-  const subject = `${data.isTest ? "[TEST] " : ""}Reminder: You have ${formatCurrency(data.amount)} in Mint Bucks waiting — ${BUSINESS_NAME}`;
+  const vars = templateVars(data);
+  const defaultSubject = `Reminder: You have ${formatCurrency(data.amount)} in Mint Bucks waiting — ${BUSINESS_NAME}`;
+  const subject = `${data.isTest ? "[TEST] " : ""}${data.customSubject?.trim() ? renderTemplate(data.customSubject.trim(), vars) : defaultSubject}`;
+  const bodyHtml = data.customBody?.trim()
+    ? renderBodyHtml(data.customBody.trim(), vars)
+    : `<p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
@@ -301,7 +363,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
   <div class="bd">
     ${testBanner(data.isTest)}
     <p>Hi ${data.customerName},</p>
-    <p>Just a friendly reminder — you have <strong>Mint Bucks</strong> store credit available. Don't forget to use it on your next order!</p>
+    ${bodyHtml}
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.amount)}</div><div class="l">Available Balance</div></div>
     ${whatAreMintBucksLink()}
@@ -319,7 +381,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
     subject,
     html,
     log: {
-      emailType: data.isTest ? "test_reminder" : "reminder",
+      emailType: data.isTest ? "test_reminder" : (data.emailTypeOverride ?? "reminder"),
       customerId: data.customerId ?? null,
       creditId: data.isTest ? null : data.creditId,
       triggeredBy: data.triggeredBy ?? null,

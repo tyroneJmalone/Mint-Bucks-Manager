@@ -13,6 +13,10 @@ export const rewardRulesTable = pgTable("reward_rules", {
   rewardParams: jsonb("reward_params").notNull(),
   conditions: jsonb("conditions").notNull().default({}),
   imageObjectPath: text("image_object_path"),
+  // Custom verbiage for the credit-issued email. Null = default template.
+  // Bodies are plain text with {{placeholders}}; blank lines split paragraphs.
+  issuedEmailSubject: text("issued_email_subject"),
+  issuedEmailBody: text("issued_email_body"),
   startsAt: timestamp("starts_at", { withTimezone: true }),
   endsAt: timestamp("ends_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
