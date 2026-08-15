@@ -24,6 +24,8 @@ export interface PrintavoOrder {
   customer: PrintavoCustomer;
   /** Printavo's public (customer-facing) invoice/quote view URL. */
   publicUrl?: string | null;
+  /** Email of the internal Printavo user who owns the order, if any. */
+  ownerEmail?: string | null;
 }
 
 export interface PrintavoPaidInvoice {
@@ -104,6 +106,7 @@ interface RawOrder {
   timestamps: { createdAt: string } | null;
   contact: RawContact | null;
   publicUrl: string | null;
+  owner?: { email: string | null } | null;
 }
 
 interface RawTransactionNode {
@@ -189,6 +192,7 @@ function mapOrder(o: RawOrder): PrintavoOrder {
     total: o.total ?? null,
     customer: mapContact(o.contact ?? { id: "", fullName: null, email: null, phone: null }),
     publicUrl: o.publicUrl ?? null,
+    ownerEmail: o.owner?.email?.toLowerCase().trim() || null,
   };
 }
 
@@ -250,6 +254,7 @@ const ORDER_FIELDS = `
     publicUrl
     timestamps { createdAt }
     contact { ${CONTACT_FIELDS} }
+    owner { email }
   }
   ... on Invoice {
     id
@@ -259,6 +264,7 @@ const ORDER_FIELDS = `
     publicUrl
     timestamps { createdAt }
     contact { ${CONTACT_FIELDS} }
+    owner { email }
   }
 `;
 

@@ -15,7 +15,8 @@ import {
 } from "@workspace/api-zod";
 import { v4 as uuidv4 } from "uuid";
 import { sendCreditIssuedEmail, sendRedemptionConfirmationEmail, sendReminderEmail } from "../lib/email";
-import { getSetting } from "../lib/settings";
+import { getSetting, getPrintavoConfig } from "../lib/settings";
+import { fetchOrderByNumber } from "../lib/printavo";
 import { generateCertificatePdf, generateQrPng } from "../lib/certificate";
 import { normalizeEmailImage } from "../lib/objectImages";
 
@@ -314,19 +315,38 @@ router.post("/credits/:id/redeem", async (req, res): Promise<void> => {
       .returning(),
   ]);
 
-  // Send redemption confirmation email (non-blocking)
+  // Send redemption confirmation email (non-blocking). Best-effort Printavo
+  // lookup by order number to link the invoice and CC the order owner.
   if (customer) {
-    sendRedemptionConfirmationEmail({
-      customerName: customer.name,
-      customerEmail: customer.email,
-      creditCode: credit.code,
-      amountApplied,
-      amountRemaining: newRemaining,
-      invoiceRef: invoiceRef ?? null,
-      customerId: credit.customerId,
-      creditId: credit.id,
-      triggeredBy: req.staffEmail ?? null,
-    }).catch(() => {});
+    (async () => {
+      let invoicePublicUrl: string | null = null;
+      let ccEmail: string | null = null;
+      if (invoiceRef?.trim()) {
+        try {
+          const config = await getPrintavoConfig();
+          if (config) {
+            const order = await fetchOrderByNumber(config, invoiceRef.trim().replace(/^#/, ""));
+            invoicePublicUrl = order?.publicUrl ?? null;
+            ccEmail = order?.ownerEmail ?? null;
+          }
+        } catch {
+          // lookup is best-effort; send the email without the link
+        }
+      }
+      await sendRedemptionConfirmationEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        creditCode: credit.code,
+        amountApplied,
+        amountRemaining: newRemaining,
+        invoiceRef: invoiceRef ?? null,
+        invoicePublicUrl,
+        ccEmail,
+        customerId: credit.customerId,
+        creditId: credit.id,
+        triggeredBy: req.staffEmail ?? null,
+      });
+    })().catch(() => {});
   }
 
   res.json({

@@ -173,6 +173,10 @@ interface RedemptionEmailData {
   amountApplied: number;
   amountRemaining: number;
   invoiceRef?: string | null;
+  /** Printavo public invoice URL — invoiceRef becomes a link when set. */
+  invoicePublicUrl?: string | null;
+  /** Printavo order owner to CC, if known. */
+  ccEmail?: string | null;
   /** Used only for the email log. */
   customerId?: number | null;
   creditId?: number | null;
@@ -181,6 +185,23 @@ interface RedemptionEmailData {
 }
 
 const MINT_BUCKS_INFO_URL = "https://mintprintworks.com/mint-bucks/";
+
+/** Parse an untrusted URL; return the attribute-escaped href only when it is https. */
+function safeHttpsUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" ? escapeHtml(u.href) : null;
+  } catch {
+    return null;
+  }
+}
+
+function bannerImgTag(): string {
+  const url = getAppUrl();
+  if (!url) return "";
+  return `<div style="text-align:center;margin:0 0 24px"><img src="${url}/mint-bucks-banner.png" alt="Mint Bucks" style="max-width:100%;height:auto;border-radius:8px"></div>`;
+}
 
 function whatAreMintBucksLink(): string {
   return `<p style="text-align:center;margin:24px 0;line-height:1.5"><a href="${MINT_BUCKS_INFO_URL}" style="color:#5f7c44;font-weight:600"><span style="white-space:nowrap">What are Mint Bucks?</span><br/><span style="white-space:nowrap">Click to find out.</span></a></p>`;
@@ -308,32 +329,34 @@ export async function sendAwardDeclinedEmail(data: AwardDeclinedEmailData): Prom
 export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData): Promise<boolean> {
   const subject = `Mint Bucks redeemed: ${formatCurrency(data.amountApplied)} applied${data.amountRemaining > 0 ? ` · ${formatCurrency(data.amountRemaining)} remaining` : ""}`;
 
+  // Invoice reference and public URL are untrusted — escape, and only link https.
+  const safeInvoiceUrl = safeHttpsUrl(data.invoicePublicUrl);
+  const invoiceRefHtml = data.invoiceRef
+    ? safeInvoiceUrl
+      ? `<a href="${safeInvoiceUrl}" style="color:#16261c;font-weight:bold;text-decoration:underline">${escapeHtml(data.invoiceRef)}</a>`
+      : escapeHtml(data.invoiceRef)
+    : "";
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
   <div class="hd">${logoImgTag()}</div>
   <div class="bd">
+    ${bannerImgTag()}
     <p>Hi ${data.customerName},</p>
     <p>Your Mint Bucks credit has been applied. Here's a summary:</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0">
-      <tr>
-        <td width="48%" style="background:#f5faee;border-radius:8px;padding:20px;text-align:center">
-          <div style="font-size:32px;font-weight:800;color:#2d9c6f">${formatCurrency(data.amountApplied)}</div>
-          <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Applied to Order</div>
-        </td>
-        <td width="4%"></td>
-        <td width="48%" style="background:#f9f9f7;border-radius:8px;padding:20px;text-align:center">
-          <div style="font-size:32px;font-weight:800;color:#16261c">${formatCurrency(data.amountRemaining)}</div>
-          <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Remaining Balance</div>
-        </td>
-      </tr>
-    </table>
-    <div class="dl"><dl>
-      <dt>Credit Code</dt><dd style="font-family:monospace;letter-spacing:2px">${data.creditCode}</dd>
-      ${data.invoiceRef ? `<dt>Invoice / Order Reference</dt><dd>${data.invoiceRef}</dd>` : ""}
-    </dl></div>
+    <div style="background:#f5faee;border-radius:8px;padding:20px;text-align:center;margin:24px 0 12px">
+      <div style="font-size:32px;font-weight:800;color:#2d9c6f;white-space:nowrap">${formatCurrency(data.amountApplied)}</div>
+      <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Applied to Order</div>
+    </div>
+    <div style="background:#f9f9f7;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px">
+      <div style="font-size:32px;font-weight:800;color:#16261c;white-space:nowrap">${formatCurrency(data.amountRemaining)}</div>
+      <div style="color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Remaining Balance</div>
+    </div>
+    ${data.invoiceRef ? `<div class="dl"><dl><dt>Invoice / Order Reference</dt><dd>${invoiceRefHtml}</dd></dl></div>` : ""}
     ${data.amountRemaining > 0
       ? `<p>You still have <strong>${formatCurrency(data.amountRemaining)}</strong> in Mint Bucks remaining — use it on your next order!</p>`
       : `<p>Your Mint Bucks credit has been fully redeemed. Thank you for your business with ${BUSINESS_NAME}!</p>`}
+    ${whatAreMintBucksLink()}
   </div>
   <div class="ft"><p>${BUSINESS_NAME} · Mint Bucks Store Credit Program</p></div>
 </div>
@@ -344,6 +367,7 @@ export async function sendRedemptionConfirmationEmail(data: RedemptionEmailData)
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
+    cc: data.ccEmail ?? null,
     log: {
       emailType: "redemption",
       customerId: data.customerId ?? null,
