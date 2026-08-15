@@ -392,6 +392,7 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
   <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     ${testBanner(data.isTest)}
+    ${bannerImgTag()}
     <p>Hi ${data.customerName},</p>
     ${bodyHtml}
     ${ruleImageTag(data.imageObjectPath)}
@@ -480,6 +481,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
   <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     ${testBanner(data.isTest)}
+    ${bannerImgTag()}
     <p>Hi ${data.customerName},</p>
     ${introHtml}
     ${ruleImageTag(data.imageObjectPath)}
