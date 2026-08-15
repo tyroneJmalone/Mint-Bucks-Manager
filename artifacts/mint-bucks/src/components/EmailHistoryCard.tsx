@@ -10,6 +10,7 @@ const TYPE_LABELS: Record<string, string> = {
   printavo_notification: "Order notification",
   test_issued: "Test (issue)",
   test_reminder: "Test (reminder)",
+  test_printavo_notification: "Test (new-order)",
 };
 
 function formatDateTime(s: string) {

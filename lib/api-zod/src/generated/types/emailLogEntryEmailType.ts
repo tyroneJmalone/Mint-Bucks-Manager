@@ -16,5 +16,6 @@ export const EmailLogEntryEmailType = {
   printavo_notification: 'printavo_notification',
   test_issued: 'test_issued',
   test_reminder: 'test_reminder',
+  test_printavo_notification: 'test_printavo_notification',
   award_declined: 'award_declined',
 } as const;

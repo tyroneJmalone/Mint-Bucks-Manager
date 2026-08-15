@@ -1690,7 +1690,7 @@ components:
           type: ["integer", "null"]
         emailType:
           type: string
-          enum: [issued, reminder, redemption, printavo_notification, test_issued, test_reminder, award_declined]
+          enum: [issued, reminder, redemption, printavo_notification, test_issued, test_reminder, test_printavo_notification, award_declined]
         recipientEmail:
           type: string
         subject:
@@ -1712,7 +1712,7 @@ components:
       properties:
         emailType:
           type: string
-          enum: [issued, reminder]
+          enum: [issued, reminder, printavo_notification]
         recipientEmail:
           type: string
           format: email

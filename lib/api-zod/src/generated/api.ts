@@ -1192,7 +1192,7 @@ export const ListEmailLogResponseItem = zod.object({
   "id": zod.number(),
   "customerId": zod.number().nullable(),
   "creditId": zod.number().nullable(),
-  "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder', 'award_declined']),
+  "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder', 'test_printavo_notification', 'award_declined']),
   "recipientEmail": zod.string(),
   "subject": zod.string(),
   "status": zod.enum(['sent', 'failed']),
@@ -1215,7 +1215,7 @@ export const sendTestRewardEmailBodyCustomBodyMax = 5000;
 
 
 export const SendTestRewardEmailBody = zod.object({
-  "emailType": zod.enum(['issued', 'reminder']),
+  "emailType": zod.enum(['issued', 'reminder', 'printavo_notification']),
   "recipientEmail": zod.string().email(),
   "amount": zod.number().min(sendTestRewardEmailBodyAmountMin),
   "note": zod.string().nullish(),

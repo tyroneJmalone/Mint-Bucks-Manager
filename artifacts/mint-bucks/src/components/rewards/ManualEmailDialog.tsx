@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Send } from "lucide-react";
 import {
   useGetEmailTemplates,
   useUpdateEmailTemplates,
+  useSendTestRewardEmail,
   getGetEmailTemplatesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,6 +30,7 @@ interface ManualEmailDialogProps {
 interface SectionDef {
   subjectField: "issuedEmailSubject" | "reminderEmailSubject" | "printavoEmailSubject";
   bodyField: "issuedEmailBody" | "reminderEmailBody" | "printavoEmailBody";
+  emailType: "issued" | "reminder" | "printavo_notification";
   title: string;
   hint: string;
   subjectPlaceholder: string;
@@ -39,6 +42,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "issuedEmailSubject",
     bodyField: "issuedEmailBody",
+    emailType: "issued",
     title: "Manual issue email",
     hint: "Sent when you issue Mint Bucks by hand from the Issue page.",
     subjectPlaceholder: "e.g. You've received {{amount}} in Mint Bucks!",
@@ -48,6 +52,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "reminderEmailSubject",
     bodyField: "reminderEmailBody",
+    emailType: "reminder",
     title: "Manual reminder email",
     hint: "Sent when you click \"Send Reminder\" on a credit.",
     subjectPlaceholder: "e.g. Don't forget your {{amount}} in Mint Bucks",
@@ -57,6 +62,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "printavoEmailSubject",
     bodyField: "printavoEmailBody",
+    emailType: "printavo_notification",
     title: "New-order notification email",
     hint: "Sent automatically when a customer with unspent Mint Bucks gets a new Printavo quote or invoice. Extra placeholder: {{orderNumber}}.",
     subjectPlaceholder: "e.g. Use your {{amount}} in Mint Bucks on order #{{orderNumber}}",
@@ -75,6 +81,30 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
   const updateTemplates = useUpdateEmailTemplates();
 
   const [values, setValues] = useState<Record<string, string>>({});
+  const [testEmail, setTestEmail] = useState("");
+  const sendTestEmail = useSendTestRewardEmail();
+
+  function handleSendTest(section: SectionDef) {
+    if (!testEmail.trim()) {
+      toast({ title: "Enter an email address at the bottom to send tests to", variant: "destructive" });
+      return;
+    }
+    sendTestEmail.mutate(
+      {
+        data: {
+          emailType: section.emailType,
+          recipientEmail: testEmail.trim(),
+          amount: 25,
+          customSubject: (values[section.subjectField] ?? "").trim() || null,
+          customBody: (values[section.bodyField] ?? "").trim() || null,
+        },
+      },
+      {
+        onSuccess: () => toast({ title: `Test email sent to ${testEmail.trim()}` }),
+        onError: () => toast({ title: "Failed to send test email", description: "Check that your sending domain is verified in Resend.", variant: "destructive" }),
+      },
+    );
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -136,8 +166,34 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
                 disabled={isLoading}
                 data-testid={`textarea-${s.testId}-body`}
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={sendTestEmail.isPending}
+                onClick={() => handleSendTest(s)}
+                data-testid={`button-test-${s.testId}`}
+              >
+                <Send className="w-3.5 h-3.5" /> Send test
+              </Button>
             </div>
           ))}
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <div>
+              <Label className="text-sm">Send tests to</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Test emails use the wording currently in this window (even unsaved) with sample data — a $25.00 balance and order #1234. No credit is created.
+              </p>
+            </div>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              data-testid="input-templates-test-email"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

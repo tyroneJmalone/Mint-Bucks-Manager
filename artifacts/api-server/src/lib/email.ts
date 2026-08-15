@@ -405,6 +405,8 @@ export interface PrintavoNotificationData {
   imageObjectPath?: string | null;
   /** Used only for the email log. */
   customerId?: number | null;
+  /** Test send: [TEST] subject prefix, warning banner, logged as test type. */
+  isTest?: boolean;
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
@@ -421,9 +423,9 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
     expiresat: "",
     businessname: BUSINESS_NAME,
   };
-  const subject = data.customSubject?.trim()
+  const subject = `${data.isTest ? "[TEST] " : ""}${data.customSubject?.trim()
     ? renderTemplate(data.customSubject.trim(), vars)
-    : `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
+    : `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`}`;
   const introHtml = data.customBody?.trim()
     ? renderBodyHtml(data.customBody.trim(), vars)
     : `<p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>`;
@@ -432,6 +434,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
 <div class="wrap">
   <div class="hd">${logoImgTag()}</div>
   <div class="bd">
+    ${testBanner(data.isTest)}
     <p>Hi ${data.customerName},</p>
     ${introHtml}
     ${ruleImageTag(data.imageObjectPath)}
@@ -450,7 +453,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
     subject,
     html,
     log: {
-      emailType: "printavo_notification",
+      emailType: data.isTest ? "test_printavo_notification" : "printavo_notification",
       customerId: data.customerId ?? null,
     },
   });

@@ -12,4 +12,5 @@ export type TestEmailRequestEmailType = typeof TestEmailRequestEmailType[keyof t
 export const TestEmailRequestEmailType = {
   issued: 'issued',
   reminder: 'reminder',
+  printavo_notification: 'printavo_notification',
 } as const;

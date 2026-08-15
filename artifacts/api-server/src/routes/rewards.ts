@@ -35,7 +35,7 @@ import {
 import { runRewardsPoll, startPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
 import { normalizeEmailImage } from "../lib/objectImages";
-import { sendCreditIssuedEmail, sendReminderEmail } from "../lib/email";
+import { sendCreditIssuedEmail, sendReminderEmail, sendPrintavoNotificationEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -521,7 +521,19 @@ router.post("/rewards/test-email", async (req, res): Promise<void> => {
     customBody: customBody ?? null,
   };
 
-  const sent = emailType === "issued"
+  const sent = emailType === "printavo_notification"
+    ? await sendPrintavoNotificationEmail({
+        customerName: "Test Customer",
+        customerEmail: recipientEmail,
+        totalOutstanding: amount,
+        orderNumber: "1234",
+        orderTotal: 500,
+        imageObjectPath,
+        isTest: true,
+        customSubject: customSubject ?? null,
+        customBody: customBody ?? null,
+      })
+    : emailType === "issued"
     ? await sendCreditIssuedEmail(emailData)
     : await sendReminderEmail(emailData);
 
