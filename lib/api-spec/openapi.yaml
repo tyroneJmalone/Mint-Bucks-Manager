@@ -585,35 +585,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrintavoSettings"
 
-  /settings/manual-email:
+  /settings/email-templates:
     get:
-      operationId: getManualEmailTemplate
+      operationId: getEmailTemplates
       tags: [settings]
-      summary: Get the custom email verbiage for manually issued credits
+      summary: Get custom email verbiage for manual issue, manual reminder, and new-order notification emails
       responses:
         "200":
-          description: Current template (nulls = default verbiage)
+          description: Current templates (nulls = default verbiage)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ManualEmailTemplate"
+                $ref: "#/components/schemas/EmailTemplates"
     put:
-      operationId: updateManualEmailTemplate
+      operationId: updateEmailTemplates
       tags: [settings]
-      summary: Update the custom email verbiage for manually issued credits
+      summary: Update custom email verbiage templates
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ManualEmailTemplate"
+              $ref: "#/components/schemas/EmailTemplates"
       responses:
         "200":
-          description: Updated template
+          description: Updated templates
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ManualEmailTemplate"
+                $ref: "#/components/schemas/EmailTemplates"
 
   # ── Printavo ─────────────────────────────────────────────────────────────────
   /printavo/test:
@@ -1656,13 +1656,25 @@ components:
           items:
             $ref: "#/components/schemas/RuleReminderInput"
 
-    ManualEmailTemplate:
+    EmailTemplates:
       type: object
       properties:
         issuedEmailSubject:
           type: ["string", "null"]
           maxLength: 300
         issuedEmailBody:
+          type: ["string", "null"]
+          maxLength: 5000
+        reminderEmailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        reminderEmailBody:
+          type: ["string", "null"]
+          maxLength: 5000
+        printavoEmailSubject:
+          type: ["string", "null"]
+          maxLength: 300
+        printavoEmailBody:
           type: ["string", "null"]
           maxLength: 5000
 

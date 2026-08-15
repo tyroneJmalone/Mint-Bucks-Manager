@@ -25,7 +25,11 @@ export type SettingsKey =
   | "rewards_last_scan_at"
   | "staff_allowlist"
   | "manual_issued_email_subject"
-  | "manual_issued_email_body";
+  | "manual_issued_email_body"
+  | "manual_reminder_email_subject"
+  | "manual_reminder_email_body"
+  | "printavo_notification_email_subject"
+  | "printavo_notification_email_body";
 
 const SENSITIVE_KEYS: Set<SettingsKey> = new Set(["printavo_api_key"]);
 const ALGORITHM = "aes-256-gcm";

@@ -502,7 +502,7 @@ export interface RewardRuleUpdate {
   reminders?: RuleReminderInput[];
 }
 
-export interface ManualEmailTemplate {
+export interface EmailTemplates {
   /**
      * @maxLength 300
      * @nullable
@@ -513,6 +513,26 @@ export interface ManualEmailTemplate {
      * @nullable
      */
   issuedEmailBody?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  reminderEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  reminderEmailBody?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  printavoEmailSubject?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  printavoEmailBody?: string | null;
 }
 
 export type EmailLogEntryEmailType = typeof EmailLogEntryEmailType[keyof typeof EmailLogEntryEmailType];

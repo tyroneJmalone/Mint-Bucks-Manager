@@ -393,6 +393,10 @@ export interface PrintavoNotificationData {
   customerName: string;
   customerEmail: string;
   totalOutstanding: number;
+  /** Custom subject template ({{placeholders}}); null/empty = default. */
+  customSubject?: string | null;
+  /** Custom body template ({{placeholders}}); null/empty = default. */
+  customBody?: string | null;
   orderNumber: string;
   /** Printavo public (customer-facing) invoice/quote URL for the order. */
   orderPublicUrl?: string | null;
@@ -408,14 +412,28 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
     ? `<a href="${data.orderPublicUrl}" style="color:#16261c;font-weight:bold;text-decoration:underline">#${data.orderNumber}</a>`
     : `<strong>#${data.orderNumber}</strong>`;
 
-  const subject = `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
+  const vars: Record<string, string> = {
+    customername: data.customerName,
+    firstname: data.customerName.split(/\s+/)[0] ?? data.customerName,
+    amount: formatCurrency(data.totalOutstanding),
+    ordernumber: data.orderNumber,
+    note: "",
+    expiresat: "",
+    businessname: BUSINESS_NAME,
+  };
+  const subject = data.customSubject?.trim()
+    ? renderTemplate(data.customSubject.trim(), vars)
+    : `You have ${formatCurrency(data.totalOutstanding)} in Mint Bucks for order #${data.orderNumber}`;
+  const introHtml = data.customBody?.trim()
+    ? renderBodyHtml(data.customBody.trim(), vars)
+    : `<p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="wrap">
   <div class="hd">${logoImgTag()}</div>
   <div class="bd">
     <p>Hi ${data.customerName},</p>
-    <p>Great news! You have <strong>Mint Bucks</strong> store credit available and an order in progress with us. Don't forget to apply it!</p>
+    ${introHtml}
     ${ruleImageTag(data.imageObjectPath)}
     <div class="amt"><div class="n">${formatCurrency(data.totalOutstanding)}</div><div class="l">Available Balance</div></div>
     ${whatAreMintBucksLink()}

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { getSetting, setSetting, getStaffAllowlist, setStaffAllowlist } from "../lib/settings";
-import { UpdateManualEmailTemplateBody } from "@workspace/api-zod";
+import { UpdateEmailTemplatesBody } from "@workspace/api-zod";
 import { invalidateApprovalCache } from "../middlewares/requireAuth";
 import { startPoller, stopPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
@@ -84,34 +84,39 @@ router.put("/settings/printavo", async (req, res): Promise<void> => {
   });
 });
 
-// ---- Manual-issue email template ---------------------------------------------
+// ---- Email verbiage templates -------------------------------------------------
 
-router.get("/settings/manual-email", async (_req, res): Promise<void> => {
-  const [subject, body] = await Promise.all([
-    getSetting("manual_issued_email_subject"),
-    getSetting("manual_issued_email_body"),
-  ]);
-  res.json({ issuedEmailSubject: subject ?? null, issuedEmailBody: body ?? null });
+const EMAIL_TEMPLATE_FIELDS = [
+  ["issuedEmailSubject", "manual_issued_email_subject"],
+  ["issuedEmailBody", "manual_issued_email_body"],
+  ["reminderEmailSubject", "manual_reminder_email_subject"],
+  ["reminderEmailBody", "manual_reminder_email_body"],
+  ["printavoEmailSubject", "printavo_notification_email_subject"],
+  ["printavoEmailBody", "printavo_notification_email_body"],
+] as const;
+
+async function readEmailTemplates(): Promise<Record<string, string | null>> {
+  const values = await Promise.all(EMAIL_TEMPLATE_FIELDS.map(([, key]) => getSetting(key)));
+  return Object.fromEntries(EMAIL_TEMPLATE_FIELDS.map(([field], i) => [field, values[i] ?? null]));
+}
+
+router.get("/settings/email-templates", async (_req, res): Promise<void> => {
+  res.json(await readEmailTemplates());
 });
 
-router.put("/settings/manual-email", async (req, res): Promise<void> => {
-  const parsed = UpdateManualEmailTemplateBody.safeParse(req.body);
+router.put("/settings/email-templates", async (req, res): Promise<void> => {
+  const parsed = UpdateEmailTemplatesBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const b = parsed.data;
-  if (b.issuedEmailSubject !== undefined) {
-    await setSetting("manual_issued_email_subject", b.issuedEmailSubject?.trim() || null);
+  const b = parsed.data as Record<string, string | null | undefined>;
+  for (const [field, key] of EMAIL_TEMPLATE_FIELDS) {
+    if (b[field] !== undefined) {
+      await setSetting(key, b[field]?.trim() || null);
+    }
   }
-  if (b.issuedEmailBody !== undefined) {
-    await setSetting("manual_issued_email_body", b.issuedEmailBody?.trim() || null);
-  }
-  const [subject, body] = await Promise.all([
-    getSetting("manual_issued_email_subject"),
-    getSetting("manual_issued_email_body"),
-  ]);
-  res.json({ issuedEmailSubject: subject ?? null, issuedEmailBody: body ?? null });
+  res.json(await readEmailTemplates());
 });
 
 // ---- Staff access allowlist -------------------------------------------------

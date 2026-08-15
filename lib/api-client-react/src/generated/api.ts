@@ -31,6 +31,7 @@ import type {
   CustomerInput,
   CustomerUpdate,
   EmailLogEntry,
+  EmailTemplates,
   ErrorEnvelope,
   GetCreditsOverTimeParams,
   GetExpiringSoonParams,
@@ -42,7 +43,6 @@ import type {
   ListEmailLogParams,
   ListRedemptionsParams,
   ListRewardAwardsParams,
-  ManualEmailTemplate,
   MessageResult,
   NotificationLogItem,
   OrderNoteRequest,
@@ -2230,20 +2230,20 @@ export const useUpdateSettingsPrintavo = <TError = ErrorType<unknown>,
       return useMutation(getUpdateSettingsPrintavoMutationOptions(options));
     }
 
-export const getGetManualEmailTemplateUrl = () => {
+export const getGetEmailTemplatesUrl = () => {
 
 
 
 
-  return `/api/settings/manual-email`
+  return `/api/settings/email-templates`
 }
 
 /**
- * @summary Get the custom email verbiage for manually issued credits
+ * @summary Get custom email verbiage for manual issue, manual reminder, and new-order notification emails
  */
-export const getManualEmailTemplate = async ( options?: RequestInit): Promise<ManualEmailTemplate> => {
+export const getEmailTemplates = async ( options?: RequestInit): Promise<EmailTemplates> => {
 
-  return customFetch<ManualEmailTemplate>(getGetManualEmailTemplateUrl(),
+  return customFetch<EmailTemplates>(getGetEmailTemplatesUrl(),
   {
     ...options,
     method: 'GET'
@@ -2256,45 +2256,45 @@ export const getManualEmailTemplate = async ( options?: RequestInit): Promise<Ma
 
 
 
-export const getGetManualEmailTemplateQueryKey = () => {
+export const getGetEmailTemplatesQueryKey = () => {
     return [
-    `/api/settings/manual-email`
+    `/api/settings/email-templates`
     ] as const;
     }
 
 
-export const getGetManualEmailTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getManualEmailTemplate>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManualEmailTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetEmailTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof getEmailTemplates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetManualEmailTemplateQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetEmailTemplatesQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManualEmailTemplate>>> = ({ signal }) => getManualEmailTemplate({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailTemplates>>> = ({ signal }) => getEmailTemplates({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManualEmailTemplate>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmailTemplates>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type GetManualEmailTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getManualEmailTemplate>>>
-export type GetManualEmailTemplateQueryError = ErrorType<unknown>
+export type GetEmailTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof getEmailTemplates>>>
+export type GetEmailTemplatesQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get the custom email verbiage for manually issued credits
+ * @summary Get custom email verbiage for manual issue, manual reminder, and new-order notification emails
  */
 
-export function useGetManualEmailTemplate<TData = Awaited<ReturnType<typeof getManualEmailTemplate>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManualEmailTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetEmailTemplates<TData = Awaited<ReturnType<typeof getEmailTemplates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetManualEmailTemplateQueryOptions(options)
+  const queryOptions = getGetEmailTemplatesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2307,36 +2307,36 @@ export function useGetManualEmailTemplate<TData = Awaited<ReturnType<typeof getM
 
 
 
-export const getUpdateManualEmailTemplateUrl = () => {
+export const getUpdateEmailTemplatesUrl = () => {
 
 
 
 
-  return `/api/settings/manual-email`
+  return `/api/settings/email-templates`
 }
 
 /**
- * @summary Update the custom email verbiage for manually issued credits
+ * @summary Update custom email verbiage templates
  */
-export const updateManualEmailTemplate = async (manualEmailTemplate: ManualEmailTemplate, options?: RequestInit): Promise<ManualEmailTemplate> => {
+export const updateEmailTemplates = async (emailTemplates: EmailTemplates, options?: RequestInit): Promise<EmailTemplates> => {
 
-  return customFetch<ManualEmailTemplate>(getUpdateManualEmailTemplateUrl(),
+  return customFetch<EmailTemplates>(getUpdateEmailTemplatesUrl(),
   {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(manualEmailTemplate)
+    body: JSON.stringify(emailTemplates)
   }
 );}
 
 
 
 
-export const getUpdateManualEmailTemplateMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateManualEmailTemplate>>, TError,{data: BodyType<ManualEmailTemplate>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateManualEmailTemplate>>, TError,{data: BodyType<ManualEmailTemplate>}, TContext> => {
+export const getUpdateEmailTemplatesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmailTemplates>>, TError,{data: BodyType<EmailTemplates>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmailTemplates>>, TError,{data: BodyType<EmailTemplates>}, TContext> => {
 
-const mutationKey = ['updateManualEmailTemplate'];
+const mutationKey = ['updateEmailTemplates'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -2346,10 +2346,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateManualEmailTemplate>>, {data: BodyType<ManualEmailTemplate>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmailTemplates>>, {data: BodyType<EmailTemplates>}> = (props) => {
           const {data} = props ?? {};
 
-          return  updateManualEmailTemplate(data,requestOptions)
+          return  updateEmailTemplates(data,requestOptions)
         }
 
 
@@ -2359,22 +2359,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type UpdateManualEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateManualEmailTemplate>>>
-    export type UpdateManualEmailTemplateMutationBody = BodyType<ManualEmailTemplate>
-    export type UpdateManualEmailTemplateMutationError = ErrorType<unknown>
+    export type UpdateEmailTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmailTemplates>>>
+    export type UpdateEmailTemplatesMutationBody = BodyType<EmailTemplates>
+    export type UpdateEmailTemplatesMutationError = ErrorType<unknown>
 
     /**
- * @summary Update the custom email verbiage for manually issued credits
+ * @summary Update custom email verbiage templates
  */
-export const useUpdateManualEmailTemplate = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateManualEmailTemplate>>, TError,{data: BodyType<ManualEmailTemplate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useUpdateEmailTemplates = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmailTemplates>>, TError,{data: BodyType<EmailTemplates>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof updateManualEmailTemplate>>,
+        Awaited<ReturnType<typeof updateEmailTemplates>>,
         TError,
-        {data: BodyType<ManualEmailTemplate>},
+        {data: BodyType<EmailTemplates>},
         TContext
       > => {
-      return useMutation(getUpdateManualEmailTemplateMutationOptions(options));
+      return useMutation(getUpdateEmailTemplatesMutationOptions(options));
     }
 
 export const getTestPrintavoConnectionUrl = () => {

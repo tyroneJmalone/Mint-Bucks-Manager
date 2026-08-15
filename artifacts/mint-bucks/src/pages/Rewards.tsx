@@ -885,7 +885,7 @@ export function Rewards() {
               onClick={() => setManualEmailDialogOpen(true)}
               data-testid="button-manual-email"
             >
-              <Mail className="w-4 h-4" /> Manual Issue Email
+              <Mail className="w-4 h-4" /> Email Templates
             </Button>
             <Button
               className="gap-1.5"

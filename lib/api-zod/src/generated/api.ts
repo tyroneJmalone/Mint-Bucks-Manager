@@ -616,43 +616,79 @@ export const UpdateSettingsPrintavoResponse = zod.object({
 
 
 /**
- * @summary Get the custom email verbiage for manually issued credits
+ * @summary Get custom email verbiage for manual issue, manual reminder, and new-order notification emails
  */
-export const getManualEmailTemplateResponseIssuedEmailSubjectMax = 300;
+export const getEmailTemplatesResponseIssuedEmailSubjectMax = 300;
 
-export const getManualEmailTemplateResponseIssuedEmailBodyMax = 5000;
+export const getEmailTemplatesResponseIssuedEmailBodyMax = 5000;
+
+export const getEmailTemplatesResponseReminderEmailSubjectMax = 300;
+
+export const getEmailTemplatesResponseReminderEmailBodyMax = 5000;
+
+export const getEmailTemplatesResponsePrintavoEmailSubjectMax = 300;
+
+export const getEmailTemplatesResponsePrintavoEmailBodyMax = 5000;
 
 
 
-export const GetManualEmailTemplateResponse = zod.object({
-  "issuedEmailSubject": zod.string().max(getManualEmailTemplateResponseIssuedEmailSubjectMax).nullish(),
-  "issuedEmailBody": zod.string().max(getManualEmailTemplateResponseIssuedEmailBodyMax).nullish()
+export const GetEmailTemplatesResponse = zod.object({
+  "issuedEmailSubject": zod.string().max(getEmailTemplatesResponseIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(getEmailTemplatesResponseIssuedEmailBodyMax).nullish(),
+  "reminderEmailSubject": zod.string().max(getEmailTemplatesResponseReminderEmailSubjectMax).nullish(),
+  "reminderEmailBody": zod.string().max(getEmailTemplatesResponseReminderEmailBodyMax).nullish(),
+  "printavoEmailSubject": zod.string().max(getEmailTemplatesResponsePrintavoEmailSubjectMax).nullish(),
+  "printavoEmailBody": zod.string().max(getEmailTemplatesResponsePrintavoEmailBodyMax).nullish()
 })
 
 
 /**
- * @summary Update the custom email verbiage for manually issued credits
+ * @summary Update custom email verbiage templates
  */
-export const updateManualEmailTemplateBodyIssuedEmailSubjectMax = 300;
+export const updateEmailTemplatesBodyIssuedEmailSubjectMax = 300;
 
-export const updateManualEmailTemplateBodyIssuedEmailBodyMax = 5000;
+export const updateEmailTemplatesBodyIssuedEmailBodyMax = 5000;
+
+export const updateEmailTemplatesBodyReminderEmailSubjectMax = 300;
+
+export const updateEmailTemplatesBodyReminderEmailBodyMax = 5000;
+
+export const updateEmailTemplatesBodyPrintavoEmailSubjectMax = 300;
+
+export const updateEmailTemplatesBodyPrintavoEmailBodyMax = 5000;
 
 
 
-export const UpdateManualEmailTemplateBody = zod.object({
-  "issuedEmailSubject": zod.string().max(updateManualEmailTemplateBodyIssuedEmailSubjectMax).nullish(),
-  "issuedEmailBody": zod.string().max(updateManualEmailTemplateBodyIssuedEmailBodyMax).nullish()
+export const UpdateEmailTemplatesBody = zod.object({
+  "issuedEmailSubject": zod.string().max(updateEmailTemplatesBodyIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(updateEmailTemplatesBodyIssuedEmailBodyMax).nullish(),
+  "reminderEmailSubject": zod.string().max(updateEmailTemplatesBodyReminderEmailSubjectMax).nullish(),
+  "reminderEmailBody": zod.string().max(updateEmailTemplatesBodyReminderEmailBodyMax).nullish(),
+  "printavoEmailSubject": zod.string().max(updateEmailTemplatesBodyPrintavoEmailSubjectMax).nullish(),
+  "printavoEmailBody": zod.string().max(updateEmailTemplatesBodyPrintavoEmailBodyMax).nullish()
 })
 
-export const updateManualEmailTemplateResponseIssuedEmailSubjectMax = 300;
+export const updateEmailTemplatesResponseIssuedEmailSubjectMax = 300;
 
-export const updateManualEmailTemplateResponseIssuedEmailBodyMax = 5000;
+export const updateEmailTemplatesResponseIssuedEmailBodyMax = 5000;
+
+export const updateEmailTemplatesResponseReminderEmailSubjectMax = 300;
+
+export const updateEmailTemplatesResponseReminderEmailBodyMax = 5000;
+
+export const updateEmailTemplatesResponsePrintavoEmailSubjectMax = 300;
+
+export const updateEmailTemplatesResponsePrintavoEmailBodyMax = 5000;
 
 
 
-export const UpdateManualEmailTemplateResponse = zod.object({
-  "issuedEmailSubject": zod.string().max(updateManualEmailTemplateResponseIssuedEmailSubjectMax).nullish(),
-  "issuedEmailBody": zod.string().max(updateManualEmailTemplateResponseIssuedEmailBodyMax).nullish()
+export const UpdateEmailTemplatesResponse = zod.object({
+  "issuedEmailSubject": zod.string().max(updateEmailTemplatesResponseIssuedEmailSubjectMax).nullish(),
+  "issuedEmailBody": zod.string().max(updateEmailTemplatesResponseIssuedEmailBodyMax).nullish(),
+  "reminderEmailSubject": zod.string().max(updateEmailTemplatesResponseReminderEmailSubjectMax).nullish(),
+  "reminderEmailBody": zod.string().max(updateEmailTemplatesResponseReminderEmailBodyMax).nullish(),
+  "printavoEmailSubject": zod.string().max(updateEmailTemplatesResponsePrintavoEmailSubjectMax).nullish(),
+  "printavoEmailBody": zod.string().max(updateEmailTemplatesResponsePrintavoEmailBodyMax).nullish()
 })
 
 

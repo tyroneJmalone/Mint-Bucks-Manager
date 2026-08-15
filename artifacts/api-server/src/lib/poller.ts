@@ -127,7 +127,14 @@ export async function runPoll(): Promise<void> {
         if (imageObjectPath) break;
       }
 
+      const [printavoSubject, printavoBody] = await Promise.all([
+        getSetting("printavo_notification_email_subject"),
+        getSetting("printavo_notification_email_body"),
+      ]);
+
       const delivered = await sendPrintavoNotificationEmail({
+        customSubject: printavoSubject,
+        customBody: printavoBody,
         customerName: localCustomer.name,
         customerEmail: localCustomer.email,
         totalOutstanding,

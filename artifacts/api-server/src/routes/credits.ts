@@ -370,7 +370,14 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     imageObjectPath = rule?.imageObjectPath ?? null;
   }
 
+  const [reminderSubject, reminderBody] = await Promise.all([
+    getSetting("manual_reminder_email_subject"),
+    getSetting("manual_reminder_email_body"),
+  ]);
+
   const sent = await sendReminderEmail({
+    customSubject: reminderSubject,
+    customBody: reminderBody,
     customerName: customer.name,
     customerEmail: customer.email,
     creditCode: credit.code,
