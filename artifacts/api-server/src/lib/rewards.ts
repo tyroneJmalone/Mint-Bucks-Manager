@@ -54,6 +54,8 @@ export const conditionsSchema = z.object({
   totalMax: z.number().nonnegative().optional(),
   invoiceDateFrom: z.string().optional(),
   invoiceDateTo: z.string().optional(),
+  invoiceAtFrom: z.string().optional(),
+  invoiceAtTo: z.string().optional(),
   productionDateFrom: z.string().optional(),
   productionDateTo: z.string().optional(),
   paidDateFrom: z.string().optional(),
@@ -146,15 +148,31 @@ export function invoiceMatchesRule(inv: PrintavoPaidInvoice, rule: RewardRule): 
   if (cond.totalMin != null && total < cond.totalMin) return false;
   if (cond.totalMax != null && total > cond.totalMax) return false;
 
-  const createdMs = new Date(inv.createdAt).getTime();
-  if (cond.invoiceDateFrom && createdMs < new Date(cond.invoiceDateFrom).getTime()) return false;
-  if (cond.invoiceDateTo && createdMs > new Date(cond.invoiceDateTo).getTime()) return false;
+  // Date windows compare the calendar date exactly as Printavo wrote it
+  // (leading YYYY-MM-DD of the ISO timestamp) against the condition's plain
+  // YYYY-MM-DD, lexicographically. Comparing full timestamps to
+  // new Date("YYYY-MM-DD") (= midnight UTC) would exclude nearly every
+  // invoice that falls ON the upper-bound day.
+  const datePart = (iso: string) => iso.slice(0, 10);
+
+  const createdDay = datePart(inv.createdAt);
+  if (cond.invoiceDateFrom && createdDay < datePart(cond.invoiceDateFrom)) return false;
+  if (cond.invoiceDateTo && createdDay > datePart(cond.invoiceDateTo)) return false;
+
+  // Printavo "invoice date" (invoiceAt) window. Missing invoiceAt fails the
+  // filter, matching the production-date behavior.
+  if (cond.invoiceAtFrom || cond.invoiceAtTo) {
+    if (!inv.invoiceAt) return false;
+    const d = datePart(inv.invoiceAt);
+    if (cond.invoiceAtFrom && d < datePart(cond.invoiceAtFrom)) return false;
+    if (cond.invoiceAtTo && d > datePart(cond.invoiceAtTo)) return false;
+  }
 
   if (cond.productionDateFrom || cond.productionDateTo) {
     if (!inv.productionDueAt) return false;
-    const prodMs = new Date(inv.productionDueAt).getTime();
-    if (cond.productionDateFrom && prodMs < new Date(cond.productionDateFrom).getTime()) return false;
-    if (cond.productionDateTo && prodMs > new Date(cond.productionDateTo).getTime()) return false;
+    const d = datePart(inv.productionDueAt);
+    if (cond.productionDateFrom && d < datePart(cond.productionDateFrom)) return false;
+    if (cond.productionDateTo && d > datePart(cond.productionDateTo)) return false;
   }
 
   // Paid-date window. datePaid and the conditions are plain YYYY-MM-DD strings,

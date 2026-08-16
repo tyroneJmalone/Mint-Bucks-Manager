@@ -348,6 +348,8 @@ export interface RewardConditions {
   totalMax?: number;
   invoiceDateFrom?: string;
   invoiceDateTo?: string;
+  invoiceAtFrom?: string;
+  invoiceAtTo?: string;
   productionDateFrom?: string;
   productionDateTo?: string;
   paidDateFrom?: string;

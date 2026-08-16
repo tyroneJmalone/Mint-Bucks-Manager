@@ -338,6 +338,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
   const [statusNameExclude, setStatusNameExclude] = useState<string[]>([]);
   const [tagAny, setTagAny] = useState("");
   const [invoiceDateFrom, setInvoiceDateFrom] = useState("");
+  const [invoiceAtFrom, setInvoiceAtFrom] = useState("");
+  const [invoiceAtTo, setInvoiceAtTo] = useState("");
   const [invoiceDateTo, setInvoiceDateTo] = useState("");
   const [productionDateFrom, setProductionDateFrom] = useState("");
   const [productionDateTo, setProductionDateTo] = useState("");
@@ -381,6 +383,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setTagAny(toCsv(c.tagAny));
       setInvoiceDateFrom(toDateInput(c.invoiceDateFrom));
       setInvoiceDateTo(toDateInput(c.invoiceDateTo));
+      setInvoiceAtFrom(toDateInput(c.invoiceAtFrom));
+      setInvoiceAtTo(toDateInput(c.invoiceAtTo));
       setProductionDateFrom(toDateInput(c.productionDateFrom));
       setProductionDateTo(toDateInput(c.productionDateTo));
       setPaidDateFrom(toDateInput(c.paidDateFrom));
@@ -393,6 +397,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
           !!c.tagAny?.length ||
           !!c.invoiceDateFrom ||
           !!c.invoiceDateTo ||
+          !!c.invoiceAtFrom ||
+          !!c.invoiceAtTo ||
           !!c.productionDateFrom ||
           !!c.productionDateTo ||
           !!c.paidDateFrom ||
@@ -419,6 +425,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setTagAny("");
       setInvoiceDateFrom("");
       setInvoiceDateTo("");
+      setInvoiceAtFrom("");
+      setInvoiceAtTo("");
       setProductionDateFrom("");
       setProductionDateTo("");
       setPaidDateFrom("");
@@ -456,6 +464,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       if (t.length) c.tagAny = t;
       if (invoiceDateFrom) c.invoiceDateFrom = invoiceDateFrom;
       if (invoiceDateTo) c.invoiceDateTo = invoiceDateTo;
+      if (invoiceAtFrom) c.invoiceAtFrom = invoiceAtFrom;
+      if (invoiceAtTo) c.invoiceAtTo = invoiceAtTo;
       if (productionDateFrom) c.productionDateFrom = productionDateFrom;
       if (productionDateTo) c.productionDateTo = productionDateTo;
       if (paidDateFrom) c.paidDateFrom = paidDateFrom;
@@ -1006,6 +1016,15 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                   to={invoiceDateTo}
                   onFromChange={setInvoiceDateFrom}
                   onToChange={setInvoiceDateTo}
+                />
+                <DateRangeFields
+                  idPrefix="invoice-at"
+                  labelFrom="Invoice date from"
+                  labelTo="Invoice date to"
+                  from={invoiceAtFrom}
+                  to={invoiceAtTo}
+                  onFromChange={setInvoiceAtFrom}
+                  onToChange={setInvoiceAtTo}
                 />
                 <DateRangeFields
                   idPrefix="production-date"

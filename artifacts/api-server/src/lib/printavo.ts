@@ -39,6 +39,8 @@ export interface PrintavoPaidInvoice {
   statusName: string | null;
   productionDueAt: string | null;
   customerDueAt: string | null;
+  /** Printavo's "invoice date" (invoiceAt), distinct from createdAt. */
+  invoiceAt: string | null;
   customer: PrintavoCustomer;
   /** Whether this order is still a Quote (pre-approval) or an Invoice. */
   stage: "quote" | "invoice";
@@ -126,6 +128,7 @@ interface RawInvoice {
   timestamps: { createdAt: string } | null;
   dueAt: string | null;
   customerDueAt: string | null;
+  invoiceAt: string | null;
   contact: RawContact | null;
   transactions: { nodes: RawTransactionNode[] } | null;
   owner: { id: string; email: string | null; name: string | null } | null;
@@ -330,6 +333,7 @@ function mapInvoice(inv: RawInvoice, stage: "quote" | "invoice" = "invoice"): Pr
     statusName: inv.status?.name ?? null,
     productionDueAt: inv.dueAt ?? null,
     customerDueAt: inv.customerDueAt ?? null,
+    invoiceAt: inv.invoiceAt ?? null,
     customer: mapContact(inv.contact ?? { id: "", fullName: null, email: null, phone: null }),
     stage,
     nickname: inv.nickname ?? null,
@@ -350,6 +354,7 @@ const PAID_INVOICE_FIELDS = `
   timestamps { createdAt }
   dueAt
   customerDueAt
+  invoiceAt
   contact { ${CONTACT_FIELDS} }
   transactions(first: 25) { nodes { __typename ... on Payment { transactionDate } } }
   owner { id email name }

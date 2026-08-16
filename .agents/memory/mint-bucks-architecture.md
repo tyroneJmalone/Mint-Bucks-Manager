@@ -62,3 +62,5 @@ Unpaid/quote invoices have null `datePaid`, so rule paid-date windows would excl
 Sign-up stays open; authorization happens server-side. `requireApprovedStaff` (after `requireAuth`) admits users whose email/domain matches the `staff_allowlist` setting or whose Clerk `publicMetadata.staffApproved === true`. Unapproved → 403 `ACCESS_PENDING`; frontend `AccessGate` (via `GET /api/auth/me`, reachable without approval) shows a pending screen.
 
 **Bootstrap:** if the allowlist was never configured AND Clerk has exactly one user, that user is auto-approved and seeded into the allowlist — prevents owner lockout. Allowlist edits reject removing the editor's own email (self-lockout guard) and clear a 60s approval cache.
+
+- Rule date-window filters (created / invoiceAt / production due / paid) all compare the literal leading YYYY-MM-DD of Printavo timestamps lexicographically — never `new Date("YYYY-MM-DD")` midnight comparisons, which silently exclude the entire upper-bound day.

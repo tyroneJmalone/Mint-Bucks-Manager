@@ -1543,6 +1543,10 @@ components:
           type: string
         invoiceDateTo:
           type: string
+        invoiceAtFrom:
+          type: string
+        invoiceAtTo:
+          type: string
         productionDateFrom:
           type: string
         productionDateTo:
