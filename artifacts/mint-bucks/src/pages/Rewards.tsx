@@ -87,7 +87,10 @@ function printavoOrderUrl(printavoId: string) {
 // it with new Date(s) would treat it as UTC midnight and can render a day early.
 function formatDateOnly(s?: string | null) {
   if (!s) return "—";
-  const [y, m, d] = s.split("-").map(Number);
+  // Accept both plain dates (datePaid) and full ISO timestamps (productionDueAt,
+  // e.g. "2026-08-05T05:00:00Z"). Use the date exactly as Printavo wrote it —
+  // no timezone conversion, so it matches what Printavo displays.
+  const [y, m, d] = s.split("T")[0].split("-").map(Number);
   if (!y || !m || !d) return s;
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
