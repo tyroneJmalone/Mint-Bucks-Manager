@@ -132,16 +132,21 @@ export function invoiceMatchesRule(inv: PrintavoPaidInvoice, rule: RewardRule): 
     if (!wanted.some((t) => invTags.includes(t))) return false;
   }
 
+  // Status names are compared trimmed + lowercased on BOTH sides: real
+  // Printavo status names can carry stray leading/trailing whitespace
+  // (e.g. "CONTRACT SHIPPED📦 "), and a one-sided trim silently never matches.
+  const normStatus = (s: string) => s.trim().toLowerCase();
+
   if (cond.statusNameAny?.length) {
     if (!inv.statusName) return false;
-    const s = inv.statusName.toLowerCase();
-    if (!cond.statusNameAny.some((n) => n.toLowerCase() === s)) return false;
+    const s = normStatus(inv.statusName);
+    if (!cond.statusNameAny.some((n) => normStatus(n) === s)) return false;
   }
 
   // Excluded statuses fail eligibility outright (case-insensitive exact match).
   if (cond.statusNameExclude?.length && inv.statusName) {
-    const s = inv.statusName.toLowerCase();
-    if (cond.statusNameExclude.some((n) => n.trim().toLowerCase() === s)) return false;
+    const s = normStatus(inv.statusName);
+    if (cond.statusNameExclude.some((n) => normStatus(n) === s)) return false;
   }
 
   const total = inv.total ?? 0;
