@@ -86,3 +86,5 @@ The `invoices` query supports server-side filters: `paymentStatus` (enum
 The `code_execution` (JS notebook) sandbox does **not** have `PRINTAVO_EMAIL` /
 `PRINTAVO_API_KEY` in its env, but the **bash shell does**. Run live API probe scripts
 from bash (`node /tmp/probe.mjs`), not from code_execution.
+
+- Real status names contain emojis and inconsistent spacing (e.g. "🏁 PRINT - Complete") — never rely on hand-typed status names for matching; fetch the `statuses` GraphQL connection and let users pick.

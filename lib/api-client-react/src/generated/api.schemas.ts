@@ -260,6 +260,12 @@ export interface PrintavoSyncResult {
   total: number;
 }
 
+export interface PrintavoStatus {
+  id: string;
+  name: string;
+  type?: string | null;
+}
+
 export interface PrintavoOrderSummary {
   id: string;
   visualId: string;

@@ -44,6 +44,7 @@ export * from './printavoConnectionResult';
 export * from './printavoOrderSummary';
 export * from './printavoSettings';
 export * from './printavoSettingsInput';
+export * from './printavoStatus';
 export * from './printavoSyncResult';
 export * from './printavoTestInput';
 export * from './redemption';

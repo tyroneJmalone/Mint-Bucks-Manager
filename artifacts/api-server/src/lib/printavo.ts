@@ -413,6 +413,45 @@ export async function fetchPaidInvoices(
   return fetchInvoicesByPaymentStatus(config, "PAID", sinceMs, maxPages);
 }
 
+export interface PrintavoStatus {
+  id: string;
+  name: string;
+  type: string | null;
+}
+
+// Fetch all order statuses configured in the Printavo account (paginated,
+// 25/page API cap). Used to populate status pickers in the UI.
+export async function fetchStatuses(config: PrintavoConfig): Promise<PrintavoStatus[]> {
+  const all: PrintavoStatus[] = [];
+  let after: string | null = null;
+
+  for (let page = 0; page < 20; page++) {
+    const data: {
+      statuses: {
+        nodes: { id: string; name: string | null; type: string | null }[];
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      };
+    } = await gql(config, `
+      query GetStatuses($first: Int!, $after: String) {
+        statuses(first: $first, after: $after) {
+          nodes { id name type }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `, { first: 25, after });
+
+    for (const n of data.statuses.nodes) {
+      if (n.name) all.push({ id: n.id, name: n.name, type: n.type ?? null });
+    }
+
+    const { hasNextPage, endCursor } = data.statuses.pageInfo;
+    if (!hasNextPage || !endCursor) break;
+    after = endCursor;
+  }
+
+  return all;
+}
+
 // Raw node from the `orders` union query, spread with identical field sets on
 // both members plus __typename so we can tell quotes from invoices.
 interface RawOrderUnionNode extends RawInvoice {

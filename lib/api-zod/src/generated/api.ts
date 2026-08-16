@@ -727,6 +727,17 @@ export const TriggerPrintavoPollResponse = zod.object({
 
 
 /**
+ * @summary List order statuses configured in the Printavo account
+ */
+export const ListPrintavoStatusesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string().nullish()
+})
+export const ListPrintavoStatusesResponse = zod.array(ListPrintavoStatusesResponseItem)
+
+
+/**
  * @summary Fetch a Printavo order by order number for reference
  */
 export const LookupPrintavoOrderParams = zod.object({

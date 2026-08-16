@@ -663,6 +663,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResult"
 
+  /printavo/statuses:
+    get:
+      operationId: listPrintavoStatuses
+      tags: [printavo]
+      summary: List order statuses configured in the Printavo account
+      responses:
+        "200":
+          description: Printavo statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintavoStatus"
+        "400":
+          description: Printavo not configured
+        "502":
+          description: Printavo API error
+
   /printavo/order/{orderNumber}:
     get:
       operationId: lookupPrintavoOrder
@@ -1405,6 +1424,14 @@ components:
           type: integer
         total:
           type: integer
+
+    PrintavoStatus:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string, nullable: true }
 
     PrintavoOrderSummary:
       type: object

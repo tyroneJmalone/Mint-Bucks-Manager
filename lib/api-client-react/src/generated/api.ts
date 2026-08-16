@@ -51,6 +51,7 @@ import type {
   PrintavoOrderSummary,
   PrintavoSettings,
   PrintavoSettingsInput,
+  PrintavoStatus,
   PrintavoSyncResult,
   PrintavoTestInput,
   Redemption,
@@ -2586,6 +2587,83 @@ export const useTriggerPrintavoPoll = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getTriggerPrintavoPollMutationOptions(options));
     }
+
+export const getListPrintavoStatusesUrl = () => {
+
+
+
+
+  return `/api/printavo/statuses`
+}
+
+/**
+ * @summary List order statuses configured in the Printavo account
+ */
+export const listPrintavoStatuses = async ( options?: RequestInit): Promise<PrintavoStatus[]> => {
+
+  return customFetch<PrintavoStatus[]>(getListPrintavoStatusesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPrintavoStatusesQueryKey = () => {
+    return [
+    `/api/printavo/statuses`
+    ] as const;
+    }
+
+
+export const getListPrintavoStatusesQueryOptions = <TData = Awaited<ReturnType<typeof listPrintavoStatuses>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrintavoStatuses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPrintavoStatusesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrintavoStatuses>>> = ({ signal }) => listPrintavoStatuses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrintavoStatuses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPrintavoStatusesQueryResult = NonNullable<Awaited<ReturnType<typeof listPrintavoStatuses>>>
+export type ListPrintavoStatusesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List order statuses configured in the Printavo account
+ */
+
+export function useListPrintavoStatuses<TData = Awaited<ReturnType<typeof listPrintavoStatuses>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrintavoStatuses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPrintavoStatusesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getLookupPrintavoOrderUrl = (orderNumber: string,) => {
 

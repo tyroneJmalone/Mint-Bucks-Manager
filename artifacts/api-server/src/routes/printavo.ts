@@ -10,6 +10,7 @@ import {
   testConnection,
   fetchAllCustomers,
   fetchOrderByNumber,
+  fetchStatuses,
 } from "../lib/printavo";
 import { runPoll } from "../lib/poller";
 import { logger } from "../lib/logger";
@@ -112,6 +113,22 @@ router.post("/printavo/poll", async (_req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "Manual poll failed");
     res.status(500).json({ success: false, message: "Poll failed" });
+  }
+});
+
+router.get("/printavo/statuses", async (_req, res): Promise<void> => {
+  const config = await getPrintavoConfig();
+  if (!config) {
+    res.status(400).json({ error: "Printavo not configured" });
+    return;
+  }
+
+  try {
+    const statuses = await fetchStatuses(config);
+    res.json(statuses.map((s) => ({ id: s.id, name: s.name, type: s.type })));
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch Printavo statuses");
+    res.status(502).json({ error: "Failed to fetch statuses from Printavo" });
   }
 });
 

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
+import { Check, ChevronsUpDown, ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import {
   useCreateRewardRule,
   useUpdateRewardRule,
   useSendTestRewardEmail,
+  useListPrintavoStatuses,
+  getListPrintavoStatusesQueryKey,
   getListRewardRulesQueryKey,
   type RewardRule,
   type RewardRuleInput,
@@ -32,7 +34,123 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+
+// Multi-select over the real Printavo status list. Selected values that no
+// longer exist in Printavo (renamed/deleted statuses) are still shown so they
+// can be removed.
+function StatusMultiSelect({
+  id,
+  selected,
+  onChange,
+  options,
+  isLoading,
+  isError,
+  placeholder,
+}: {
+  id: string;
+  selected: string[];
+  onChange: (next: string[]) => void;
+  options: string[];
+  isLoading: boolean;
+  isError: boolean;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const allOptions = [...options];
+  for (const s of selected) {
+    if (!allOptions.some((o) => o.toLowerCase() === s.toLowerCase())) allOptions.push(s);
+  }
+
+  function toggle(name: string) {
+    if (selected.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      onChange(selected.filter((s) => s.toLowerCase() !== name.toLowerCase()));
+    } else {
+      onChange([...selected, name]);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal"
+            data-testid={`select-${id}`}
+          >
+            <span className="truncate text-left">
+              {selected.length
+                ? `${selected.length} selected`
+                : isLoading
+                  ? "Loading statuses…"
+                  : placeholder}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search statuses…" />
+            <CommandList>
+              <CommandEmpty>
+                {isError ? "Couldn't load statuses from Printavo." : isLoading ? "Loading…" : "No statuses found."}
+              </CommandEmpty>
+              <CommandGroup>
+                {allOptions.map((name) => {
+                  const checked = selected.some((s) => s.toLowerCase() === name.toLowerCase());
+                  return (
+                    <CommandItem key={name} value={name} onSelect={() => toggle(name)}>
+                      <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                      <span className="truncate">{name}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((name) => (
+            <Badge key={name} variant="secondary" className="gap-1 font-normal">
+              <span className="max-w-[200px] truncate">{name}</span>
+              <button
+                type="button"
+                onClick={() => toggle(name)}
+                className="hover:text-destructive"
+                aria-label={`Remove ${name}`}
+                data-testid={`remove-${id}-${name}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      {isError && (
+        <p className="text-[11px] text-destructive">
+          Couldn't load statuses from Printavo — check the Printavo connection in Settings.
+        </p>
+      )}
+    </div>
+  );
+}
 
 type RewardType = RewardRuleInput["rewardType"];
 
@@ -150,8 +268,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
   const [showConditions, setShowConditions] = useState(false);
   const [totalMin, setTotalMin] = useState("");
   const [totalMax, setTotalMax] = useState("");
-  const [statusNameAny, setStatusNameAny] = useState("");
-  const [statusNameExclude, setStatusNameExclude] = useState("");
+  const [statusNameAny, setStatusNameAny] = useState<string[]>([]);
+  const [statusNameExclude, setStatusNameExclude] = useState<string[]>([]);
   const [tagAny, setTagAny] = useState("");
   const [invoiceDateFrom, setInvoiceDateFrom] = useState("");
   const [invoiceDateTo, setInvoiceDateTo] = useState("");
@@ -192,8 +310,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       const c = rule.conditions ?? {};
       setTotalMin(c.totalMin != null ? String(c.totalMin) : "");
       setTotalMax(c.totalMax != null ? String(c.totalMax) : "");
-      setStatusNameAny(toCsv(c.statusNameAny));
-      setStatusNameExclude(toCsv(c.statusNameExclude));
+      setStatusNameAny(c.statusNameAny ?? []);
+      setStatusNameExclude(c.statusNameExclude ?? []);
       setTagAny(toCsv(c.tagAny));
       setInvoiceDateFrom(toDateInput(c.invoiceDateFrom));
       setInvoiceDateTo(toDateInput(c.invoiceDateTo));
@@ -230,8 +348,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
       setShowConditions(false);
       setTotalMin("");
       setTotalMax("");
-      setStatusNameAny("");
-      setStatusNameExclude("");
+      setStatusNameAny([]);
+      setStatusNameExclude([]);
       setTagAny("");
       setInvoiceDateFrom("");
       setInvoiceDateTo("");
@@ -244,6 +362,10 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
 
   const createRule = useCreateRewardRule();
   const updateRule = useUpdateRewardRule();
+  const statusesQuery = useListPrintavoStatuses({
+    query: { queryKey: getListPrintavoStatusesQueryKey(), enabled: open, staleTime: 5 * 60 * 1000 },
+  });
+  const statusOptions = [...new Set((statusesQuery.data ?? []).map((s) => s.name))];
   const isPending = createRule.isPending || updateRule.isPending;
 
   function buildParams(): RewardParams {
@@ -262,10 +384,8 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
     if (showConditions) {
       if (totalMin !== "") c.totalMin = parseFloat(totalMin);
       if (totalMax !== "") c.totalMax = parseFloat(totalMax);
-      const s = fromCsv(statusNameAny);
-      if (s.length) c.statusNameAny = s;
-      const sx = fromCsv(statusNameExclude);
-      if (sx.length) c.statusNameExclude = sx;
+      if (statusNameAny.length) c.statusNameAny = statusNameAny;
+      if (statusNameExclude.length) c.statusNameExclude = statusNameExclude;
       const t = fromCsv(tagAny);
       if (t.length) c.tagAny = t;
       if (invoiceDateFrom) c.invoiceDateFrom = invoiceDateFrom;
@@ -774,27 +894,27 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="status-any" className="text-xs">
-                    Invoice status is any of
-                  </Label>
-                  <Input
+                  <Label className="text-xs">Invoice status is any of</Label>
+                  <StatusMultiSelect
                     id="status-any"
-                    placeholder="Comma-separated, e.g. Complete, Shipped"
-                    value={statusNameAny}
-                    onChange={(e) => setStatusNameAny(e.target.value)}
-                    data-testid="input-status-any"
+                    selected={statusNameAny}
+                    onChange={setStatusNameAny}
+                    options={statusOptions}
+                    isLoading={statusesQuery.isLoading}
+                    isError={statusesQuery.isError}
+                    placeholder="Any status"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="status-exclude" className="text-xs">
-                    Exclude invoice statuses
-                  </Label>
-                  <Input
+                  <Label className="text-xs">Exclude invoice statuses</Label>
+                  <StatusMultiSelect
                     id="status-exclude"
-                    placeholder="Comma-separated, e.g. Cancelled, On Hold"
-                    value={statusNameExclude}
-                    onChange={(e) => setStatusNameExclude(e.target.value)}
-                    data-testid="input-status-exclude"
+                    selected={statusNameExclude}
+                    onChange={setStatusNameExclude}
+                    options={statusOptions}
+                    isLoading={statusesQuery.isLoading}
+                    isError={statusesQuery.isError}
+                    placeholder="No exclusions"
                   />
                   <p className="text-[11px] text-muted-foreground">
                     Orders in these Printavo statuses are skipped entirely — they won't appear in the pipeline or pending views.
