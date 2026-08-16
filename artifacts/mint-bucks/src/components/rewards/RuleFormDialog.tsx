@@ -47,6 +47,72 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
+// A from/to date pair with a Clear control. The browser's native date-picker
+// "Reset" only restores the value it opened with, so an explicit clear is the
+// only reliable way to remove a date range filter.
+function DateRangeFields({
+  idPrefix,
+  labelFrom,
+  labelTo,
+  from,
+  to,
+  onFromChange,
+  onToChange,
+}: {
+  idPrefix: string;
+  labelFrom: string;
+  labelTo: string;
+  from: string;
+  to: string;
+  onFromChange: (v: string) => void;
+  onToChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-from`} className="text-xs">
+          {labelFrom}
+        </Label>
+        <Input
+          id={`${idPrefix}-from`}
+          type="date"
+          value={from}
+          onChange={(e) => onFromChange(e.target.value)}
+          data-testid={`input-${idPrefix}-from`}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor={`${idPrefix}-to`} className="text-xs">
+            {labelTo}
+          </Label>
+          {(from || to) && (
+            <button
+              type="button"
+              className="text-[11px] text-muted-foreground hover:text-destructive inline-flex items-center gap-0.5"
+              onClick={() => {
+                onFromChange("");
+                onToChange("");
+              }}
+              data-testid={`button-clear-${idPrefix}`}
+            >
+              <X className="h-3 w-3" />
+              Clear
+            </button>
+          )}
+        </div>
+        <Input
+          id={`${idPrefix}-to`}
+          type="date"
+          value={to}
+          onChange={(e) => onToChange(e.target.value)}
+          data-testid={`input-${idPrefix}-to`}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Multi-select over the real Printavo status list. Selected values that no
 // longer exist in Printavo (renamed/deleted statuses) are still shown so they
 // can be removed.
@@ -932,84 +998,33 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                     data-testid="input-tag-any"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="invoice-date-from" className="text-xs">
-                      Invoice created from
-                    </Label>
-                    <Input
-                      id="invoice-date-from"
-                      type="date"
-                      value={invoiceDateFrom}
-                      onChange={(e) => setInvoiceDateFrom(e.target.value)}
-                      data-testid="input-invoice-date-from"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="invoice-date-to" className="text-xs">
-                      Invoice created to
-                    </Label>
-                    <Input
-                      id="invoice-date-to"
-                      type="date"
-                      value={invoiceDateTo}
-                      onChange={(e) => setInvoiceDateTo(e.target.value)}
-                      data-testid="input-invoice-date-to"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="production-date-from" className="text-xs">
-                      Production due from
-                    </Label>
-                    <Input
-                      id="production-date-from"
-                      type="date"
-                      value={productionDateFrom}
-                      onChange={(e) => setProductionDateFrom(e.target.value)}
-                      data-testid="input-production-date-from"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="production-date-to" className="text-xs">
-                      Production due to
-                    </Label>
-                    <Input
-                      id="production-date-to"
-                      type="date"
-                      value={productionDateTo}
-                      onChange={(e) => setProductionDateTo(e.target.value)}
-                      data-testid="input-production-date-to"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="paid-date-from" className="text-xs">
-                      Paid from
-                    </Label>
-                    <Input
-                      id="paid-date-from"
-                      type="date"
-                      value={paidDateFrom}
-                      onChange={(e) => setPaidDateFrom(e.target.value)}
-                      data-testid="input-paid-date-from"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="paid-date-to" className="text-xs">
-                      Paid to
-                    </Label>
-                    <Input
-                      id="paid-date-to"
-                      type="date"
-                      value={paidDateTo}
-                      onChange={(e) => setPaidDateTo(e.target.value)}
-                      data-testid="input-paid-date-to"
-                    />
-                  </div>
-                </div>
+                <DateRangeFields
+                  idPrefix="invoice-date"
+                  labelFrom="Invoice created from"
+                  labelTo="Invoice created to"
+                  from={invoiceDateFrom}
+                  to={invoiceDateTo}
+                  onFromChange={setInvoiceDateFrom}
+                  onToChange={setInvoiceDateTo}
+                />
+                <DateRangeFields
+                  idPrefix="production-date"
+                  labelFrom="Production due from"
+                  labelTo="Production due to"
+                  from={productionDateFrom}
+                  to={productionDateTo}
+                  onFromChange={setProductionDateFrom}
+                  onToChange={setProductionDateTo}
+                />
+                <DateRangeFields
+                  idPrefix="paid-date"
+                  labelFrom="Paid from"
+                  labelTo="Paid to"
+                  from={paidDateFrom}
+                  to={paidDateTo}
+                  onFromChange={setPaidDateFrom}
+                  onToChange={setPaidDateTo}
+                />
               </div>
             )}
           </div>
