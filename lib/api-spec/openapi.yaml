@@ -1062,6 +1062,59 @@ paths:
         "502":
           description: Failed to fetch from Printavo
 
+  /rewards/search-invoices:
+    get:
+      operationId: searchRewardInvoices
+      tags: [rewards]
+      summary: Search Printavo for fully-paid invoices that could be combined to qualify for a reward
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+          description: Free-text search (customer name, order number, nickname, etc.)
+        - name: ruleId
+          in: query
+          required: true
+          schema: { type: integer }
+          description: Rule to evaluate eligibility against
+      responses:
+        "200":
+          description: Matching invoices with eligibility and used-status info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceSearchResult"
+        "400":
+          description: Missing params or Printavo not configured
+        "404":
+          description: Rule not found
+
+  /rewards/combined-award:
+    post:
+      operationId: createCombinedRewardAward
+      tags: [rewards]
+      summary: Create a pending reward award from multiple Printavo invoices whose combined total qualifies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CombinedAwardRequest"
+      responses:
+        "201":
+          description: Created combined award
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CombinedAwardResult"
+        "400":
+          description: Invalid request or rule conditions not met
+        "404":
+          description: Rule or customer not found
+        "409":
+          description: One or more invoices already used, or annual limit would be exceeded
+
 components:
   schemas:
     ErrorEnvelope:
@@ -1981,3 +2034,94 @@ components:
           type: number
         fetchedAt:
           type: string
+
+    CombineInvoiceItem:
+      type: object
+      required: [id, visualId, customerName, customerEmail, eligible, alreadyUsed]
+      properties:
+        id:
+          type: string
+          description: Printavo internal invoice ID
+        visualId:
+          type: string
+          description: Printavo order number shown to users
+        nickname:
+          type: ["string", "null"]
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerCompany:
+          type: ["string", "null"]
+        total:
+          type: ["number", "null"]
+        amountPaid:
+          type: ["number", "null"]
+        datePaid:
+          type: ["string", "null"]
+        statusName:
+          type: ["string", "null"]
+        productionDueAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        invoiceAt:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        eligible:
+          type: boolean
+          description: Whether this invoice satisfies the rule's date windows and status conditions
+        ineligibleReason:
+          type: ["string", "null"]
+          description: Human-readable explanation if the invoice is not eligible
+        alreadyUsed:
+          type: boolean
+          description: Whether this invoice already has an active pending/processing/issued award for this rule
+        existingAwardId:
+          type: ["integer", "null"]
+
+    InvoiceSearchResult:
+      type: object
+      required: [invoices, ruleId, ruleName]
+      properties:
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/CombineInvoiceItem"
+        ruleId:
+          type: integer
+        ruleName:
+          type: string
+
+    CombinedAwardRequest:
+      type: object
+      required: [ruleId, invoiceVisualIds]
+      description: >
+        The server re-fetches each invoice from Printavo using the visual (order) numbers.
+        Only fully-paid invoices that belong to the same customer and meet the rule's
+        non-amount conditions will be accepted.
+      properties:
+        ruleId:
+          type: integer
+        invoiceVisualIds:
+          type: array
+          minItems: 2
+          description: Printavo order (visual) numbers of at least two distinct invoices, e.g. ["12345", "12346"]
+          items:
+            type: string
+
+    CombinedAwardResult:
+      type: object
+      required: [awardId, amount, invoiceCount, combinedTotal]
+      properties:
+        awardId:
+          type: integer
+        amount:
+          type: number
+        invoiceCount:
+          type: integer
+        combinedTotal:
+          type: number

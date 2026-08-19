@@ -15,6 +15,7 @@ import { getRewardsConfig, setSetting, type RewardsConfig } from "./settings";
 import {
   fetchPaidInvoices,
   fetchPipelineInvoices,
+  fetchPaidInvoiceByVisualId,
   type PrintavoConfig,
   type PrintavoPaidInvoice,
 } from "./printavo";
@@ -1043,6 +1044,308 @@ export async function rejectAward(awardId: number, rejectedBy?: string | null): 
  * Undo a decline: flip rejected -> pending, re-checking the annual limit under
  * the advisory lock so the restored award can't blow the budget.
  */
+// ---------------------------------------------------------------------------
+// Combined invoice award (manual "combine to qualify" workflow)
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether an invoice ID is already covered by an active (pending/processing/issued)
+ * award for the given rule — either as the primary printavoInvoiceId or as one of
+ * the IDs in the combinedInvoiceIds JSON array (for previously combined awards).
+ *
+ * Used by the search endpoint to surface "already used" badges in the UI.
+ * For creation-time double-count protection, use the checks inside the advisory
+ * transaction in createCombinedAward instead (they run atomically under the lock).
+ */
+export async function findExistingAwardForInvoice(
+  ruleId: number,
+  invoiceId: string,
+): Promise<RewardAward | null> {
+  // Primary column: fast indexed lookup.
+  const primary = await db
+    .select()
+    .from(rewardAwardsTable)
+    .where(
+      and(
+        eq(rewardAwardsTable.ruleId, ruleId),
+        eq(rewardAwardsTable.printavoInvoiceId, invoiceId),
+        inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+      ),
+    )
+    .limit(1);
+  if (primary.length) return primary[0];
+
+  // JSON array: finds awards where this invoice was bundled as a secondary entry.
+  const combined = await db
+    .select()
+    .from(rewardAwardsTable)
+    .where(
+      and(
+        eq(rewardAwardsTable.ruleId, ruleId),
+        inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+        sql`${rewardAwardsTable.combinedInvoiceIds} @> ${JSON.stringify([invoiceId])}::jsonb`,
+      ),
+    )
+    .limit(1);
+  return combined[0] ?? null;
+}
+
+export type CreateCombinedAwardResult =
+  | { ok: true; awardId: number; amount: number; invoiceCount: number; combinedTotal: number }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Create a pending reward award that combines multiple Printavo invoices whose
+ * merged total qualifies under the rule. Always creates as "pending" (manual
+ * combined awards always need review regardless of the auto-issue setting).
+ *
+ * Security properties:
+ * - Accepts only Printavo visual IDs; fetches authoritative invoice data from Printavo.
+ * - Verifies each invoice is fully paid (amountPaid >= total − $0.01).
+ * - Requires all invoices to belong to the same customer (same normalized email).
+ * - Applies all non-amount rule conditions server-side (date windows, status, tags).
+ * - Double-count check is inside the advisory-locked transaction: no concurrent
+ *   create can claim the same secondary invoice between our check and our INSERT.
+ */
+export async function createCombinedAward(
+  ruleId: number,
+  invoiceVisualIds: string[],
+  printavoConfig: PrintavoConfig,
+  cfg: RewardsConfig,
+  createdBy: string | null,
+): Promise<CreateCombinedAwardResult> {
+  const uniqueIds = [...new Set(invoiceVisualIds.map((v) => v.trim()).filter(Boolean))];
+  if (uniqueIds.length < 2) {
+    return { ok: false, status: 400, error: "At least two distinct invoices are required to combine" };
+  }
+
+  const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
+  if (!rule) return { ok: false, status: 404, error: "Rule not found" };
+
+  // ── Fetch authoritative invoice data from Printavo ────────────────────────
+  const fetchedInvoices = await Promise.all(
+    uniqueIds.map((vid) => fetchPaidInvoiceByVisualId(printavoConfig, vid)),
+  );
+
+  // Report the first invoice that couldn't be resolved (not found / not fully paid).
+  for (let i = 0; i < fetchedInvoices.length; i++) {
+    if (!fetchedInvoices[i]) {
+      return {
+        ok: false,
+        status: 422,
+        error: `Invoice #${uniqueIds[i]} was not found in Printavo or is not fully paid. Only fully-paid invoices can be combined.`,
+      };
+    }
+  }
+
+  const invoices = fetchedInvoices as PrintavoPaidInvoice[];
+
+  // ── Same-customer check ───────────────────────────────────────────────────
+  // All invoices must belong to the same customer (same normalized email).
+  const firstEmail = invoices[0].customer.email?.toLowerCase().trim() ?? "";
+  if (!firstEmail) {
+    return { ok: false, status: 422, error: `Invoice #${invoices[0].visualId} has no customer email address` };
+  }
+  for (const inv of invoices.slice(1)) {
+    const email = inv.customer.email?.toLowerCase().trim() ?? "";
+    if (email !== firstEmail) {
+      return {
+        ok: false,
+        status: 422,
+        error: `Invoices belong to different customers (${firstEmail} vs ${email}). Only invoices from the same customer can be combined.`,
+      };
+    }
+  }
+
+  // ── Per-invoice eligibility check (non-amount conditions only) ───────────
+  // Total-threshold conditions (totalMin / totalMax) are intentionally skipped:
+  // the point of combining is to reach the threshold together. All other rule
+  // conditions (date windows, status, tags) must be met individually.
+  const ruleNoAmount = {
+    ...rule,
+    conditions: {
+      ...(rule.conditions as Record<string, unknown>),
+      totalMin: undefined,
+      totalMax: undefined,
+    },
+  };
+  for (const inv of invoices) {
+    if (!invoiceMatchesRule(inv, ruleNoAmount as typeof rule)) {
+      return {
+        ok: false,
+        status: 422,
+        error: `Invoice #${inv.visualId} does not meet the rule's conditions (date window, status, or tag requirements). Check that the paid date and status are within the rule's allowed range.`,
+      };
+    }
+  }
+
+  // ── Find or create the customer ───────────────────────────────────────────
+  const customer = await findOrCreateCustomerForInvoice(invoices[0]);
+  if (!customer) {
+    return { ok: false, status: 422, error: "Could not resolve customer — invoice contact has no email" };
+  }
+
+  // ── Compute award from authoritative merged data ──────────────────────────
+  const combinedTotal = invoices.reduce((s, i) => s + (i.total ?? 0), 0);
+  const combinedPaid = invoices.reduce((s, i) => s + (i.amountPaid ?? 0), 0);
+
+  // Explicitly validate the rule's aggregate total thresholds against the merged
+  // invoice total. Per-invoice checks skip these (that's the whole point of combining),
+  // but the combined total MUST meet them for the award to be valid.
+  const cond = safeConditions(rule);
+  if (cond.totalMin != null && combinedTotal < cond.totalMin - 1e-9) {
+    return {
+      ok: false,
+      status: 422,
+      error: `The combined total of $${combinedTotal.toFixed(2)} is below this rule's minimum of $${cond.totalMin.toFixed(2)}. Select more invoices to reach the threshold.`,
+    };
+  }
+  if (cond.totalMax != null && combinedTotal > cond.totalMax + 1e-9) {
+    return {
+      ok: false,
+      status: 422,
+      error: `The combined total of $${combinedTotal.toFixed(2)} exceeds this rule's maximum of $${cond.totalMax.toFixed(2)}.`,
+    };
+  }
+
+  // Merge into a synthetic invoice so computeAward can handle all reward types.
+  const merged: PrintavoPaidInvoice = {
+    ...invoices[0],
+    total: combinedTotal,
+    amountPaid: combinedPaid,
+    tags: Array.from(new Set(invoices.flatMap((i) => i.tags))),
+  };
+  const amount = computeAward(merged, rule);
+  if (amount <= 0) {
+    return {
+      ok: false,
+      status: 422,
+      error: `The combined total of $${combinedTotal.toFixed(2)} does not qualify for a reward under this rule. Select more invoices to increase the combined amount.`,
+    };
+  }
+
+  // ── Transactional claim under advisory lock ───────────────────────────────
+  // All conflict checks and the INSERT happen inside a single transaction guarded
+  // by the advisory lock, so two concurrent combine requests cannot both claim the
+  // same secondary invoice (which is not covered by the unique index on printavoInvoiceId).
+  const allIds = invoices.map((i) => i.id);
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
+
+    // Check every invoice ID for existing active awards — both as the primary
+    // printavoInvoiceId and nested inside any combinedInvoiceIds JSON array.
+    for (const inv of invoices) {
+      const byPrimary = await tx
+        .select({ id: rewardAwardsTable.id })
+        .from(rewardAwardsTable)
+        .where(
+          and(
+            eq(rewardAwardsTable.ruleId, ruleId),
+            eq(rewardAwardsTable.printavoInvoiceId, inv.id),
+            inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+          ),
+        )
+        .limit(1);
+      if (byPrimary.length) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: `Invoice #${inv.visualId} is already covered by an existing award (ID ${byPrimary[0].id})`,
+        };
+      }
+
+      const byCombined = await tx
+        .select({ id: rewardAwardsTable.id })
+        .from(rewardAwardsTable)
+        .where(
+          and(
+            eq(rewardAwardsTable.ruleId, ruleId),
+            inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+            sql`${rewardAwardsTable.combinedInvoiceIds} @> ${JSON.stringify([inv.id])}::jsonb`,
+          ),
+        )
+        .limit(1);
+      if (byCombined.length) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: `Invoice #${inv.visualId} is already bundled inside an existing combined award (ID ${byCombined[0].id})`,
+        };
+      }
+    }
+
+    // Annual limit check (inside the lock so budget can't be double-spent).
+    if (cfg.annualLimit != null) {
+      const yearStart = startOfCurrentYear(cfg.timezone);
+      const rows = await tx
+        .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
+        .from(rewardAwardsTable)
+        .where(
+          and(
+            inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
+            gte(rewardAwardsTable.awardedAt, yearStart),
+          ),
+        );
+      const used = parseFloat(rows[0]?.total ?? "0");
+      if (used + amount > cfg.annualLimit + 1e-9) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: "Creating this combined award would exceed the annual rewards limit",
+        };
+      }
+    }
+
+    // printavoInvoiceId = primary (first) invoice for the unique-constraint key.
+    // combinedInvoiceIds = all IDs for secondary duplicate-use detection.
+    const latestPaid = invoices.reduce<string | null>((latest, i) => {
+      if (!i.datePaid) return latest;
+      return !latest || i.datePaid > latest ? i.datePaid : latest;
+    }, null);
+    const visualIds = invoices.map((i) => `#${i.visualId}`).join(", ");
+
+    const [award] = await tx
+      .insert(rewardAwardsTable)
+      .values({
+        ruleId,
+        customerId: customer.id,
+        printavoInvoiceId: allIds[0],
+        printavoVisualId: invoices.map((i) => i.visualId).join(", "),
+        nickname: invoices.map((i) => i.nickname).filter(Boolean).join("; ") || null,
+        invoiceTotal: combinedTotal.toFixed(2),
+        amount: amount.toFixed(2),
+        datePaid: latestPaid,
+        statusName: invoices[0].statusName ?? null,
+        productionDueAt: invoices[0].productionDueAt ?? null,
+        ownerEmail: invoices[0].ownerEmail ?? null,
+        ownerName: invoices[0].ownerName ?? null,
+        status: "pending", // combined awards always pend for manual review
+        note: `${rule.name} · combined: ${visualIds}`,
+        combinedInvoiceIds: allIds,
+      } as typeof rewardAwardsTable.$inferInsert)
+      .onConflictDoNothing()
+      .returning();
+
+    if (!award) {
+      return { ok: false as const, status: 409, error: "An award for the primary invoice already exists (unique conflict)" };
+    }
+
+    logger.info(
+      { awardId: award.id, ruleId, invoiceCount: invoices.length, amount, combinedTotal, createdBy },
+      "Rewards: created combined invoice award",
+    );
+
+    return {
+      ok: true as const,
+      awardId: award.id,
+      amount,
+      invoiceCount: invoices.length,
+      combinedTotal,
+    };
+  });
+}
+
 export async function unrejectAward(
   awardId: number,
   restoredBy?: string | null,

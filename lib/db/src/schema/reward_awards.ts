@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 
 export const rewardAwardStatusEnum = ["processing", "pending", "issued", "rejected"] as const;
 export type RewardAwardStatus = (typeof rewardAwardStatusEnum)[number];
@@ -26,6 +26,14 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   approvedBy: text("approved_by"),
   /** Email of the staff member who rejected this award (cleared on unreject). */
   rejectedBy: text("rejected_by"),
+  /**
+   * For combined awards only: JSON array of ALL contributing Printavo invoice
+   * IDs (including the primary stored in printavoInvoiceId). Null for normal
+   * single-invoice awards. Used for double-count protection — an invoice ID
+   * that appears anywhere in this array (or as printavoInvoiceId) cannot earn
+   * again under the same rule.
+   */
+  combinedInvoiceIds: jsonb("combined_invoice_ids").$type<string[]>(),
   awardedAt: timestamp("awarded_at", { withTimezone: true }).notNull().defaultNow(),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

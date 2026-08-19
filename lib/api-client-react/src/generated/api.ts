@@ -21,6 +21,8 @@ import type {
 
 import type {
   ActivityItem,
+  CombinedAwardRequest,
+  CombinedAwardResult,
   Credit,
   CreditCheckResult,
   CreditInput,
@@ -38,6 +40,7 @@ import type {
   GetRecentActivityParams,
   GetTopCustomersParams,
   HealthStatus,
+  InvoiceSearchResult,
   ListCreditsParams,
   ListCustomersParams,
   ListEmailLogParams,
@@ -67,6 +70,7 @@ import type {
   RewardsSettings,
   RewardsSettingsInput,
   RewardsSummary,
+  SearchRewardInvoicesParams,
   SendTestRewardEmail200,
   TestEmailRequest,
   UploadUrlRequest,
@@ -4080,4 +4084,158 @@ export function useGetRewardsPipeline<TData = Awaited<ReturnType<typeof getRewar
 
 
 
+
+export const getSearchRewardInvoicesUrl = (params: SearchRewardInvoicesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rewards/search-invoices?${stringifiedParams}` : `/api/rewards/search-invoices`
+}
+
+/**
+ * @summary Search Printavo for fully-paid invoices that could be combined to qualify for a reward
+ */
+export const searchRewardInvoices = async (params: SearchRewardInvoicesParams, options?: RequestInit): Promise<InvoiceSearchResult> => {
+
+  return customFetch<InvoiceSearchResult>(getSearchRewardInvoicesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchRewardInvoicesQueryKey = (params?: SearchRewardInvoicesParams,) => {
+    return [
+    `/api/rewards/search-invoices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchRewardInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof searchRewardInvoices>>, TError = ErrorType<void>>(params: SearchRewardInvoicesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchRewardInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchRewardInvoicesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchRewardInvoices>>> = ({ signal }) => searchRewardInvoices(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchRewardInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchRewardInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof searchRewardInvoices>>>
+export type SearchRewardInvoicesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search Printavo for fully-paid invoices that could be combined to qualify for a reward
+ */
+
+export function useSearchRewardInvoices<TData = Awaited<ReturnType<typeof searchRewardInvoices>>, TError = ErrorType<void>>(
+ params: SearchRewardInvoicesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchRewardInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchRewardInvoicesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCombinedRewardAwardUrl = () => {
+
+
+
+
+  return `/api/rewards/combined-award`
+}
+
+/**
+ * @summary Create a pending reward award from multiple Printavo invoices whose combined total qualifies
+ */
+export const createCombinedRewardAward = async (combinedAwardRequest: CombinedAwardRequest, options?: RequestInit): Promise<CombinedAwardResult> => {
+
+  return customFetch<CombinedAwardResult>(getCreateCombinedRewardAwardUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(combinedAwardRequest)
+  }
+);}
+
+
+
+
+export const getCreateCombinedRewardAwardMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCombinedRewardAward>>, TError,{data: BodyType<CombinedAwardRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCombinedRewardAward>>, TError,{data: BodyType<CombinedAwardRequest>}, TContext> => {
+
+const mutationKey = ['createCombinedRewardAward'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCombinedRewardAward>>, {data: BodyType<CombinedAwardRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCombinedRewardAward(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCombinedRewardAwardMutationResult = NonNullable<Awaited<ReturnType<typeof createCombinedRewardAward>>>
+    export type CreateCombinedRewardAwardMutationBody = BodyType<CombinedAwardRequest>
+    export type CreateCombinedRewardAwardMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a pending reward award from multiple Printavo invoices whose combined total qualifies
+ */
+export const useCreateCombinedRewardAward = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCombinedRewardAward>>, TError,{data: BodyType<CombinedAwardRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCombinedRewardAward>>,
+        TError,
+        {data: BodyType<CombinedAwardRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateCombinedRewardAwardMutationOptions(options));
+    }
 

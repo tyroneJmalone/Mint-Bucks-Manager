@@ -19,6 +19,7 @@ import {
   Search,
   StickyNote,
   Mail,
+  Combine,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -74,6 +75,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RuleFormDialog } from "@/components/rewards/RuleFormDialog";
 import { ManualEmailDialog } from "@/components/rewards/ManualEmailDialog";
+import { CombineInvoicesDialog } from "@/components/rewards/CombineInvoicesDialog";
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -324,6 +326,7 @@ export function Rewards() {
 
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [manualEmailDialogOpen, setManualEmailDialogOpen] = useState(false);
+  const [combineDialogOpen, setCombineDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RewardRule | null>(null);
   const [deletingRule, setDeletingRule] = useState<RewardRule | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
@@ -611,15 +614,28 @@ export function Rewards() {
               Auto-issue mode is on — awards are issued automatically and won't appear here for approval.
             </div>
           )}
-          <div className="mb-3 relative max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              value={pendingSearch}
-              onChange={(e) => setPendingSearch(e.target.value)}
-              placeholder="Search customer, order #, nickname, rule, note…"
-              className="pl-9"
-              data-testid="input-search-pending"
-            />
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative max-w-sm flex-1 min-w-0">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Input
+                value={pendingSearch}
+                onChange={(e) => setPendingSearch(e.target.value)}
+                placeholder="Search customer, order #, nickname, rule, note…"
+                className="pl-9"
+                data-testid="input-search-pending"
+              />
+            </div>
+            <Button
+              variant="outline"
+              className="gap-1.5 flex-shrink-0"
+              onClick={() => setCombineDialogOpen(true)}
+              disabled={!enabled}
+              title="Combine multiple paid invoices to qualify for a reward"
+              data-testid="button-combine-invoices"
+            >
+              <Combine className="w-4 h-4" />
+              Combine Invoices
+            </Button>
           </div>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
@@ -1191,6 +1207,11 @@ export function Rewards() {
       />
 
       <ManualEmailDialog open={manualEmailDialogOpen} onOpenChange={setManualEmailDialogOpen} />
+
+      <CombineInvoicesDialog
+        open={combineDialogOpen}
+        onOpenChange={setCombineDialogOpen}
+      />
 
       <AlertDialog open={!!deletingRule} onOpenChange={(o) => !o && setDeletingRule(null)}>
         <AlertDialogContent>

@@ -531,6 +531,88 @@ export async function fetchPipelineInvoices(
   return [...quotes, ...unpaid, ...partial];
 }
 
+/**
+ * Fetch a single fully-paid Invoice from Printavo by its visual (order) number.
+ * Returns null when the invoice is not found, not an Invoice, or is not fully
+ * paid. Used by the "Combine invoices" create endpoint to load authoritative
+ * data from Printavo rather than trusting client-supplied snapshots.
+ */
+export async function fetchPaidInvoiceByVisualId(
+  config: PrintavoConfig,
+  visualId: string,
+): Promise<PrintavoPaidInvoice | null> {
+  if (!visualId.trim()) return null;
+  try {
+    const data = await gql<{ orders: { nodes: RawOrderUnionNode[] } }>(config, `
+      query FetchInvoiceByVisualId($query: String, $first: Int!) {
+        orders(query: $query, first: $first, sortOn: VISUAL_ID, sortDescending: true) {
+          nodes {
+            __typename
+            ... on Invoice { ${PAID_INVOICE_FIELDS} }
+          }
+        }
+      }
+    `, { query: visualId.trim(), first: 10 });
+
+    // Require an exact visual ID match — the `query` field also matches nicknames
+    // and PO numbers, so falling back to the first result could return a different order.
+    const exact = data.orders.nodes.find(
+      (n) => n.__typename === "Invoice" && n.visualId === visualId,
+    );
+    if (!exact) return null;
+
+    // Require fully paid (amountPaid >= total within a cent of rounding).
+    const total = exact.total ?? 0;
+    const paid = exact.amountPaid ?? 0;
+    if (total <= 0 || paid < total - 0.01) return null;
+
+    return mapInvoice(exact, "invoice");
+  } catch (err) {
+    logger.warn({ err, visualId }, "Printavo: fetchPaidInvoiceByVisualId failed");
+    return null;
+  }
+}
+
+/**
+ * Search Printavo for fully-paid invoices matching a free-text query (customer
+ * name, order number, nickname, PO, etc.). Results are limited to Invoice nodes
+ * (not Quotes) where amountPaid >= total. Used by the "Combine invoices" flow
+ * to find invoices a customer may have split across multiple orders.
+ */
+export async function searchPaidInvoices(
+  config: PrintavoConfig,
+  query: string,
+  limit = 25,
+): Promise<PrintavoPaidInvoice[]> {
+  if (!query.trim()) return [];
+  try {
+    const data = await gql<{ orders: { nodes: RawOrderUnionNode[] } }>(config, `
+      query SearchPaidInvoices($query: String, $first: Int!) {
+        orders(query: $query, first: $first, sortOn: VISUAL_ID, sortDescending: true) {
+          nodes {
+            __typename
+            ... on Invoice { ${PAID_INVOICE_FIELDS} }
+          }
+        }
+      }
+    `, { query: query.trim(), first: Math.min(limit, PAGE_SIZE) });
+
+    const results: PrintavoPaidInvoice[] = [];
+    for (const node of data.orders.nodes) {
+      if (node.__typename !== "Invoice") continue;
+      // Only include fully paid invoices.
+      const total = node.total ?? 0;
+      const paid = node.amountPaid ?? 0;
+      if (total <= 0 || paid < total - 0.01) continue;
+      results.push(mapInvoice(node, "invoice"));
+    }
+    return results;
+  } catch (err) {
+    logger.warn({ err, query }, "Printavo: searchPaidInvoices failed");
+    return [];
+  }
+}
+
 export async function fetchOrderByNumber(config: PrintavoConfig, orderNumber: string): Promise<PrintavoOrder | null> {
   try {
     const data = await gql<{ orders: { nodes: RawOrder[] } }>(config, `

@@ -21,6 +21,7 @@ import {
   getPrintavoConfig,
   type RewardsConfig,
 } from "../lib/settings";
+import { searchPaidInvoices } from "../lib/printavo";
 import {
   validateRewardParams,
   validateConditions,
@@ -30,6 +31,9 @@ import {
   getRewardsStats,
   computePipelinePreview,
   invalidatePipelineCache,
+  invoiceMatchesRule,
+  findExistingAwardForInvoice,
+  createCombinedAward,
   type RewardTypeValue,
 } from "../lib/rewards";
 import { runRewardsPoll, startPoller } from "../lib/poller";
@@ -615,6 +619,161 @@ router.put("/rewards/order-notes/:invoiceId", async (req, res): Promise<void> =>
     })
     .returning();
   res.json({ printavoInvoiceId: row.printavoInvoiceId, note: row.note });
+});
+
+// ── Search paid invoices for combine-to-qualify workflow ──────────────────────
+router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
+  const query = String(req.query.query ?? "").trim();
+  const ruleId = parseInt(String(req.query.ruleId ?? ""), 10);
+
+  if (!query) {
+    res.status(400).json({ error: "query is required" });
+    return;
+  }
+  if (isNaN(ruleId)) {
+    res.status(400).json({ error: "ruleId is required and must be an integer" });
+    return;
+  }
+
+  const printavoConfig = await getPrintavoConfig();
+  if (!printavoConfig) {
+    res.status(400).json({ error: "Printavo is not configured" });
+    return;
+  }
+
+  const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
+  if (!rule) {
+    res.status(404).json({ error: "Rule not found" });
+    return;
+  }
+
+  let printavoInvoices;
+  try {
+    printavoInvoices = await searchPaidInvoices(printavoConfig, query, 25);
+  } catch (err) {
+    logger.error({ err }, "Rewards: failed to search Printavo invoices");
+    res.status(502).json({ error: "Failed to search Printavo" });
+    return;
+  }
+
+  // For each invoice, check eligibility (date windows + status conditions, NOT amount thresholds
+  // since the point is to combine invoices to reach the total threshold together) and used-status.
+  const results = await Promise.all(
+    printavoInvoices.map(async (inv) => {
+      // Build a synthetic invoice that bypasses total min/max checks: we replace
+      // totalMin/totalMax with null so only date/status conditions are evaluated.
+      const ruleForEligibilityCheck = {
+        ...rule,
+        conditions: {
+          ...(rule.conditions as Record<string, unknown>),
+          totalMin: undefined,
+          totalMax: undefined,
+        },
+      };
+      const eligible = invoiceMatchesRule(inv, ruleForEligibilityCheck as typeof rule);
+      let ineligibleReason: string | null = null;
+      if (!eligible) {
+        // Determine which condition failed for a useful message.
+        if (rule.startsAt && Date.now() < new Date(rule.startsAt).getTime()) {
+          ineligibleReason = "Rule has not started yet";
+        } else if (rule.endsAt && Date.now() > new Date(rule.endsAt).getTime()) {
+          ineligibleReason = "Rule has ended";
+        } else {
+          const cond = rule.conditions as Record<string, unknown>;
+          if (cond.statusNameExclude && inv.statusName) {
+            ineligibleReason = `Status "${inv.statusName}" is excluded by this rule`;
+          } else if (cond.statusNameAny) {
+            ineligibleReason = "Order status does not match the rule's required statuses";
+          } else if (cond.paidDateFrom || cond.paidDateTo) {
+            ineligibleReason = "Paid date is outside the rule's window";
+          } else if (cond.invoiceDateFrom || cond.invoiceDateTo) {
+            ineligibleReason = "Invoice date is outside the rule's window";
+          } else if (cond.invoiceAtFrom || cond.invoiceAtTo) {
+            ineligibleReason = "Invoice date is outside the rule's window";
+          } else if (cond.productionDateFrom || cond.productionDateTo) {
+            ineligibleReason = "Production date is outside the rule's window";
+          } else if (cond.tagAny) {
+            ineligibleReason = "Invoice does not have the required tags";
+          } else {
+            ineligibleReason = "Invoice does not meet the rule conditions";
+          }
+        }
+      }
+
+      const existingAward = await findExistingAwardForInvoice(rule.id, inv.id);
+      return {
+        id: inv.id,
+        visualId: inv.visualId,
+        nickname: inv.nickname ?? null,
+        customerName: inv.customer.fullName || "",
+        customerEmail: inv.customer.email || "",
+        customerCompany: inv.customer.companyName ?? null,
+        total: inv.total ?? null,
+        amountPaid: inv.amountPaid ?? null,
+        datePaid: inv.datePaid ?? null,
+        statusName: inv.statusName ?? null,
+        productionDueAt: inv.productionDueAt ?? null,
+        createdAt: inv.createdAt,
+        invoiceAt: inv.invoiceAt ?? null,
+        tags: inv.tags,
+        eligible,
+        ineligibleReason,
+        alreadyUsed: !!existingAward,
+        existingAwardId: existingAward?.id ?? null,
+      };
+    }),
+  );
+
+  res.json({ invoices: results, ruleId: rule.id, ruleName: rule.name });
+});
+
+// ── Create combined award ─────────────────────────────────────────────────────
+router.post("/rewards/combined-award", async (req, res): Promise<void> => {
+  const body = req.body as { ruleId?: unknown; invoiceVisualIds?: unknown };
+
+  const ruleId = typeof body.ruleId === "number" ? body.ruleId : parseInt(String(body.ruleId ?? ""), 10);
+  if (isNaN(ruleId)) {
+    res.status(400).json({ error: "ruleId is required" });
+    return;
+  }
+
+  if (!Array.isArray(body.invoiceVisualIds) || body.invoiceVisualIds.length < 2) {
+    res.status(400).json({ error: "invoiceVisualIds must contain at least two order numbers" });
+    return;
+  }
+
+  const invoiceVisualIds = body.invoiceVisualIds.map((v) => String(v).trim()).filter(Boolean);
+  if (invoiceVisualIds.length < 2) {
+    res.status(400).json({ error: "invoiceVisualIds must contain at least two non-empty order numbers" });
+    return;
+  }
+
+  const printavoConfig = await getPrintavoConfig();
+  if (!printavoConfig) {
+    res.status(400).json({ error: "Printavo is not configured — cannot look up invoice data" });
+    return;
+  }
+
+  const cfg = await getRewardsConfig();
+  const result = await createCombinedAward(
+    ruleId,
+    invoiceVisualIds,
+    printavoConfig,
+    cfg,
+    req.staffEmail ?? null,
+  );
+
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.status(201).json({
+    awardId: result.awardId,
+    amount: result.amount,
+    invoiceCount: result.invoiceCount,
+    combinedTotal: result.combinedTotal,
+  });
 });
 
 export default router;

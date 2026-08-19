@@ -834,6 +834,69 @@ export interface RewardsPipelineResult {
   fetchedAt: string;
 }
 
+export interface CombineInvoiceItem {
+  /** Printavo internal invoice ID */
+  id: string;
+  /** Printavo order number shown to users */
+  visualId: string;
+  /** @nullable */
+  nickname?: string | null;
+  customerName: string;
+  customerEmail: string;
+  /** @nullable */
+  customerCompany?: string | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  amountPaid?: number | null;
+  /** @nullable */
+  datePaid?: string | null;
+  /** @nullable */
+  statusName?: string | null;
+  /** @nullable */
+  productionDueAt?: string | null;
+  createdAt?: string;
+  /** @nullable */
+  invoiceAt?: string | null;
+  tags?: string[];
+  /** Whether this invoice satisfies the rule's date windows and status conditions */
+  eligible: boolean;
+  /**
+     * Human-readable explanation if the invoice is not eligible
+     * @nullable
+     */
+  ineligibleReason?: string | null;
+  /** Whether this invoice already has an active pending/processing/issued award for this rule */
+  alreadyUsed: boolean;
+  /** @nullable */
+  existingAwardId?: number | null;
+}
+
+export interface InvoiceSearchResult {
+  invoices: CombineInvoiceItem[];
+  ruleId: number;
+  ruleName: string;
+}
+
+/**
+ * The server re-fetches each invoice from Printavo using the visual (order) numbers. Only fully-paid invoices that belong to the same customer and meet the rule's non-amount conditions will be accepted.
+ */
+export interface CombinedAwardRequest {
+  ruleId: number;
+  /**
+     * Printavo order (visual) numbers of at least two distinct invoices, e.g. ["12345", "12346"]
+     * @minItems 2
+     */
+  invoiceVisualIds: string[];
+}
+
+export interface CombinedAwardResult {
+  awardId: number;
+  amount: number;
+  invoiceCount: number;
+  combinedTotal: number;
+}
+
 export type ListCustomersParams = {
 search?: string;
 hasCredit?: string;
@@ -879,5 +942,16 @@ limit?: number;
 
 export type SendTestRewardEmail200 = {
   success: boolean;
+};
+
+export type SearchRewardInvoicesParams = {
+/**
+ * Free-text search (customer name, order number, nickname, etc.)
+ */
+query: string;
+/**
+ * Rule to evaluate eligibility against
+ */
+ruleId: number;
 };
 

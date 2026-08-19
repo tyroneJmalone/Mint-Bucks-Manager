@@ -8,6 +8,9 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './combinedAwardRequest';
+export * from './combinedAwardResult';
+export * from './combineInvoiceItem';
 export * from './credit';
 export * from './creditCheckResult';
 export * from './creditCheckResultStatus';
@@ -30,6 +33,7 @@ export * from './getExpiringSoonParams';
 export * from './getRecentActivityParams';
 export * from './getTopCustomersParams';
 export * from './healthStatus';
+export * from './invoiceSearchResult';
 export * from './listCreditsParams';
 export * from './listCustomersParams';
 export * from './listEmailLogParams';
@@ -76,6 +80,7 @@ export * from './ruleReminder';
 export * from './ruleReminderAnchor';
 export * from './ruleReminderInput';
 export * from './ruleReminderInputAnchor';
+export * from './searchRewardInvoicesParams';
 export * from './sendTestRewardEmail200';
 export * from './testEmailRequest';
 export * from './testEmailRequestEmailType';

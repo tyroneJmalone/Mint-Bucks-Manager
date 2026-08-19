@@ -1300,3 +1300,57 @@ export const GetRewardsPipelineResponse = zod.object({
 })
 
 
+/**
+ * @summary Search Printavo for fully-paid invoices that could be combined to qualify for a reward
+ */
+export const SearchRewardInvoicesQueryParams = zod.object({
+  "query": zod.coerce.string().describe('Free-text search (customer name, order number, nickname, etc.)'),
+  "ruleId": zod.coerce.number().describe('Rule to evaluate eligibility against')
+})
+
+export const SearchRewardInvoicesResponse = zod.object({
+  "invoices": zod.array(zod.object({
+  "id": zod.string().describe('Printavo internal invoice ID'),
+  "visualId": zod.string().describe('Printavo order number shown to users'),
+  "nickname": zod.string().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "customerCompany": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "amountPaid": zod.number().nullish(),
+  "datePaid": zod.string().nullish(),
+  "statusName": zod.string().nullish(),
+  "productionDueAt": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "invoiceAt": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "eligible": zod.boolean().describe('Whether this invoice satisfies the rule\'s date windows and status conditions'),
+  "ineligibleReason": zod.string().nullish().describe('Human-readable explanation if the invoice is not eligible'),
+  "alreadyUsed": zod.boolean().describe('Whether this invoice already has an active pending\/processing\/issued award for this rule'),
+  "existingAwardId": zod.number().nullish()
+})),
+  "ruleId": zod.number(),
+  "ruleName": zod.string()
+})
+
+
+/**
+ * @summary Create a pending reward award from multiple Printavo invoices whose combined total qualifies
+ */
+export const createCombinedRewardAwardBodyInvoiceVisualIdsMin = 2;
+
+
+
+export const CreateCombinedRewardAwardBody = zod.object({
+  "ruleId": zod.number(),
+  "invoiceVisualIds": zod.array(zod.string()).min(createCombinedRewardAwardBodyInvoiceVisualIdsMin).describe('Printavo order (visual) numbers of at least two distinct invoices, e.g. [\"12345\", \"12346\"]')
+}).describe('The server re-fetches each invoice from Printavo using the visual (order) numbers. Only fully-paid invoices that belong to the same customer and meet the rule\'s non-amount conditions will be accepted.\n')
+
+export const CreateCombinedRewardAwardResponse = zod.object({
+  "awardId": zod.number(),
+  "amount": zod.number(),
+  "invoiceCount": zod.number(),
+  "combinedTotal": zod.number()
+})
+
+
