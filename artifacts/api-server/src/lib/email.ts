@@ -28,7 +28,7 @@ function logoImgTag(): string {
   return `<img src="${url}/logo.png" alt="Mint Printworks" style="height:68px;width:auto">`;
 }
 
-async function send(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; log?: EmailLogMeta }): Promise<boolean> {
+async function send(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; idempotencyKey?: string; log?: EmailLogMeta }): Promise<boolean> {
   const ok = await sendViaResend(opts);
   if (opts.log) {
     // Extract the bare address from "Name <addr>" format.
@@ -48,13 +48,20 @@ async function send(opts: { from: string; to: string; subject: string; html: str
   return ok;
 }
 
-async function sendViaResend(opts: { from: string; to: string; subject: string; html: string; cc?: string | null }): Promise<boolean> {
+async function sendViaResend(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; idempotencyKey?: string }): Promise<boolean> {
   try {
     const connectors = new ReplitConnectors();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    // Provider-level deduplication: if the process crashes after Resend accepts
+    // the message but before our DB status update, a retry with the same key
+    // will be deduplicated by Resend rather than causing a second customer email.
+    if (opts.idempotencyKey) {
+      headers["Idempotency-Key"] = opts.idempotencyKey;
+    }
     const response = await connectors.proxy("resend", "/emails", {
       method: "POST",
       body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, ...(opts.cc ? { cc: opts.cc } : {}) }),
-      headers: { "Content-Type": "application/json" },
+      headers,
     });
 
     if (!response.ok) {
@@ -98,6 +105,14 @@ interface CreditEmailData {
   customBody?: string | null;
   /** Override the email_log type (e.g. "reminder" for scheduled rule reminders). */
   emailTypeOverride?: string | null;
+  /**
+   * Resend idempotency key — passed as the `Idempotency-Key` header.
+   * Prevents a duplicate customer email if the process crashes after Resend
+   * accepts the message but before our DB status update commits, and the
+   * stale-pending sweep later retries the send. Resend deduplicates requests
+   * with the same key for ~24 hours. Omit for test/manual sends.
+   */
+  idempotencyKey?: string | null;
 }
 
 function escapeHtml(s: string): string {
@@ -411,6 +426,9 @@ export async function sendReminderEmail(data: CreditEmailData): Promise<boolean>
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
+    // Only pass the idempotency key for non-test sends; test/manual previews
+    // must never collide with an automated send's deduplication window.
+    idempotencyKey: data.isTest ? undefined : (data.idempotencyKey ?? undefined),
     log: {
       emailType: data.isTest ? "test_reminder" : (data.emailTypeOverride ?? "reminder"),
       customerId: data.customerId ?? null,

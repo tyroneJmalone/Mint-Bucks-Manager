@@ -298,20 +298,76 @@ async function tick(): Promise<void> {
 // atomically claim each (credit, reminder) pair in reminder_sends, and email
 // the customer with the step's custom verbiage. Zero-balance, non-active, and
 // already-expired credits are skipped.
-// Claims stuck in "pending" longer than this are considered orphaned (process
-// died between claim and send) and are released for retry.
-const STALE_CLAIM_MS = 30 * 60 * 1000;
+//
+// Delivery contract
+// ─────────────────
+// Each send is claimed atomically (ON CONFLICT DO NOTHING). The claim starts
+// as "pending"; updated to "sent" after the provider accepts the message.
+// Every call to the provider carries a deterministic Resend idempotency key
+// ("reminder:<creditId>:<reminderId>") so a retry with the same key is
+// deduplicated by Resend for ~24 hours.
+//
+// Crash recovery (≤ 23 h outage):
+//   Pending claims between STALE_CLAIM_MS (30 min) and STALE_CLAIM_MAX_MS (23 h)
+//   old are swept and retried. The idempotency key is still within Resend's
+//   window → exactly-once delivery.
+//
+// Long outage (> 23 h):
+//   Claims older than STALE_CLAIM_MAX_MS are NOT swept. Retrying would be
+//   unsafe because Resend's idempotency key has likely expired and the same
+//   email would be delivered a second time. A warning is logged for each such
+//   claim so an operator can resolve it manually.
 
-export async function runReminderPass(): Promise<void> {
-  // Release orphaned claims so a crash between claim and send can't
-  // permanently block that credit/reminder pair.
+/** Min age before a pending claim is eligible for crash-recovery sweep. */
+const STALE_CLAIM_MS = 30 * 60 * 1000;
+/**
+ * Max age of a pending claim that may be auto-retried. Beyond this threshold
+ * the Resend idempotency key may have expired; auto-retry is suppressed to
+ * prevent a second email being delivered to the customer.
+ */
+const STALE_CLAIM_MAX_MS = 23 * 60 * 60 * 1000;
+
+export type ReminderEmailSender = typeof sendReminderEmail;
+
+/** Injectable email sender — defaults to sendReminderEmail; override in tests. */
+export async function runReminderPass(emailSender: ReminderEmailSender = sendReminderEmail): Promise<void> {
+  const now = Date.now();
+  const sweepOlderThan = new Date(now - STALE_CLAIM_MS);
+  const sweepYoungerThan = new Date(now - STALE_CLAIM_MAX_MS);
+
+  // Sweep pending claims that are old enough to have been orphaned by a crash
+  // but still young enough that the Resend idempotency key covers the retry.
   await db
     .delete(reminderSendsTable)
     .where(and(
       eq(reminderSendsTable.deliveryStatus, "pending"),
-      lt(reminderSendsTable.sentAt, new Date(Date.now() - STALE_CLAIM_MS)),
+      lt(reminderSendsTable.sentAt, sweepOlderThan),
+      gt(reminderSendsTable.sentAt, sweepYoungerThan),
     ))
     .catch(() => {});
+
+  // Warn about claims beyond the idempotency window — these are NOT swept so
+  // they cannot cause a duplicate delivery; an operator must review them.
+  const expiredClaims = await db
+    .select({
+      id: reminderSendsTable.id,
+      creditId: reminderSendsTable.creditId,
+      reminderId: reminderSendsTable.ruleReminderId,
+      pendingSince: reminderSendsTable.sentAt,
+    })
+    .from(reminderSendsTable)
+    .where(and(
+      eq(reminderSendsTable.deliveryStatus, "pending"),
+      lt(reminderSendsTable.sentAt, sweepYoungerThan),
+    ))
+    .catch(() => [] as { id: number; creditId: number; reminderId: number; pendingSince: Date }[]);
+
+  for (const claim of expiredClaims) {
+    logger.warn(
+      { claimId: claim.id, creditId: claim.creditId, reminderId: claim.reminderId, pendingSince: claim.pendingSince },
+      "Reminder claim pending beyond provider idempotency window — suppressing auto-retry to prevent duplicate email; manual review required"
+    );
+  }
 
   const reminders = await db
     .select({
@@ -325,17 +381,17 @@ export async function runReminderPass(): Promise<void> {
   const active = reminders.filter(r => r.ruleEnabled);
   if (!active.length) return;
 
-  const now = new Date();
+  const nowDate = new Date(now);
   const DAY_MS = 24 * 60 * 60 * 1000;
   let sentCount = 0;
 
   for (const { reminder, ruleImage } of active) {
     // Credits from this rule that still have a balance and are active.
     const dueCondition = reminder.anchor === "after_issue"
-      ? lt(creditsTable.issuedAt, new Date(now.getTime() - reminder.offsetDays * DAY_MS))
+      ? lt(creditsTable.issuedAt, new Date(now - reminder.offsetDays * DAY_MS))
       : and(
           sql`${creditsTable.expiresAt} IS NOT NULL`,
-          lt(creditsTable.expiresAt, new Date(now.getTime() + reminder.offsetDays * DAY_MS)),
+          lt(creditsTable.expiresAt, new Date(now + reminder.offsetDays * DAY_MS)),
         );
 
     const candidates = await db
@@ -352,7 +408,7 @@ export async function runReminderPass(): Promise<void> {
 
     for (const { credit, customer } of candidates) {
       // Never remind about an already-expired credit.
-      if (credit.expiresAt && credit.expiresAt.getTime() <= now.getTime()) continue;
+      if (credit.expiresAt && credit.expiresAt.getTime() <= nowDate.getTime()) continue;
       if (!customer.email) continue;
 
       // Atomic claim — a concurrent pass or earlier send wins.
@@ -363,7 +419,7 @@ export async function runReminderPass(): Promise<void> {
         .returning({ id: reminderSendsTable.id });
       if (!claimed.length) continue;
 
-      const delivered = await sendReminderEmail({
+      const delivered = await emailSender({
         customerName: customer.name,
         customerEmail: customer.email,
         creditCode: credit.code,
@@ -375,6 +431,12 @@ export async function runReminderPass(): Promise<void> {
         imageObjectPath: credit.imageObjectPath ?? ruleImage ?? null,
         customSubject: reminder.emailSubject,
         customBody: reminder.emailBody,
+        // Deterministic idempotency key for this (credit, reminder) pair.
+        // Resend deduplicates requests with the same key for ~24 hours, so if
+        // the process crashes after the provider accepts the message but before
+        // the DB status update commits, the stale-pending sweep can safely retry
+        // without sending a second email to the customer.
+        idempotencyKey: `reminder:${credit.id}:${reminder.id}`,
       }).catch(() => false);
 
       if (delivered) {
