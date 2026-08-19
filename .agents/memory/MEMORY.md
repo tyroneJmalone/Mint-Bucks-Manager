@@ -7,3 +7,4 @@
 - [Settings vs env precedence](settings-env-precedence.md) — DB settings must beat env vars; a stale PRINTAVO_API_KEY env var silently shadowed newly saved tokens.
 - [Email send claim tables](email-claim-tables.md) — exactly-once automated emails: atomic claim + stale-pending sweep; balance = active OR partially_redeemed; templates via renderTemplate helpers.
 - [Sensitive env vars](sensitive-env-vars.md) — keys/tokens/encryption keys must be Replit Secrets (requestEnvVar secret), NEVER setEnvVars shared (writes git-tracked .replit → leaks).
+- [Dev/prod settings gap](dev-prod-settings-gap.md) — publish never wipes prod data; preview-edited settings don't carry over; prod DB is read-only to agent.
