@@ -13,6 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +49,8 @@ interface InvoiceItem {
   statusName: string | null;
   eligible: boolean;
   ineligibleReason: string | null;
+  statusExclusionApplied: boolean;
+  canOverrideStatusExclusion: boolean;
   alreadyUsed: boolean;
   existingAwardId: number | null;
   rewardAmount: number | null;
@@ -75,12 +87,14 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [overrideConfirmationOpen, setOverrideConfirmationOpen] = useState(false);
 
   function reset() {
     setSelectedRuleId("");
     setQuery("");
     setResult(null);
     setSelectedInvoice(null);
+    setOverrideConfirmationOpen(false);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -110,7 +124,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
     }
   }
 
-  async function handleElect() {
+  async function handleElect(overrideStatusExclusion = false) {
     if (!selectedInvoice || !selectedRuleId) return;
     setSubmitting(true);
     try {
@@ -120,6 +134,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
         body: JSON.stringify({
           ruleId: Number(selectedRuleId),
           invoiceVisualId: selectedInvoice.visualId,
+          overrideStatusExclusion,
         }),
       });
       const data = await response.json();
@@ -130,7 +145,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
       ]);
       toast({
         title: "Invoice elected",
-        description: `${formatCurrency(data.amount)} is now in Pending and must be approved before it is issued.`,
+        description: `${formatCurrency(data.amount)} is now in Pending and must be approved before it is issued.${overrideStatusExclusion ? " The status exclusion was overridden." : ""}`,
       });
       handleOpenChange(false);
     } catch (error) {
@@ -145,7 +160,8 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -210,7 +226,10 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
             <div className="border border-border rounded-lg divide-y divide-border">
               {result.invoices.length ? (
                 result.invoices.map((invoice) => {
-                  const selectable = invoice.eligible && !invoice.alreadyUsed && (invoice.rewardAmount ?? 0) > 0;
+                  const selectable =
+                    (invoice.eligible || invoice.canOverrideStatusExclusion) &&
+                    !invoice.alreadyUsed &&
+                    (invoice.rewardAmount ?? 0) > 0;
                   const selected = selectedInvoice?.id === invoice.id;
                   return (
                     <button
@@ -245,6 +264,11 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                               : invoice.ineligibleReason ?? "This invoice does not produce a reward under this rule."}
                           </div>
                         )}
+                        {selectable && invoice.canOverrideStatusExclusion && (
+                          <div className="text-xs text-amber-700 mt-1">
+                            {invoice.ineligibleReason} Select this invoice to override the exclusion with confirmation.
+                          </div>
+                        )}
                       </div>
                       <a
                         href={printavoOrderUrl(invoice.id)}
@@ -277,7 +301,13 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
           <Button
             type="button"
-            onClick={handleElect}
+            onClick={() => {
+              if (selectedInvoice?.canOverrideStatusExclusion) {
+                setOverrideConfirmationOpen(true);
+              } else {
+                void handleElect(false);
+              }
+            }}
             disabled={!selectedInvoice || submitting}
             data-testid="button-confirm-elect-invoice"
           >
@@ -285,7 +315,31 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
             Add to Pending
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={overrideConfirmationOpen} onOpenChange={setOverrideConfirmationOpen}>
+        <AlertDialogContent data-testid="dialog-confirm-status-override">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are You Sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Invoice #{selectedInvoice?.visualId} has status “{selectedInvoice?.statusName ?? "Unknown"},”
+              which is excluded by {result?.ruleName ?? "this rule"}. This will override only the status
+              exclusion. Every other rule condition, duplicate check, and annual limit will still be enforced.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Go Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleElect(true)}
+              disabled={submitting}
+              data-testid="button-confirm-status-override"
+            >
+              Yes, Override Exclusion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

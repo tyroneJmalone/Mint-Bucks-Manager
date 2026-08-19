@@ -13,4 +13,6 @@ export interface ElectedAwardRequest {
      * @minLength 1
      */
   invoiceVisualId: string;
+  /** Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced. */
+  overrideStatusExclusion?: boolean;
 }

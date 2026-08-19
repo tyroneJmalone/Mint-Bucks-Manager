@@ -13,6 +13,7 @@ import {
   RejectRewardAwardParams,
   SendTestRewardEmailBody,
   UpsertOrderNoteBody,
+  CreateElectedRewardAwardBody,
 } from "@workspace/api-zod";
 import {
   getRewardsConfig,
@@ -32,6 +33,7 @@ import {
   computePipelinePreview,
   invalidatePipelineCache,
   invoiceMatchesRule,
+  evaluateInvoiceRule,
   computeAward,
   findExistingAwardForInvoice,
   createCombinedAward,
@@ -682,35 +684,10 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
           totalMax: mode === "combine" ? undefined : (rule.conditions as Record<string, unknown>)?.totalMax,
         },
       };
-      const eligible = invoiceMatchesRule(inv, ruleForEligibilityCheck as typeof rule);
-      let ineligibleReason: string | null = null;
-      if (!eligible) {
-        // Determine which condition failed for a useful message.
-        if (rule.startsAt && Date.now() < new Date(rule.startsAt).getTime()) {
-          ineligibleReason = "Rule has not started yet";
-        } else if (rule.endsAt && Date.now() > new Date(rule.endsAt).getTime()) {
-          ineligibleReason = "Rule has ended";
-        } else {
-          const cond = rule.conditions as Record<string, unknown>;
-          if (cond.statusNameExclude && inv.statusName) {
-            ineligibleReason = `Status "${inv.statusName}" is excluded by this rule`;
-          } else if (cond.statusNameAny) {
-            ineligibleReason = "Order status does not match the rule's required statuses";
-          } else if (cond.paidDateFrom || cond.paidDateTo) {
-            ineligibleReason = "Paid date is outside the rule's window";
-          } else if (cond.invoiceDateFrom || cond.invoiceDateTo) {
-            ineligibleReason = "Invoice date is outside the rule's window";
-          } else if (cond.invoiceAtFrom || cond.invoiceAtTo) {
-            ineligibleReason = "Invoice date is outside the rule's window";
-          } else if (cond.productionDateFrom || cond.productionDateTo) {
-            ineligibleReason = "Production date is outside the rule's window";
-          } else if (cond.tagAny) {
-            ineligibleReason = "Invoice does not have the required tags";
-          } else {
-            ineligibleReason = "Invoice does not meet the rule conditions";
-          }
-        }
-      }
+      const eligibility = evaluateInvoiceRule(inv, ruleForEligibilityCheck as typeof rule);
+      const eligible = eligibility.eligible;
+      const canOverrideStatusExclusion =
+        mode === "elect" && eligibility.canOverrideStatusExclusion;
 
       const existingAward = await findExistingAwardForInvoice(rule.id, inv.id);
       return {
@@ -729,10 +706,14 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         invoiceAt: inv.invoiceAt ?? null,
         tags: inv.tags,
         eligible,
-        ineligibleReason,
+        ineligibleReason: eligibility.ineligibleReason,
+        statusExclusionApplied: eligibility.statusExclusionApplied,
+        canOverrideStatusExclusion,
         alreadyUsed: !!existingAward,
         existingAwardId: existingAward?.id ?? null,
-        rewardAmount: mode === "elect" && eligible ? computeAward(inv, rule) : null,
+        rewardAmount: mode === "elect" && (eligible || canOverrideStatusExclusion)
+          ? computeAward(inv, rule)
+          : null,
       };
     }),
   );
@@ -791,13 +772,12 @@ router.post("/rewards/combined-award", async (req, res): Promise<void> => {
 
 // Staff-elected single-invoice rewards always enter Pending for approval.
 router.post("/rewards/elected-award", async (req, res): Promise<void> => {
-  const body = req.body as { ruleId?: unknown; invoiceVisualId?: unknown };
-  const ruleId = typeof body.ruleId === "number" ? body.ruleId : parseInt(String(body.ruleId ?? ""), 10);
-  const invoiceVisualId = String(body.invoiceVisualId ?? "").trim();
-  if (isNaN(ruleId) || !invoiceVisualId) {
-    res.status(400).json({ error: "ruleId and invoiceVisualId are required" });
+  const parsed = CreateElectedRewardAwardBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { ruleId, invoiceVisualId, overrideStatusExclusion } = parsed.data;
   const printavoConfig = await getPrintavoConfig();
   if (!printavoConfig) {
     res.status(400).json({ error: "Printavo is not configured" });
@@ -809,6 +789,7 @@ router.post("/rewards/elected-award", async (req, res): Promise<void> => {
     printavoConfig,
     await getRewardsConfig(),
     req.staffEmail ?? null,
+    overrideStatusExclusion,
   );
   if (!result.ok) {
     res.status(result.status).json({ error: result.error });

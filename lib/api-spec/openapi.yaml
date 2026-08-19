@@ -2090,7 +2090,7 @@ components:
 
     CombineInvoiceItem:
       type: object
-      required: [id, visualId, customerName, customerEmail, eligible, alreadyUsed]
+      required: [id, visualId, customerName, customerEmail, eligible, statusExclusionApplied, canOverrideStatusExclusion, alreadyUsed]
       properties:
         id:
           type: string
@@ -2130,6 +2130,12 @@ components:
         ineligibleReason:
           type: ["string", "null"]
           description: Human-readable explanation if the invoice is not eligible
+        statusExclusionApplied:
+          type: boolean
+          description: Whether the invoice's exact Printavo status is explicitly excluded by the selected rule.
+        canOverrideStatusExclusion:
+          type: boolean
+          description: Whether staff may elect this invoice by confirming a status-only exclusion override.
         alreadyUsed:
           type: boolean
           description: Whether this invoice already has an active pending/processing/issued award for this rule
@@ -2192,6 +2198,10 @@ components:
           type: string
           minLength: 1
           description: Printavo order number shown to users.
+        overrideStatusExclusion:
+          type: boolean
+          default: false
+          description: Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced.
 
     ElectedAwardResult:
       type: object

@@ -1366,6 +1366,8 @@ export const SearchRewardInvoicesResponse = zod.object({
   "tags": zod.array(zod.string()).optional(),
   "eligible": zod.boolean().describe('Whether this invoice satisfies the rule\'s date windows and status conditions'),
   "ineligibleReason": zod.string().nullish().describe('Human-readable explanation if the invoice is not eligible'),
+  "statusExclusionApplied": zod.boolean().describe('Whether the invoice\'s exact Printavo status is explicitly excluded by the selected rule.'),
+  "canOverrideStatusExclusion": zod.boolean().describe('Whether staff may elect this invoice by confirming a status-only exclusion override.'),
   "alreadyUsed": zod.boolean().describe('Whether this invoice already has an active pending\/processing\/issued award for this rule'),
   "existingAwardId": zod.number().nullish(),
   "rewardAmount": zod.number().nullish().describe('Calculated single-invoice reward in elect mode; null in combine mode.')
@@ -1399,11 +1401,12 @@ export const CreateCombinedRewardAwardResponse = zod.object({
  * @summary Elect one paid Printavo invoice for a rule-based reward that waits in Pending
  */
 
-
+export const createElectedRewardAwardBodyOverrideStatusExclusionDefault = false;
 
 export const CreateElectedRewardAwardBody = zod.object({
   "ruleId": zod.number(),
-  "invoiceVisualId": zod.string().min(1).describe('Printavo order number shown to users.')
+  "invoiceVisualId": zod.string().min(1).describe('Printavo order number shown to users.'),
+  "overrideStatusExclusion": zod.boolean().default(createElectedRewardAwardBodyOverrideStatusExclusionDefault).describe('Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced.')
 })
 
 export const CreateElectedRewardAwardResponse = zod.object({

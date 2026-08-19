@@ -22,6 +22,14 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   status: text("status").notNull().default("pending"),
   /** How the award entered the ledger: scan, combined invoices, or staff election. */
   source: text("source").notNull().default("scan"),
+  /**
+   * Exact Printavo status for which staff confirmed an election override.
+   * Null for ordinary awards. A later scan honors the override only while the
+   * live invoice still has this status and every non-status rule condition passes.
+   */
+  statusExclusionOverride: text("status_exclusion_override"),
+  /** Staff email that confirmed the status exclusion override. */
+  statusExclusionOverriddenBy: text("status_exclusion_overridden_by"),
   creditId: integer("credit_id"),
   note: text("note"),
   /** Email of the staff member who approved this award (null for auto-issued). */

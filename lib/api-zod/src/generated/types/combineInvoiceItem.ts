@@ -38,6 +38,10 @@ export interface CombineInvoiceItem {
      * @nullable
      */
   ineligibleReason?: string | null;
+  /** Whether the invoice's exact Printavo status is explicitly excluded by the selected rule. */
+  statusExclusionApplied: boolean;
+  /** Whether staff may elect this invoice by confirming a status-only exclusion override. */
+  canOverrideStatusExclusion: boolean;
   /** Whether this invoice already has an active pending/processing/issued award for this rule */
   alreadyUsed: boolean;
   /** @nullable */
