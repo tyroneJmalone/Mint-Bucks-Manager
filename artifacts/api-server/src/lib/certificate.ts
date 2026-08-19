@@ -1,17 +1,12 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import path from "path";
+import { getAppUrl } from "./appUrl";
 
 const BUSINESS_NAME = "Mint Printworks";
 
 // Logo is copied into dist/assets/ by build.mjs
 const LOGO_PATH = path.join(__dirname, "assets", "logo.png");
-
-function getAppUrl(): string {
-  if (process.env.APP_URL) return process.env.APP_URL;
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return "";
-}
 
 const COLOR_DARK = "#16261c";
 const COLOR_MINT = "#7CC24D";

@@ -4,6 +4,7 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import { db, emailLogTable } from "@workspace/db";
 import { logger } from "./logger";
+import { getAppUrl } from "./appUrl";
 
 interface EmailLogMeta {
   emailType: string;
@@ -16,11 +17,6 @@ interface EmailLogMeta {
 const BUSINESS_NAME = "Mint Printworks";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? `noreply@mintprintworks.com`;
 
-function getAppUrl(): string {
-  if (process.env.APP_URL) return process.env.APP_URL;
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return "";
-}
 
 function logoImgTag(): string {
   const url = getAppUrl();

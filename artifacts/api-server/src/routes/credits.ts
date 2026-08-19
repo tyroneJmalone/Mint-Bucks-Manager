@@ -19,6 +19,7 @@ import { getSetting, getPrintavoConfig } from "../lib/settings";
 import { fetchOrderByNumber } from "../lib/printavo";
 import { generateCertificatePdf, generateQrPng } from "../lib/certificate";
 import { normalizeEmailImage } from "../lib/objectImages";
+import { getAppUrl } from "../lib/appUrl";
 
 const router: IRouter = Router();
 
@@ -456,7 +457,7 @@ router.get("/credits/:id/qr", async (req, res): Promise<void> => {
     return;
   }
 
-  const appUrl = process.env.APP_URL ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+  const appUrl = getAppUrl();
   const checkUrl = `${appUrl}/check/${result.credit.code}`;
 
   const qrBuffer = await generateQrPng(checkUrl);
