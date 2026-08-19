@@ -169,8 +169,12 @@ router.post("/credits", async (req, res): Promise<void> => {
 
   // Send issuance email (non-blocking). Manual issues use the custom verbiage
   // saved in settings (null = default template).
-  Promise.all([getSetting("manual_issued_email_subject"), getSetting("manual_issued_email_body")])
-    .then(([customSubject, customBody]) =>
+  Promise.all([
+    getSetting("manual_issued_email_subject"),
+    getSetting("manual_issued_email_body"),
+    getSetting("manual_issued_email_image"),
+  ])
+    .then(([customSubject, customBody, templateImage]) =>
       sendCreditIssuedEmail({
         customerName: customer.name,
         customerEmail: customer.email,
@@ -181,7 +185,9 @@ router.post("/credits", async (req, res): Promise<void> => {
         note: credit.note,
         creditId: credit.id,
         customerId: customer.id,
-        imageObjectPath: credit.imageObjectPath,
+        // Per-credit image (attached at issue time) wins; otherwise the
+        // template-level image saved in the email templates editor.
+        imageObjectPath: credit.imageObjectPath ?? templateImage,
         triggeredBy: req.staffEmail ?? null,
         customSubject,
         customBody,
@@ -381,20 +387,12 @@ router.post("/credits/:id/remind", async (req, res): Promise<void> => {
     return;
   }
 
-  // Prefer the credit's own image (manual issue); fall back to the source
-  // rule's image if the credit came from a reward rule.
-  let imageObjectPath: string | null = credit.imageObjectPath ?? null;
-  if (!imageObjectPath && credit.sourceRuleId != null) {
-    const [rule] = await db
-      .select({ imageObjectPath: rewardRulesTable.imageObjectPath })
-      .from(rewardRulesTable)
-      .where(eq(rewardRulesTable.id, credit.sourceRuleId));
-    imageObjectPath = rule?.imageObjectPath ?? null;
-  }
-
-  const [reminderSubject, reminderBody] = await Promise.all([
+  // Reminder emails use the template-level image saved in the email
+  // templates editor (no credit/rule image fallback).
+  const [reminderSubject, reminderBody, imageObjectPath] = await Promise.all([
     getSetting("manual_reminder_email_subject"),
     getSetting("manual_reminder_email_body"),
+    getSetting("manual_reminder_email_image"),
   ]);
 
   const sent = await sendReminderEmail({

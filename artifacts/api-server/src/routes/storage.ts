@@ -6,6 +6,7 @@ import {
 import { Router, type IRouter, type Request, type Response } from 'express';
 
 import { ObjectPermission } from '../lib/objectAcl';
+import { normalizeEmailImage } from '../lib/objectImages';
 import {
   ObjectNotFoundError,
   ObjectStorageService,
@@ -50,6 +51,31 @@ router.post(
     } catch (error) {
       req.log.error({ err: error }, 'Error generating upload URL');
       res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+  },
+);
+
+/**
+ * POST /storage/uploads/finalize-email-image
+ *
+ * Normalize a freshly-uploaded image path and mark it publicly readable so it
+ * can be previewed in the UI and embedded in emails before (or without) being
+ * persisted on a rule or template. Staff auth is enforced upstream.
+ */
+router.post(
+  '/storage/uploads/finalize-email-image',
+  async (req: Request, res: Response) => {
+    const raw = (req.body as { objectPath?: unknown })?.objectPath;
+    if (typeof raw !== 'string' || !raw) {
+      res.status(400).json({ error: 'objectPath is required' });
+      return;
+    }
+    try {
+      const objectPath = await normalizeEmailImage(raw);
+      res.json({ objectPath });
+    } catch {
+      res.status(400).json({ error: 'Invalid image upload path' });
+      return;
     }
   },
 );

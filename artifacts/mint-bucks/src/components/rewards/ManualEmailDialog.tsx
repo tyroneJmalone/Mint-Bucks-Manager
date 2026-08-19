@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import {
   useGetEmailTemplates,
   useUpdateEmailTemplates,
@@ -30,6 +31,7 @@ interface ManualEmailDialogProps {
 interface SectionDef {
   subjectField: "issuedEmailSubject" | "reminderEmailSubject" | "printavoEmailSubject";
   bodyField: "issuedEmailBody" | "reminderEmailBody" | "printavoEmailBody";
+  imageField: "issuedEmailImage" | "reminderEmailImage" | "printavoEmailImage";
   emailType: "issued" | "reminder" | "printavo_notification";
   title: string;
   hint: string;
@@ -42,6 +44,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "issuedEmailSubject",
     bodyField: "issuedEmailBody",
+    imageField: "issuedEmailImage",
     emailType: "issued",
     title: "Manual issue email",
     hint: "Sent when you issue Mint Bucks by hand from the Issue page.",
@@ -52,6 +55,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "reminderEmailSubject",
     bodyField: "reminderEmailBody",
+    imageField: "reminderEmailImage",
     emailType: "reminder",
     title: "Manual reminder email",
     hint: "Sent when you click \"Send Reminder\" on a credit.",
@@ -62,6 +66,7 @@ const SECTIONS: SectionDef[] = [
   {
     subjectField: "printavoEmailSubject",
     bodyField: "printavoEmailBody",
+    imageField: "printavoEmailImage",
     emailType: "printavo_notification",
     title: "New-order notification email",
     hint: "Sent automatically when a customer with unspent Mint Bucks gets a new Printavo quote or invoice. Extra placeholder: {{orderNumber}}.",
@@ -81,8 +86,39 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
   const updateTemplates = useUpdateEmailTemplates();
 
   const [values, setValues] = useState<Record<string, string>>({});
+  const [images, setImages] = useState<Record<string, string | null>>({});
   const [testEmail, setTestEmail] = useState("");
   const sendTestEmail = useSendTestRewardEmail();
+
+  // One shared uploader: the file input that triggered the upload records
+  // which section's image field the result belongs to.
+  const uploadTargetRef = useRef<SectionDef["imageField"] | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: async (response) => {
+      const target = uploadTargetRef.current;
+      uploadTargetRef.current = null;
+      if (!target) return;
+      try {
+        // Mark the fresh upload publicly readable so the in-dialog preview and
+        // unsaved "Send test" emails can display it immediately.
+        const res = await fetch("/api/storage/uploads/finalize-email-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ objectPath: response.objectPath }),
+        });
+        if (!res.ok) throw new Error("Failed to finalize image");
+        const { objectPath } = (await res.json()) as { objectPath: string };
+        setImages((prev) => ({ ...prev, [target]: objectPath }));
+      } catch (err) {
+        toast({ title: "Image upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+      }
+    },
+    onError: (err) => {
+      uploadTargetRef.current = null;
+      toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   function handleSendTest(section: SectionDef) {
     if (!testEmail.trim()) {
@@ -97,6 +133,7 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
           amount: 25,
           customSubject: (values[section.subjectField] ?? "").trim() || null,
           customBody: (values[section.bodyField] ?? "").trim() || null,
+          imageObjectPath: images[section.imageField] ?? null,
         },
       },
       {
@@ -109,17 +146,21 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
   useEffect(() => {
     if (!open) return;
     const next: Record<string, string> = {};
+    const nextImages: Record<string, string | null> = {};
     for (const s of SECTIONS) {
       next[s.subjectField] = data?.[s.subjectField] ?? "";
       next[s.bodyField] = data?.[s.bodyField] ?? "";
+      nextImages[s.imageField] = data?.[s.imageField] ?? null;
     }
     setValues(next);
+    setImages(nextImages);
   }, [open, data]);
 
   function handleSave() {
-    const payload = Object.fromEntries(
-      Object.entries(values).map(([k, v]) => [k, v.trim() || null]),
-    );
+    const payload = {
+      ...Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.trim() || null])),
+      ...images,
+    };
     updateTemplates.mutate(
       { data: payload },
       {
@@ -166,6 +207,63 @@ export function ManualEmailDialog({ open, onOpenChange }: ManualEmailDialogProps
                 disabled={isLoading}
                 data-testid={`textarea-${s.testId}-body`}
               />
+              <input
+                ref={(el) => { fileInputRefs.current[s.imageField] = el; }}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                data-testid={`input-${s.testId}-image-file`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadTargetRef.current = s.imageField;
+                    uploadFile(file);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              {images[s.imageField] ? (
+                <div className="flex items-center gap-3">
+                  <img
+                    src={`/api/storage${images[s.imageField]}`}
+                    alt="Email image"
+                    className="h-16 w-16 rounded-md object-cover border border-border"
+                    data-testid={`img-${s.testId}-image-preview`}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploading}
+                      onClick={() => { fileInputRefs.current[s.imageField]?.click(); }}
+                      data-testid={`button-${s.testId}-replace-image`}
+                    >
+                      {isUploading ? "Uploading…" : "Replace image"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setImages((prev) => ({ ...prev, [s.imageField]: null }))}
+                      data-testid={`button-${s.testId}-remove-image`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploading}
+                  onClick={() => { fileInputRefs.current[s.imageField]?.click(); }}
+                  data-testid={`button-${s.testId}-upload-image`}
+                >
+                  {isUploading && uploadTargetRef.current === s.imageField ? "Uploading…" : "Upload image (optional)"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

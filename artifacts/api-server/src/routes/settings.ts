@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { getSetting, setSetting, getStaffAllowlist, setStaffAllowlist } from "../lib/settings";
+import { normalizeEmailImage } from "../lib/objectImages";
 import { UpdateEmailTemplatesBody } from "@workspace/api-zod";
 import { invalidateApprovalCache } from "../middlewares/requireAuth";
 import { startPoller, stopPoller } from "../lib/poller";
@@ -93,7 +94,13 @@ const EMAIL_TEMPLATE_FIELDS = [
   ["reminderEmailBody", "manual_reminder_email_body"],
   ["printavoEmailSubject", "printavo_notification_email_subject"],
   ["printavoEmailBody", "printavo_notification_email_body"],
+  ["issuedEmailImage", "manual_issued_email_image"],
+  ["reminderEmailImage", "manual_reminder_email_image"],
+  ["printavoEmailImage", "printavo_notification_email_image"],
 ] as const;
+
+/** Fields whose value is an uploaded object path that must be normalized and made public. */
+const IMAGE_FIELDS = new Set(["issuedEmailImage", "reminderEmailImage", "printavoEmailImage"]);
 
 async function readEmailTemplates(): Promise<Record<string, string | null>> {
   const values = await Promise.all(EMAIL_TEMPLATE_FIELDS.map(([, key]) => getSetting(key)));
@@ -112,9 +119,19 @@ router.put("/settings/email-templates", async (req, res): Promise<void> => {
   }
   const b = parsed.data as Record<string, string | null | undefined>;
   for (const [field, key] of EMAIL_TEMPLATE_FIELDS) {
-    if (b[field] !== undefined) {
-      await setSetting(key, b[field]?.trim() || null);
+    if (b[field] === undefined) continue;
+    let value = b[field]?.trim() || null;
+    if (value && IMAGE_FIELDS.has(field)) {
+      try {
+        // Normalize the upload path and mark it publicly readable so email
+        // clients can load it without auth.
+        value = await normalizeEmailImage(value);
+      } catch {
+        res.status(400).json({ error: `Invalid image upload path for ${field}` });
+        return;
+      }
     }
+    await setSetting(key, value);
   }
   res.json(await readEmailTemplates());
 });

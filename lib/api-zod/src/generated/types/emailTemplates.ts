@@ -37,4 +37,19 @@ export interface EmailTemplates {
      * @nullable
      */
   printavoEmailBody?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  issuedEmailImage?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  reminderEmailImage?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  printavoEmailImage?: string | null;
 }

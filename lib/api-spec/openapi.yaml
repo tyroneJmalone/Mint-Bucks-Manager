@@ -1766,6 +1766,15 @@ components:
         printavoEmailBody:
           type: ["string", "null"]
           maxLength: 5000
+        issuedEmailImage:
+          type: ["string", "null"]
+          maxLength: 500
+        reminderEmailImage:
+          type: ["string", "null"]
+          maxLength: 500
+        printavoEmailImage:
+          type: ["string", "null"]
+          maxLength: 500
 
     EmailLogEntry:
       type: object

@@ -630,6 +630,12 @@ export const getEmailTemplatesResponsePrintavoEmailSubjectMax = 300;
 
 export const getEmailTemplatesResponsePrintavoEmailBodyMax = 5000;
 
+export const getEmailTemplatesResponseIssuedEmailImageMax = 500;
+
+export const getEmailTemplatesResponseReminderEmailImageMax = 500;
+
+export const getEmailTemplatesResponsePrintavoEmailImageMax = 500;
+
 
 
 export const GetEmailTemplatesResponse = zod.object({
@@ -638,7 +644,10 @@ export const GetEmailTemplatesResponse = zod.object({
   "reminderEmailSubject": zod.string().max(getEmailTemplatesResponseReminderEmailSubjectMax).nullish(),
   "reminderEmailBody": zod.string().max(getEmailTemplatesResponseReminderEmailBodyMax).nullish(),
   "printavoEmailSubject": zod.string().max(getEmailTemplatesResponsePrintavoEmailSubjectMax).nullish(),
-  "printavoEmailBody": zod.string().max(getEmailTemplatesResponsePrintavoEmailBodyMax).nullish()
+  "printavoEmailBody": zod.string().max(getEmailTemplatesResponsePrintavoEmailBodyMax).nullish(),
+  "issuedEmailImage": zod.string().max(getEmailTemplatesResponseIssuedEmailImageMax).nullish(),
+  "reminderEmailImage": zod.string().max(getEmailTemplatesResponseReminderEmailImageMax).nullish(),
+  "printavoEmailImage": zod.string().max(getEmailTemplatesResponsePrintavoEmailImageMax).nullish()
 })
 
 
@@ -657,6 +666,12 @@ export const updateEmailTemplatesBodyPrintavoEmailSubjectMax = 300;
 
 export const updateEmailTemplatesBodyPrintavoEmailBodyMax = 5000;
 
+export const updateEmailTemplatesBodyIssuedEmailImageMax = 500;
+
+export const updateEmailTemplatesBodyReminderEmailImageMax = 500;
+
+export const updateEmailTemplatesBodyPrintavoEmailImageMax = 500;
+
 
 
 export const UpdateEmailTemplatesBody = zod.object({
@@ -665,7 +680,10 @@ export const UpdateEmailTemplatesBody = zod.object({
   "reminderEmailSubject": zod.string().max(updateEmailTemplatesBodyReminderEmailSubjectMax).nullish(),
   "reminderEmailBody": zod.string().max(updateEmailTemplatesBodyReminderEmailBodyMax).nullish(),
   "printavoEmailSubject": zod.string().max(updateEmailTemplatesBodyPrintavoEmailSubjectMax).nullish(),
-  "printavoEmailBody": zod.string().max(updateEmailTemplatesBodyPrintavoEmailBodyMax).nullish()
+  "printavoEmailBody": zod.string().max(updateEmailTemplatesBodyPrintavoEmailBodyMax).nullish(),
+  "issuedEmailImage": zod.string().max(updateEmailTemplatesBodyIssuedEmailImageMax).nullish(),
+  "reminderEmailImage": zod.string().max(updateEmailTemplatesBodyReminderEmailImageMax).nullish(),
+  "printavoEmailImage": zod.string().max(updateEmailTemplatesBodyPrintavoEmailImageMax).nullish()
 })
 
 export const updateEmailTemplatesResponseIssuedEmailSubjectMax = 300;
@@ -680,6 +698,12 @@ export const updateEmailTemplatesResponsePrintavoEmailSubjectMax = 300;
 
 export const updateEmailTemplatesResponsePrintavoEmailBodyMax = 5000;
 
+export const updateEmailTemplatesResponseIssuedEmailImageMax = 500;
+
+export const updateEmailTemplatesResponseReminderEmailImageMax = 500;
+
+export const updateEmailTemplatesResponsePrintavoEmailImageMax = 500;
+
 
 
 export const UpdateEmailTemplatesResponse = zod.object({
@@ -688,7 +712,10 @@ export const UpdateEmailTemplatesResponse = zod.object({
   "reminderEmailSubject": zod.string().max(updateEmailTemplatesResponseReminderEmailSubjectMax).nullish(),
   "reminderEmailBody": zod.string().max(updateEmailTemplatesResponseReminderEmailBodyMax).nullish(),
   "printavoEmailSubject": zod.string().max(updateEmailTemplatesResponsePrintavoEmailSubjectMax).nullish(),
-  "printavoEmailBody": zod.string().max(updateEmailTemplatesResponsePrintavoEmailBodyMax).nullish()
+  "printavoEmailBody": zod.string().max(updateEmailTemplatesResponsePrintavoEmailBodyMax).nullish(),
+  "issuedEmailImage": zod.string().max(updateEmailTemplatesResponseIssuedEmailImageMax).nullish(),
+  "reminderEmailImage": zod.string().max(updateEmailTemplatesResponseReminderEmailImageMax).nullish(),
+  "printavoEmailImage": zod.string().max(updateEmailTemplatesResponsePrintavoEmailImageMax).nullish()
 })
 
 
