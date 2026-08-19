@@ -24,4 +24,9 @@ export interface RuleReminderInput {
      * @nullable
      */
   emailBody?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  emailImage?: string | null;
 }

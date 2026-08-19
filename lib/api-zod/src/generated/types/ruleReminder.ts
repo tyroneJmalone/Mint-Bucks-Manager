@@ -15,4 +15,6 @@ export interface RuleReminder {
   emailSubject?: string | null;
   /** @nullable */
   emailBody?: string | null;
+  /** @nullable */
+  emailImage?: string | null;
 }

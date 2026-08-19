@@ -16,6 +16,8 @@ export const ruleRemindersTable = pgTable("rule_reminders", {
   offsetDays: integer("offset_days").notNull(),
   emailSubject: text("email_subject"),
   emailBody: text("email_body"),
+  // Optional image shown in this reminder step's email (canonical /objects/ path).
+  emailImage: text("email_image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   // One reminder step per rule/anchor/offset — duplicates would each claim

@@ -382,6 +382,8 @@ export interface RuleReminder {
   emailSubject?: string | null;
   /** @nullable */
   emailBody?: string | null;
+  /** @nullable */
+  emailImage?: string | null;
 }
 
 export interface RewardRule {
@@ -440,6 +442,11 @@ export interface RuleReminderInput {
      * @nullable
      */
   emailBody?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  emailImage?: string | null;
 }
 
 export type RewardRuleInputRewardType = typeof RewardRuleInputRewardType[keyof typeof RewardRuleInputRewardType];

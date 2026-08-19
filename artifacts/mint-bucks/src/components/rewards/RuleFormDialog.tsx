@@ -230,6 +230,7 @@ interface ReminderRow {
   offsetDays: string;
   emailSubject: string;
   emailBody: string;
+  emailImage: string | null;
 }
 
 export const PLACEHOLDER_HINT =
@@ -286,6 +287,35 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
     onError: (err) => toast({ title: "Image upload failed", description: err.message, variant: "destructive" }),
   });
 
+  // Per-reminder-step image uploads. Fresh uploads are finalized (made publicly
+  // readable + canonical path) so the in-form preview and test emails work
+  // before the rule is saved.
+  const reminderUploadIndexRef = useRef<number | null>(null);
+  const reminderFileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile: uploadReminderFile, isUploading: isReminderUploading } = useUpload({
+    onSuccess: async (response) => {
+      const index = reminderUploadIndexRef.current;
+      reminderUploadIndexRef.current = null;
+      if (index == null) return;
+      try {
+        const res = await fetch("/api/storage/uploads/finalize-email-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ objectPath: response.objectPath }),
+        });
+        if (!res.ok) throw new Error("Failed to finalize image");
+        const { objectPath } = (await res.json()) as { objectPath: string };
+        setReminders((prev) => prev.map((row, j) => (j === index ? { ...row, emailImage: objectPath } : row)));
+      } catch (err) {
+        toast({ title: "Image upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+      }
+    },
+    onError: (err) => {
+      reminderUploadIndexRef.current = null;
+      toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const [issuedSubject, setIssuedSubject] = useState("");
   const [issuedBody, setIssuedBody] = useState("");
   const [reminders, setReminders] = useState<ReminderRow[]>([]);
@@ -311,7 +341,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
     }
     // Tests use the custom verbiage currently in the form (issued fields, or
     // the first reminder step's content for reminder tests).
-    const firstReminder = reminders.find((r) => r.emailSubject.trim() || r.emailBody.trim());
+    const firstReminder = reminders.find((r) => r.emailSubject.trim() || r.emailBody.trim() || r.emailImage);
     sendTestEmail.mutate(
       {
         data: {
@@ -319,7 +349,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
           recipientEmail: testEmail.trim(),
           amount: sampleAmount,
           expiresAt: endsAt || null,
-          imageObjectPath,
+          imageObjectPath: emailType === "issued" ? imageObjectPath : firstReminder?.emailImage ?? null,
           customSubject: (emailType === "issued" ? issuedSubject : firstReminder?.emailSubject ?? "").trim() || null,
           customBody: (emailType === "issued" ? issuedBody : firstReminder?.emailBody ?? "").trim() || null,
         },
@@ -373,6 +403,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
           offsetDays: String(r.offsetDays),
           emailSubject: r.emailSubject ?? "",
           emailBody: r.emailBody ?? "",
+          emailImage: r.emailImage ?? null,
         })),
       );
       const c = rule.conditions ?? {};
@@ -487,6 +518,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
         offsetDays: parseInt(r.offsetDays, 10),
         emailSubject: r.emailSubject.trim() || null,
         emailBody: r.emailBody.trim() || null,
+        emailImage: r.emailImage,
       }));
     if (parsedReminders.some((r) => isNaN(r.offsetDays) || r.offsetDays < 1)) {
       toast({ title: "Reminder days must be a number of at least 1", variant: "destructive" });
@@ -763,6 +795,18 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                 Automatically remind customers who still have unspent Mint Bucks from this rule. Credits with a $0 balance are skipped. Each reminder can have its own message; blank uses the standard wording.
               </p>
             </div>
+            <input
+              ref={reminderFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              data-testid="input-reminder-image-file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file && reminderUploadIndexRef.current != null) uploadReminderFile(file);
+                e.target.value = "";
+              }}
+            />
             {reminders.map((r, i) => (
               <div key={i} className="rounded-md bg-muted/40 border border-border p-2.5 space-y-2">
                 <div className="flex items-center gap-2">
@@ -822,6 +866,59 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
                   }
                   data-testid={`textarea-reminder-body-${i}`}
                 />
+                {r.emailImage ? (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={`/api/storage${r.emailImage}`}
+                      alt="Reminder email image"
+                      className="h-14 w-14 rounded-md object-cover border border-border"
+                      data-testid={`img-reminder-image-preview-${i}`}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isReminderUploading}
+                        onClick={() => {
+                          reminderUploadIndexRef.current = i;
+                          reminderFileInputRef.current?.click();
+                        }}
+                        data-testid={`button-replace-reminder-image-${i}`}
+                      >
+                        {isReminderUploading ? "Uploading…" : "Replace"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive gap-1"
+                        onClick={() =>
+                          setReminders((prev) => prev.map((row, j) => (j === i ? { ...row, emailImage: null } : row)))
+                        }
+                        data-testid={`button-remove-reminder-image-${i}`}
+                      >
+                        <X className="w-3.5 h-3.5" /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={isReminderUploading}
+                    onClick={() => {
+                      reminderUploadIndexRef.current = i;
+                      reminderFileInputRef.current?.click();
+                    }}
+                    data-testid={`button-upload-reminder-image-${i}`}
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    {isReminderUploading ? "Uploading…" : "Add image (optional)"}
+                  </Button>
+                )}
               </div>
             ))}
             <Button
@@ -830,7 +927,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, onSaved }: RuleFormDi
               size="sm"
               className="gap-1.5"
               onClick={() =>
-                setReminders((prev) => [...prev, { anchor: "after_issue", offsetDays: "30", emailSubject: "", emailBody: "" }])
+                setReminders((prev) => [...prev, { anchor: "after_issue", offsetDays: "30", emailSubject: "", emailBody: "", emailImage: null }])
               }
               data-testid="button-add-reminder"
             >

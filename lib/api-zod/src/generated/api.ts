@@ -914,7 +914,8 @@ export const ListRewardRulesResponseItem = zod.object({
   "anchor": zod.enum(['after_issue', 'before_expiry']),
   "offsetDays": zod.number(),
   "emailSubject": zod.string().nullish(),
-  "emailBody": zod.string().nullish()
+  "emailBody": zod.string().nullish(),
+  "emailImage": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -934,6 +935,8 @@ export const createRewardRuleBodyRemindersItemOffsetDaysMax = 3650;
 export const createRewardRuleBodyRemindersItemEmailSubjectMax = 300;
 
 export const createRewardRuleBodyRemindersItemEmailBodyMax = 5000;
+
+export const createRewardRuleBodyRemindersItemEmailImageMax = 500;
 
 
 
@@ -973,7 +976,8 @@ export const CreateRewardRuleBody = zod.object({
   "anchor": zod.enum(['after_issue', 'before_expiry']),
   "offsetDays": zod.number().min(1).max(createRewardRuleBodyRemindersItemOffsetDaysMax),
   "emailSubject": zod.string().max(createRewardRuleBodyRemindersItemEmailSubjectMax).nullish(),
-  "emailBody": zod.string().max(createRewardRuleBodyRemindersItemEmailBodyMax).nullish()
+  "emailBody": zod.string().max(createRewardRuleBodyRemindersItemEmailBodyMax).nullish(),
+  "emailImage": zod.string().max(createRewardRuleBodyRemindersItemEmailImageMax).nullish()
 })).optional()
 })
 
@@ -1015,7 +1019,8 @@ export const CreateRewardRuleResponse = zod.object({
   "anchor": zod.enum(['after_issue', 'before_expiry']),
   "offsetDays": zod.number(),
   "emailSubject": zod.string().nullish(),
-  "emailBody": zod.string().nullish()
+  "emailBody": zod.string().nullish(),
+  "emailImage": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -1038,6 +1043,8 @@ export const updateRewardRuleBodyRemindersItemOffsetDaysMax = 3650;
 export const updateRewardRuleBodyRemindersItemEmailSubjectMax = 300;
 
 export const updateRewardRuleBodyRemindersItemEmailBodyMax = 5000;
+
+export const updateRewardRuleBodyRemindersItemEmailImageMax = 500;
 
 
 
@@ -1077,7 +1084,8 @@ export const UpdateRewardRuleBody = zod.object({
   "anchor": zod.enum(['after_issue', 'before_expiry']),
   "offsetDays": zod.number().min(1).max(updateRewardRuleBodyRemindersItemOffsetDaysMax),
   "emailSubject": zod.string().max(updateRewardRuleBodyRemindersItemEmailSubjectMax).nullish(),
-  "emailBody": zod.string().max(updateRewardRuleBodyRemindersItemEmailBodyMax).nullish()
+  "emailBody": zod.string().max(updateRewardRuleBodyRemindersItemEmailBodyMax).nullish(),
+  "emailImage": zod.string().max(updateRewardRuleBodyRemindersItemEmailImageMax).nullish()
 })).optional()
 })
 
@@ -1119,7 +1127,8 @@ export const UpdateRewardRuleResponse = zod.object({
   "anchor": zod.enum(['after_issue', 'before_expiry']),
   "offsetDays": zod.number(),
   "emailSubject": zod.string().nullish(),
-  "emailBody": zod.string().nullish()
+  "emailBody": zod.string().nullish(),
+  "emailImage": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()

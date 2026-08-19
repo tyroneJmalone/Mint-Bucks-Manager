@@ -358,7 +358,6 @@ export async function runReminderPass(emailSender: ReminderEmailSender = sendRem
     .select({
       reminder: ruleRemindersTable,
       ruleEnabled: rewardRulesTable.enabled,
-      ruleImage: rewardRulesTable.imageObjectPath,
     })
     .from(ruleRemindersTable)
     .innerJoin(rewardRulesTable, eq(rewardRulesTable.id, ruleRemindersTable.ruleId));
@@ -370,7 +369,7 @@ export async function runReminderPass(emailSender: ReminderEmailSender = sendRem
   const DAY_MS = 24 * 60 * 60 * 1000;
   let sentCount = 0;
 
-  for (const { reminder, ruleImage } of active) {
+  for (const { reminder } of active) {
     // Credits from this rule that still have a balance and are active.
     const dueCondition = reminder.anchor === "after_issue"
       ? lt(creditsTable.issuedAt, new Date(now - reminder.offsetDays * DAY_MS))
@@ -413,7 +412,7 @@ export async function runReminderPass(emailSender: ReminderEmailSender = sendRem
         note: credit.note,
         creditId: credit.id,
         customerId: customer.id,
-        imageObjectPath: credit.imageObjectPath ?? ruleImage ?? null,
+        imageObjectPath: reminder.emailImage ?? null,
         customSubject: reminder.emailSubject,
         customBody: reminder.emailBody,
         // Deterministic idempotency key for this (credit, reminder) pair.

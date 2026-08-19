@@ -68,6 +68,7 @@ function serializeRule(rule: typeof rewardRulesTable.$inferSelect, reminders: Ru
       offsetDays: r.offsetDays,
       emailSubject: r.emailSubject,
       emailBody: r.emailBody,
+      emailImage: r.emailImage,
     })),
   };
 }
@@ -93,6 +94,7 @@ interface ReminderInput {
   offsetDays: number;
   emailSubject?: string | null;
   emailBody?: string | null;
+  emailImage?: string | null;
 }
 
 /**
@@ -104,12 +106,17 @@ async function replaceReminders(ruleId: number, rawInputs: ReminderInput[]): Pro
   // Drop duplicate (anchor, offsetDays) steps — the DB also enforces this, but
   // deduping here keeps saves from failing when the UI submits repeats.
   const seen = new Set<string>();
-  const inputs = rawInputs.filter((r) => {
+  const deduped = rawInputs.filter((r) => {
     const key = `${r.anchor}:${r.offsetDays}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  // Normalize images (public ACL + canonical path) outside the transaction.
+  const inputs = await Promise.all(deduped.map(async (r) => ({
+    ...r,
+    emailImage: r.emailImage ? await normalizeEmailImage(r.emailImage) : null,
+  })));
   await db.transaction(async (tx) => {
     const existing = await tx.select().from(ruleRemindersTable).where(eq(ruleRemindersTable.ruleId, ruleId));
     const keep = new Set<number>();
@@ -119,7 +126,7 @@ async function replaceReminders(ruleId: number, rawInputs: ReminderInput[]): Pro
         keep.add(match.id);
         await tx
           .update(ruleRemindersTable)
-          .set({ emailSubject: input.emailSubject?.trim() || null, emailBody: input.emailBody?.trim() || null })
+          .set({ emailSubject: input.emailSubject?.trim() || null, emailBody: input.emailBody?.trim() || null, emailImage: input.emailImage })
           .where(eq(ruleRemindersTable.id, match.id));
       } else {
         await tx.insert(ruleRemindersTable).values({
@@ -128,6 +135,7 @@ async function replaceReminders(ruleId: number, rawInputs: ReminderInput[]): Pro
           offsetDays: input.offsetDays,
           emailSubject: input.emailSubject?.trim() || null,
           emailBody: input.emailBody?.trim() || null,
+          emailImage: input.emailImage,
         });
       }
     }
