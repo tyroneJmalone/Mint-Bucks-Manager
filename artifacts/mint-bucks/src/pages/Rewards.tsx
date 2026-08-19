@@ -20,6 +20,7 @@ import {
   StickyNote,
   Mail,
   Combine,
+  Vote,
 } from "lucide-react";
 import {
   useGetRewardsSummary,
@@ -76,6 +77,7 @@ import { cn } from "@/lib/utils";
 import { RuleFormDialog } from "@/components/rewards/RuleFormDialog";
 import { ManualEmailDialog } from "@/components/rewards/ManualEmailDialog";
 import { CombineInvoicesDialog } from "@/components/rewards/CombineInvoicesDialog";
+import { ElectInvoiceDialog } from "@/components/rewards/ElectInvoiceDialog";
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -327,6 +329,7 @@ export function Rewards() {
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [manualEmailDialogOpen, setManualEmailDialogOpen] = useState(false);
   const [combineDialogOpen, setCombineDialogOpen] = useState(false);
+  const [electDialogOpen, setElectDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RewardRule | null>(null);
   const [deletingRule, setDeletingRule] = useState<RewardRule | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
@@ -628,6 +631,17 @@ export function Rewards() {
             <Button
               variant="outline"
               className="gap-1.5 flex-shrink-0"
+              onClick={() => setElectDialogOpen(true)}
+              disabled={!enabled}
+              title="Choose a paid Printavo invoice and add its rule reward to Pending"
+              data-testid="button-elect-invoice"
+            >
+              <Vote className="w-4 h-4" />
+              Elect Invoice
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-1.5 flex-shrink-0"
               onClick={() => setCombineDialogOpen(true)}
               disabled={!enabled}
               title="Combine multiple paid invoices to qualify for a reward"
@@ -689,7 +703,19 @@ export function Rewards() {
                       <td className="px-5 py-3.5 text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-status-pending-${a.id}`}>
                         {a.statusName || "—"}
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground">{a.ruleName ?? `Rule ${a.ruleId}`}</td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                        <div>{a.ruleName ?? `Rule ${a.ruleId}`}</div>
+                        {a.source !== "scan" && (
+                          <span className={cn(
+                            "inline-flex mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                            a.source === "elected"
+                              ? "bg-violet-100 text-violet-700"
+                              : "bg-blue-100 text-blue-700",
+                          )}>
+                            {a.source === "elected" ? "Elected" : "Combined"}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3.5">
                         <OrderNoteCell invoiceId={a.printavoInvoiceId} note={a.internalNote} testId={`pending-${a.id}`} />
                       </td>
@@ -1211,6 +1237,11 @@ export function Rewards() {
       <CombineInvoicesDialog
         open={combineDialogOpen}
         onOpenChange={setCombineDialogOpen}
+      />
+
+      <ElectInvoiceDialog
+        open={electDialogOpen}
+        onOpenChange={setElectDialogOpen}
       />
 
       <AlertDialog open={!!deletingRule} onOpenChange={(o) => !o && setDeletingRule(null)}>

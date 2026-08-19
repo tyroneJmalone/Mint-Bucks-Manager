@@ -5,6 +5,7 @@
  * Mint Bucks promotional credit system for Mint Printworks
  * OpenAPI spec version: 0.1.0
  */
+import type { RewardAwardSource } from './rewardAwardSource';
 import type { RewardAwardStatus } from './rewardAwardStatus';
 
 export interface RewardAward {
@@ -49,6 +50,8 @@ export interface RewardAward {
      */
   productionDueAt?: string | null;
   status: RewardAwardStatus;
+  /** How the award entered the reward ledger. */
+  source: RewardAwardSource;
   /** @nullable */
   creditId?: number | null;
   /** @nullable */

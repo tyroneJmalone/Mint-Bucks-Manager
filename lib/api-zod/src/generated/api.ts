@@ -1170,6 +1170,7 @@ export const ListRewardAwardsResponseItem = zod.object({
   "statusName": zod.string().nullish().describe('Printavo order status name at the last scan (refreshed while pending).'),
   "productionDueAt": zod.string().nullish().describe('Printavo production due date at the last scan (refreshed while pending).'),
   "status": zod.enum(['processing', 'pending', 'issued', 'rejected']),
+  "source": zod.enum(['scan', 'combined', 'elected']).describe('How the award entered the reward ledger.'),
   "creditId": zod.number().nullish(),
   "note": zod.string().nullish(),
   "internalNote": zod.string().nullish().describe('Internal staff note attached to the Printavo order (shared with the Pipeline view).'),
@@ -1339,9 +1340,12 @@ export const GetRewardsPipelineResponse = zod.object({
 /**
  * @summary Search Printavo for fully-paid invoices that could be combined to qualify for a reward
  */
+export const searchRewardInvoicesQueryModeDefault = `combine`;
+
 export const SearchRewardInvoicesQueryParams = zod.object({
   "query": zod.coerce.string().describe('Free-text search (customer name, order number, nickname, etc.)'),
-  "ruleId": zod.coerce.number().describe('Rule to evaluate eligibility against')
+  "ruleId": zod.coerce.number().describe('Rule to evaluate eligibility against'),
+  "mode": zod.enum(['combine', 'elect']).default(searchRewardInvoicesQueryModeDefault).describe('Use elect to evaluate all rule conditions and return a single-invoice reward amount.')
 })
 
 export const SearchRewardInvoicesResponse = zod.object({
@@ -1363,7 +1367,8 @@ export const SearchRewardInvoicesResponse = zod.object({
   "eligible": zod.boolean().describe('Whether this invoice satisfies the rule\'s date windows and status conditions'),
   "ineligibleReason": zod.string().nullish().describe('Human-readable explanation if the invoice is not eligible'),
   "alreadyUsed": zod.boolean().describe('Whether this invoice already has an active pending\/processing\/issued award for this rule'),
-  "existingAwardId": zod.number().nullish()
+  "existingAwardId": zod.number().nullish(),
+  "rewardAmount": zod.number().nullish().describe('Calculated single-invoice reward in elect mode; null in combine mode.')
 })),
   "ruleId": zod.number(),
   "ruleName": zod.string()
@@ -1387,6 +1392,23 @@ export const CreateCombinedRewardAwardResponse = zod.object({
   "amount": zod.number(),
   "invoiceCount": zod.number(),
   "combinedTotal": zod.number()
+})
+
+
+/**
+ * @summary Elect one paid Printavo invoice for a rule-based reward that waits in Pending
+ */
+
+
+
+export const CreateElectedRewardAwardBody = zod.object({
+  "ruleId": zod.number(),
+  "invoiceVisualId": zod.string().min(1).describe('Printavo order number shown to users.')
+})
+
+export const CreateElectedRewardAwardResponse = zod.object({
+  "awardId": zod.number(),
+  "amount": zod.number()
 })
 
 

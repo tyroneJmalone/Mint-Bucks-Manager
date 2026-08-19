@@ -32,8 +32,10 @@ import {
   computePipelinePreview,
   invalidatePipelineCache,
   invoiceMatchesRule,
+  computeAward,
   findExistingAwardForInvoice,
   createCombinedAward,
+  createElectedAward,
   type RewardTypeValue,
 } from "../lib/rewards";
 import { runRewardsPoll, startPoller } from "../lib/poller";
@@ -434,6 +436,7 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       statusName: r.award.statusName ?? null,
       productionDueAt: r.award.productionDueAt ?? null,
       status: r.award.status,
+      source: r.award.source,
       creditId: r.award.creditId ?? null,
       note: r.award.note ?? null,
       internalNote: r.internalNote ?? null,
@@ -633,6 +636,7 @@ router.put("/rewards/order-notes/:invoiceId", async (req, res): Promise<void> =>
 router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
   const query = String(req.query.query ?? "").trim();
   const ruleId = parseInt(String(req.query.ruleId ?? ""), 10);
+  const mode = req.query.mode === "elect" ? "elect" : "combine";
 
   if (!query) {
     res.status(400).json({ error: "query is required" });
@@ -674,8 +678,8 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         ...rule,
         conditions: {
           ...(rule.conditions as Record<string, unknown>),
-          totalMin: undefined,
-          totalMax: undefined,
+          totalMin: mode === "combine" ? undefined : (rule.conditions as Record<string, unknown>)?.totalMin,
+          totalMax: mode === "combine" ? undefined : (rule.conditions as Record<string, unknown>)?.totalMax,
         },
       };
       const eligible = invoiceMatchesRule(inv, ruleForEligibilityCheck as typeof rule);
@@ -728,6 +732,7 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         ineligibleReason,
         alreadyUsed: !!existingAward,
         existingAwardId: existingAward?.id ?? null,
+        rewardAmount: mode === "elect" && eligible ? computeAward(inv, rule) : null,
       };
     }),
   );
@@ -782,6 +787,34 @@ router.post("/rewards/combined-award", async (req, res): Promise<void> => {
     invoiceCount: result.invoiceCount,
     combinedTotal: result.combinedTotal,
   });
+});
+
+// Staff-elected single-invoice rewards always enter Pending for approval.
+router.post("/rewards/elected-award", async (req, res): Promise<void> => {
+  const body = req.body as { ruleId?: unknown; invoiceVisualId?: unknown };
+  const ruleId = typeof body.ruleId === "number" ? body.ruleId : parseInt(String(body.ruleId ?? ""), 10);
+  const invoiceVisualId = String(body.invoiceVisualId ?? "").trim();
+  if (isNaN(ruleId) || !invoiceVisualId) {
+    res.status(400).json({ error: "ruleId and invoiceVisualId are required" });
+    return;
+  }
+  const printavoConfig = await getPrintavoConfig();
+  if (!printavoConfig) {
+    res.status(400).json({ error: "Printavo is not configured" });
+    return;
+  }
+  const result = await createElectedAward(
+    ruleId,
+    invoiceVisualId,
+    printavoConfig,
+    await getRewardsConfig(),
+    req.staffEmail ?? null,
+  );
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  res.status(201).json({ awardId: result.awardId, amount: result.amount });
 });
 
 export default router;

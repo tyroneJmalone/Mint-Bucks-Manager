@@ -30,6 +30,10 @@ credits.status: `active` → `partially_redeemed` (first partial use) → `redee
 ## Rewards engine concurrency (auto-award from paid invoices)
 Each (rule, invoice) awards at most once, enforced by a DB unique constraint + conflict-ignore at claim. The annual-budget sum and the claim happen inside one advisory-lock critical section, so the limit check and the claim are atomic — no overrun, no duplicate claim, and no row is written when the limit blocks.
 
+**Combined-invoice membership is part of the uniqueness invariant.** Every award creation path (scan, election, combination) must check both the primary invoice ID and membership inside active combined awards while holding the shared advisory lock.
+**Why:** the unique index only covers the combined award's primary invoice; without the JSON-membership check, a secondary invoice can later be rewarded again by a scan or staff election.
+**How to apply:** any new reward creation path must reject pending, processing, or issued awards containing that invoice either as primary or as a combined member.
+
 **Budget is reserved at CLAIM time, released on reject.** The annual sum counts processing + pending + issued, so approval must NOT re-check budget — the slot was already reserved. Edge case: an award claimed in Dec year N but approved in year N+1 consumes no year-N+1 budget — acceptable.
 
 **Issue is atomic + claim-guarded.** Credit insert and award→issued update run in one transaction, guarded on the still-"processing" status, so a lost claim rolls back the credit (never a dangling credit). Applies to both auto-issue and manual approve.

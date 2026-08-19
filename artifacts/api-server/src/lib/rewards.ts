@@ -359,6 +359,19 @@ async function claimAward(
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
 
+    // A normal scan must not reclaim an invoice that was already used as a
+    // secondary member of a combined award.
+    const combinedMembership = await tx
+      .select({ id: rewardAwardsTable.id })
+      .from(rewardAwardsTable)
+      .where(and(
+        eq(rewardAwardsTable.ruleId, rule.id),
+        inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+        sql`${rewardAwardsTable.combinedInvoiceIds} @> ${JSON.stringify([inv.id])}::jsonb`,
+      ))
+      .limit(1);
+    if (combinedMembership.length) return { kind: "dup" };
+
     if (cfg.annualLimit != null) {
       const yearStart = startOfCurrentYear(cfg.timezone);
       const rows = await tx
@@ -1121,6 +1134,7 @@ export async function createCombinedAward(
 
   const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
   if (!rule) return { ok: false, status: 404, error: "Rule not found" };
+  if (!rule.enabled) return { ok: false, status: 422, error: "This reward rule is disabled" };
 
   // ── Fetch authoritative invoice data from Printavo ────────────────────────
   const fetchedInvoices = await Promise.all(
@@ -1321,6 +1335,7 @@ export async function createCombinedAward(
         ownerEmail: invoices[0].ownerEmail ?? null,
         ownerName: invoices[0].ownerName ?? null,
         status: "pending", // combined awards always pend for manual review
+        source: "combined",
         note: `${rule.name} · combined: ${visualIds}`,
         combinedInvoiceIds: allIds,
       } as typeof rewardAwardsTable.$inferInsert)
@@ -1343,6 +1358,86 @@ export async function createCombinedAward(
       invoiceCount: invoices.length,
       combinedTotal,
     };
+  });
+}
+
+export type CreateElectedAwardResult =
+  | { ok: true; awardId: number; amount: number }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Create one staff-elected award. The invoice and rule are revalidated from
+ * authoritative data and the award always waits in Pending for approval.
+ */
+export async function createElectedAward(
+  ruleId: number,
+  invoiceVisualId: string,
+  printavoConfig: PrintavoConfig,
+  cfg: RewardsConfig,
+  createdBy: string | null,
+): Promise<CreateElectedAwardResult> {
+  const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
+  if (!rule) return { ok: false, status: 404, error: "Rule not found" };
+  if (!rule.enabled) return { ok: false, status: 422, error: "This reward rule is disabled" };
+
+  const invoice = await fetchPaidInvoiceByVisualId(printavoConfig, invoiceVisualId.trim());
+  if (!invoice) {
+    return { ok: false, status: 422, error: `Invoice #${invoiceVisualId} was not found or is not fully paid` };
+  }
+  if (!invoiceMatchesRule(invoice, rule)) {
+    return { ok: false, status: 422, error: `Invoice #${invoice.visualId} does not meet the selected rule's conditions` };
+  }
+  const amount = computeAward(invoice, rule);
+  if (amount <= 0) return { ok: false, status: 422, error: "This invoice does not produce a reward under the selected rule" };
+
+  const customer = await findOrCreateCustomerForInvoice(invoice);
+  if (!customer) return { ok: false, status: 422, error: "The invoice customer has no email address" };
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
+    const existing = await tx.select({ id: rewardAwardsTable.id }).from(rewardAwardsTable).where(and(
+      eq(rewardAwardsTable.ruleId, ruleId),
+      eq(rewardAwardsTable.printavoInvoiceId, invoice.id),
+      inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+    )).limit(1);
+    if (existing.length) return { ok: false as const, status: 409, error: `Invoice #${invoice.visualId} already has a reward under this rule` };
+    const combinedMembership = await tx.select({ id: rewardAwardsTable.id }).from(rewardAwardsTable).where(and(
+      eq(rewardAwardsTable.ruleId, ruleId),
+      inArray(rewardAwardsTable.status, ["pending", "processing", "issued"]),
+      sql`${rewardAwardsTable.combinedInvoiceIds} @> ${JSON.stringify([invoice.id])}::jsonb`,
+    )).limit(1);
+    if (combinedMembership.length) {
+      return { ok: false as const, status: 409, error: `Invoice #${invoice.visualId} is already included in a combined reward` };
+    }
+
+    if (cfg.annualLimit != null) {
+      const rows = await tx.select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
+        .from(rewardAwardsTable)
+        .where(and(inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]), gte(rewardAwardsTable.awardedAt, startOfCurrentYear(cfg.timezone))));
+      if (parseFloat(rows[0]?.total ?? "0") + amount > cfg.annualLimit + 1e-9) {
+        return { ok: false as const, status: 409, error: "Creating this reward would exceed the annual rewards limit" };
+      }
+    }
+
+    const [award] = await tx.insert(rewardAwardsTable).values({
+      ruleId,
+      customerId: customer.id,
+      printavoInvoiceId: invoice.id,
+      printavoVisualId: invoice.visualId,
+      nickname: invoice.nickname ?? null,
+      invoiceTotal: invoice.total?.toFixed(2) ?? null,
+      amount: amount.toFixed(2),
+      datePaid: invoice.datePaid ?? null,
+      statusName: invoice.statusName ?? null,
+      productionDueAt: invoice.productionDueAt ?? null,
+      ownerEmail: invoice.ownerEmail ?? null,
+      ownerName: invoice.ownerName ?? null,
+      status: "pending",
+      source: "elected",
+      note: `${rule.name} · elected`,
+    }).onConflictDoNothing().returning();
+    if (!award) return { ok: false as const, status: 409, error: "This invoice already has a reward under the selected rule" };
+    return { ok: true as const, awardId: award.id, amount };
   });
 }
 

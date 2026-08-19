@@ -141,7 +141,8 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
 
-  const selectedRule = rules?.find((r) => String(r.id) === selectedRuleId) ?? null;
+  const enabledRules = useMemo(() => (rules ?? []).filter((rule) => rule.enabled), [rules]);
+  const selectedRule = enabledRules.find((r) => String(r.id) === selectedRuleId) ?? null;
 
   // The selected invoice objects from the search results.
   const selectedInvoices = useMemo(
@@ -276,7 +277,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                     <SelectValue placeholder="Select a rule…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(rules ?? []).map((r) => (
+                    {enabledRules.map((r) => (
                       <SelectItem key={r.id} value={String(r.id)}>
                         {r.name}
                       </SelectItem>

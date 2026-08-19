@@ -1078,6 +1078,14 @@ paths:
           required: true
           schema: { type: integer }
           description: Rule to evaluate eligibility against
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [combine, elect]
+            default: combine
+          description: Use elect to evaluate all rule conditions and return a single-invoice reward amount.
       responses:
         "200":
           description: Matching invoices with eligibility and used-status info
@@ -1114,6 +1122,33 @@ paths:
           description: Rule or customer not found
         "409":
           description: One or more invoices already used, or annual limit would be exceeded
+
+  /rewards/elected-award:
+    post:
+      operationId: createElectedRewardAward
+      tags: [rewards]
+      summary: Elect one paid Printavo invoice for a rule-based reward that waits in Pending
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ElectedAwardRequest"
+      responses:
+        "201":
+          description: Elected reward created in Pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElectedAwardResult"
+        "400":
+          description: Invalid request or Printavo not configured
+        "404":
+          description: Rule not found
+        "409":
+          description: Invoice already used or annual limit exceeded
+        "422":
+          description: Invoice is unpaid, rule is disabled, or invoice does not qualify
 
 components:
   schemas:
@@ -1837,7 +1872,7 @@ components:
 
     RewardAward:
       type: object
-      required: [id, ruleId, customerId, printavoInvoiceId, amount, status, awardedAt]
+      required: [id, ruleId, customerId, printavoInvoiceId, amount, status, source, awardedAt]
       properties:
         id:
           type: integer
@@ -1877,6 +1912,10 @@ components:
         status:
           type: string
           enum: [processing, pending, issued, rejected]
+        source:
+          type: string
+          enum: [scan, combined, elected]
+          description: How the award entered the reward ledger.
         creditId:
           type: ["integer", "null"]
         note:
@@ -2096,6 +2135,9 @@ components:
           description: Whether this invoice already has an active pending/processing/issued award for this rule
         existingAwardId:
           type: ["integer", "null"]
+        rewardAmount:
+          type: ["number", "null"]
+          description: Calculated single-invoice reward in elect mode; null in combine mode.
 
     InvoiceSearchResult:
       type: object
@@ -2138,4 +2180,24 @@ components:
         invoiceCount:
           type: integer
         combinedTotal:
+          type: number
+
+    ElectedAwardRequest:
+      type: object
+      required: [ruleId, invoiceVisualId]
+      properties:
+        ruleId:
+          type: integer
+        invoiceVisualId:
+          type: string
+          minLength: 1
+          description: Printavo order number shown to users.
+
+    ElectedAwardResult:
+      type: object
+      required: [awardId, amount]
+      properties:
+        awardId:
+          type: integer
+        amount:
           type: number

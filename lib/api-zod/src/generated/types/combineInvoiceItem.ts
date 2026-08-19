@@ -42,4 +42,9 @@ export interface CombineInvoiceItem {
   alreadyUsed: boolean;
   /** @nullable */
   existingAwardId?: number | null;
+  /**
+     * Calculated single-invoice reward in elect mode; null in combine mode.
+     * @nullable
+     */
+  rewardAmount?: number | null;
 }

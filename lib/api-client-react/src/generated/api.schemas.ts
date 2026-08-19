@@ -651,6 +651,18 @@ export const RewardAwardStatus = {
   rejected: 'rejected',
 } as const;
 
+/**
+ * How the award entered the reward ledger.
+ */
+export type RewardAwardSource = typeof RewardAwardSource[keyof typeof RewardAwardSource];
+
+
+export const RewardAwardSource = {
+  scan: 'scan',
+  combined: 'combined',
+  elected: 'elected',
+} as const;
+
 export interface RewardAward {
   id: number;
   ruleId: number;
@@ -693,6 +705,8 @@ export interface RewardAward {
      */
   productionDueAt?: string | null;
   status: RewardAwardStatus;
+  /** How the award entered the reward ledger. */
+  source: RewardAwardSource;
   /** @nullable */
   creditId?: number | null;
   /** @nullable */
@@ -892,6 +906,11 @@ export interface CombineInvoiceItem {
   alreadyUsed: boolean;
   /** @nullable */
   existingAwardId?: number | null;
+  /**
+     * Calculated single-invoice reward in elect mode; null in combine mode.
+     * @nullable
+     */
+  rewardAmount?: number | null;
 }
 
 export interface InvoiceSearchResult {
@@ -917,6 +936,20 @@ export interface CombinedAwardResult {
   amount: number;
   invoiceCount: number;
   combinedTotal: number;
+}
+
+export interface ElectedAwardRequest {
+  ruleId: number;
+  /**
+     * Printavo order number shown to users.
+     * @minLength 1
+     */
+  invoiceVisualId: string;
+}
+
+export interface ElectedAwardResult {
+  awardId: number;
+  amount: number;
 }
 
 export type ListCustomersParams = {
@@ -975,5 +1008,17 @@ query: string;
  * Rule to evaluate eligibility against
  */
 ruleId: number;
+/**
+ * Use elect to evaluate all rule conditions and return a single-invoice reward amount.
+ */
+mode?: SearchRewardInvoicesMode;
 };
+
+export type SearchRewardInvoicesMode = typeof SearchRewardInvoicesMode[keyof typeof SearchRewardInvoicesMode];
+
+
+export const SearchRewardInvoicesMode = {
+  combine: 'combine',
+  elect: 'elect',
+} as const;
 

@@ -20,6 +20,8 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   ownerEmail: text("owner_email"),
   ownerName: text("owner_name"),
   status: text("status").notNull().default("pending"),
+  /** How the award entered the ledger: scan, combined invoices, or staff election. */
+  source: text("source").notNull().default("scan"),
   creditId: integer("credit_id"),
   note: text("note"),
   /** Email of the staff member who approved this award (null for auto-issued). */

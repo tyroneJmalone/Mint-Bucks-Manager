@@ -32,6 +32,8 @@ import type {
   CustomerCreditStat,
   CustomerInput,
   CustomerUpdate,
+  ElectedAwardRequest,
+  ElectedAwardResult,
   EmailLogEntry,
   EmailTemplates,
   ErrorEnvelope,
@@ -4237,5 +4239,75 @@ export const useCreateCombinedRewardAward = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateCombinedRewardAwardMutationOptions(options));
+    }
+
+export const getCreateElectedRewardAwardUrl = () => {
+
+
+
+
+  return `/api/rewards/elected-award`
+}
+
+/**
+ * @summary Elect one paid Printavo invoice for a rule-based reward that waits in Pending
+ */
+export const createElectedRewardAward = async (electedAwardRequest: ElectedAwardRequest, options?: RequestInit): Promise<ElectedAwardResult> => {
+
+  return customFetch<ElectedAwardResult>(getCreateElectedRewardAwardUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(electedAwardRequest)
+  }
+);}
+
+
+
+
+export const getCreateElectedRewardAwardMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createElectedRewardAward>>, TError,{data: BodyType<ElectedAwardRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createElectedRewardAward>>, TError,{data: BodyType<ElectedAwardRequest>}, TContext> => {
+
+const mutationKey = ['createElectedRewardAward'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createElectedRewardAward>>, {data: BodyType<ElectedAwardRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createElectedRewardAward(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateElectedRewardAwardMutationResult = NonNullable<Awaited<ReturnType<typeof createElectedRewardAward>>>
+    export type CreateElectedRewardAwardMutationBody = BodyType<ElectedAwardRequest>
+    export type CreateElectedRewardAwardMutationError = ErrorType<void>
+
+    /**
+ * @summary Elect one paid Printavo invoice for a rule-based reward that waits in Pending
+ */
+export const useCreateElectedRewardAward = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createElectedRewardAward>>, TError,{data: BodyType<ElectedAwardRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createElectedRewardAward>>,
+        TError,
+        {data: BodyType<ElectedAwardRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateElectedRewardAwardMutationOptions(options));
     }
 

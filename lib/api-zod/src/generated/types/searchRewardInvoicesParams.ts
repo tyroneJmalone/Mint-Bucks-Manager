@@ -5,6 +5,7 @@
  * Mint Bucks promotional credit system for Mint Printworks
  * OpenAPI spec version: 0.1.0
  */
+import type { SearchRewardInvoicesMode } from './searchRewardInvoicesMode';
 
 export type SearchRewardInvoicesParams = {
 /**
@@ -15,4 +16,8 @@ query: string;
  * Rule to evaluate eligibility against
  */
 ruleId: number;
+/**
+ * Use elect to evaluate all rule conditions and return a single-invoice reward amount.
+ */
+mode?: SearchRewardInvoicesMode;
 };
