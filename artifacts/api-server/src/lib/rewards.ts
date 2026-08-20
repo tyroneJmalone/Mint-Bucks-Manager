@@ -1327,10 +1327,14 @@ export async function getRewardsStats(
 // Manual approval / rejection (used by routes)
 // ---------------------------------------------------------------------------
 
+export type ApproveAwardResult =
+  | { ok: true; creditId: number }
+  | { ok: false; status: number; error: string };
+
 export async function approveAward(
   awardId: number,
   approvedBy?: string | null,
-): Promise<{ ok: true; creditId: number } | { ok: false; status: number; error: string }> {
+): Promise<ApproveAwardResult> {
   const [award] = await db.select().from(rewardAwardsTable).where(eq(rewardAwardsTable.id, awardId));
   if (!award) return { ok: false, status: 404, error: "Award not found" };
   if (award.status !== "pending") {
@@ -1414,6 +1418,93 @@ export async function approveAward(
     logger.error({ err, awardId }, "Rewards: failed to issue credit on approval");
     return { ok: false, status: 500, error: "Failed to issue credit" };
   }
+}
+
+export type BatchApprovalItemResult = {
+  awardId: number;
+  success: boolean;
+  creditId: number | null;
+  statusCode: number;
+  message: string;
+};
+
+export type BatchApprovalResult = {
+  approvedCount: number;
+  failedCount: number;
+  results: BatchApprovalItemResult[];
+};
+
+type ApprovalExecutor = (
+  awardId: number,
+  approvedBy?: string | null,
+) => Promise<ApproveAwardResult>;
+
+export async function approveAwards(
+  awardIds: number[],
+  approvedBy?: string | null,
+  approveOne: ApprovalExecutor = approveAward,
+): Promise<BatchApprovalResult> {
+  const results: BatchApprovalItemResult[] = [];
+  const seen = new Set<number>();
+
+  // Run sequentially so a large staff selection cannot spike database
+  // connections or email-provider work. Each award still uses its own atomic
+  // approval transaction, so failures never roll back prior successes.
+  for (const awardId of awardIds) {
+    if (seen.has(awardId)) {
+      results.push({
+        awardId,
+        success: false,
+        creditId: null,
+        statusCode: 400,
+        message: "Duplicate award ID",
+      });
+      continue;
+    }
+    seen.add(awardId);
+
+    let result: ApproveAwardResult;
+    try {
+      result = await approveOne(awardId, approvedBy);
+    } catch (err) {
+      logger.error(
+        { err, awardId, approvedBy },
+        "Rewards: unexpected failure while processing batch approval item",
+      );
+      results.push({
+        awardId,
+        success: false,
+        creditId: null,
+        statusCode: 500,
+        message: "Failed to approve award",
+      });
+      continue;
+    }
+    if (result.ok) {
+      results.push({
+        awardId,
+        success: true,
+        creditId: result.creditId,
+        statusCode: 200,
+        message: "Award approved and credit issued",
+      });
+    } else {
+      results.push({
+        awardId,
+        success: false,
+        creditId: null,
+        statusCode: result.status,
+        message: result.error,
+      });
+    }
+  }
+
+  const approvedCount = results.filter(({ success }) => success).length;
+  return {
+    approvedCount,
+    failedCount: results.length - approvedCount,
+    results,
+  };
 }
 
 export async function rejectAward(awardId: number, rejectedBy?: string | null): Promise<boolean> {

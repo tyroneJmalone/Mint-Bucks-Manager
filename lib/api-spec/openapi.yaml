@@ -878,6 +878,27 @@ paths:
                 items:
                   $ref: "#/components/schemas/RewardAward"
 
+  /rewards/awards/batch-approve:
+    post:
+      operationId: batchApproveRewardAwards
+      tags: [rewards]
+      summary: Approve multiple pending awards and issue their credits independently
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchRewardApprovalRequest"
+      responses:
+        "200":
+          description: Per-award batch approval results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchRewardApprovalResult"
+        "400":
+          description: Invalid or duplicate award IDs
+
   /rewards/awards/{id}/approve:
     post:
       operationId: approveRewardAward
@@ -1376,6 +1397,47 @@ components:
           type: boolean
         message:
           type: string
+
+    BatchRewardApprovalRequest:
+      type: object
+      required: [awardIds]
+      properties:
+        awardIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+
+    BatchRewardApprovalItem:
+      type: object
+      required: [awardId, success, creditId, statusCode, message]
+      properties:
+        awardId:
+          type: integer
+        success:
+          type: boolean
+        creditId:
+          type: ["integer", "null"]
+        statusCode:
+          type: integer
+        message:
+          type: string
+
+    BatchRewardApprovalResult:
+      type: object
+      required: [approvedCount, failedCount, results]
+      properties:
+        approvedCount:
+          type: integer
+        failedCount:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchRewardApprovalItem"
 
     ReportSummary:
       type: object

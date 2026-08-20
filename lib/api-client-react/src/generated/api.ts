@@ -21,6 +21,8 @@ import type {
 
 import type {
   ActivityItem,
+  BatchRewardApprovalRequest,
+  BatchRewardApprovalResult,
   CombinedAwardRequest,
   CombinedAwardResult,
   Credit,
@@ -3504,6 +3506,76 @@ export function useListRewardAwards<TData = Awaited<ReturnType<typeof listReward
 
 
 
+
+export const getBatchApproveRewardAwardsUrl = () => {
+
+
+
+
+  return `/api/rewards/awards/batch-approve`
+}
+
+/**
+ * @summary Approve multiple pending awards and issue their credits independently
+ */
+export const batchApproveRewardAwards = async (batchRewardApprovalRequest: BatchRewardApprovalRequest, options?: RequestInit): Promise<BatchRewardApprovalResult> => {
+
+  return customFetch<BatchRewardApprovalResult>(getBatchApproveRewardAwardsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(batchRewardApprovalRequest)
+  }
+);}
+
+
+
+
+export const getBatchApproveRewardAwardsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof batchApproveRewardAwards>>, TError,{data: BodyType<BatchRewardApprovalRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof batchApproveRewardAwards>>, TError,{data: BodyType<BatchRewardApprovalRequest>}, TContext> => {
+
+const mutationKey = ['batchApproveRewardAwards'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof batchApproveRewardAwards>>, {data: BodyType<BatchRewardApprovalRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  batchApproveRewardAwards(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BatchApproveRewardAwardsMutationResult = NonNullable<Awaited<ReturnType<typeof batchApproveRewardAwards>>>
+    export type BatchApproveRewardAwardsMutationBody = BodyType<BatchRewardApprovalRequest>
+    export type BatchApproveRewardAwardsMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve multiple pending awards and issue their credits independently
+ */
+export const useBatchApproveRewardAwards = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof batchApproveRewardAwards>>, TError,{data: BodyType<BatchRewardApprovalRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof batchApproveRewardAwards>>,
+        TError,
+        {data: BodyType<BatchRewardApprovalRequest>},
+        TContext
+      > => {
+      return useMutation(getBatchApproveRewardAwardsMutationOptions(options));
+    }
 
 export const getApproveRewardAwardUrl = (id: string,) => {
 

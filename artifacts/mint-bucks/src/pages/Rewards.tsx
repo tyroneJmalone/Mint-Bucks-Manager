@@ -34,6 +34,7 @@ import {
   useUpdateRewardRule,
   useListRewardAwards,
   getListRewardAwardsQueryKey,
+  useBatchApproveRewardAwards,
   useApproveRewardAward,
   useRejectRewardAward,
   useUnrejectRewardAward,
@@ -52,6 +53,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -355,6 +357,8 @@ export function Rewards() {
   });
 
   const [pendingSearch, setPendingSearch] = useState("");
+  const [selectedPendingIds, setSelectedPendingIds] = useState<Set<number>>(new Set());
+  const [batchApprovalOpen, setBatchApprovalOpen] = useState(false);
   const [pipelineSearch, setPipelineSearch] = useState("");
 
   const allPendingCount = awards?.filter((a) => a.status === "pending").length ?? 0;
@@ -370,6 +374,44 @@ export function Rewards() {
       a.internalNote,
     ]),
   );
+  const selectedPendingAwards = useMemo(
+    () =>
+      (awards ?? []).filter(
+        (award) => award.status === "pending" && selectedPendingIds.has(award.id),
+      ),
+    [awards, selectedPendingIds],
+  );
+  const selectedPendingTotal = selectedPendingAwards.reduce(
+    (sum, award) => sum + award.amount,
+    0,
+  );
+  const allDisplayedPendingSelected =
+    pendingAwards.length > 0 &&
+    pendingAwards.every((award) => selectedPendingIds.has(award.id));
+  const someDisplayedPendingSelected = pendingAwards.some((award) =>
+    selectedPendingIds.has(award.id),
+  );
+
+  function togglePendingSelection(awardId: number, selected: boolean) {
+    setSelectedPendingIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(awardId);
+      else next.delete(awardId);
+      return next;
+    });
+  }
+
+  function toggleAllDisplayedPending() {
+    setSelectedPendingIds((current) => {
+      const next = new Set(current);
+      if (allDisplayedPendingSelected) {
+        pendingAwards.forEach((award) => next.delete(award.id));
+      } else {
+        pendingAwards.forEach((award) => next.add(award.id));
+      }
+      return next;
+    });
+  }
 
   // Client-side sorting for the Pipeline table. null = server order (potential, high→low).
   const [pipelineSort, setPipelineSort] = useState<PipelineSort | null>(null);
@@ -416,6 +458,7 @@ export function Rewards() {
     queryClient.invalidateQueries({ queryKey: getGetRewardsSettingsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListRewardRulesQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetRewardsPipelineQueryKey() });
   }
 
   const updateSettings = useUpdateRewardsSettings();
@@ -449,6 +492,7 @@ export function Rewards() {
     );
   }
   const approveAward = useApproveRewardAward();
+  const batchApproveAwards = useBatchApproveRewardAwards();
   const rejectAward = useRejectRewardAward();
   const unrejectAward = useUnrejectRewardAward();
   const triggerScan = useTriggerRewardsScan();
@@ -475,10 +519,60 @@ export function Rewards() {
       { id: String(a.id) },
       {
         onSuccess: () => {
+          togglePendingSelection(a.id, false);
           invalidateAll();
           toast({ title: `Approved — ${formatCurrency(a.amount)} issued to ${a.customerName ?? "customer"}` });
         },
         onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+      },
+    );
+  }
+  function handleBatchApprove() {
+    if (!selectedPendingAwards.length) return;
+
+    batchApproveAwards.mutate(
+      { data: { awardIds: selectedPendingAwards.map((award) => award.id) } },
+      {
+        onSuccess: (result) => {
+          const failedResults = result.results.filter(({ success }) => !success);
+          setSelectedPendingIds(
+            new Set(failedResults.map(({ awardId }) => awardId)),
+          );
+          setBatchApprovalOpen(false);
+          invalidateAll();
+
+          if (!failedResults.length) {
+            toast({
+              title: `${result.approvedCount} reward${result.approvedCount === 1 ? "" : "s"} approved`,
+              description: `${formatCurrency(selectedPendingTotal)} in Mint Bucks issued`,
+            });
+            return;
+          }
+
+          const failureSummary = failedResults
+            .map(({ awardId, message }) => {
+              const award = selectedPendingAwards.find(({ id }) => id === awardId);
+              const label = award?.printavoVisualId
+                ? `Invoice #${award.printavoVisualId}`
+                : `Award ${awardId}`;
+              return `${label}: ${message}`;
+            })
+            .join(" · ");
+          toast({
+            title:
+              result.approvedCount > 0
+                ? `${result.approvedCount} approved; ${result.failedCount} couldn't be approved`
+                : `No rewards were approved`,
+            description: failureSummary,
+            variant: result.approvedCount > 0 ? undefined : "destructive",
+          });
+        },
+        onError: (err: Error) =>
+          toast({
+            title: "Couldn't approve selected rewards",
+            description: err.message,
+            variant: "destructive",
+          }),
       },
     );
   }
@@ -487,6 +581,7 @@ export function Rewards() {
       { id: String(a.id) },
       {
         onSuccess: () => {
+          togglePendingSelection(a.id, false);
           invalidateAll();
           toast({ title: "Award rejected" });
         },
@@ -651,11 +746,65 @@ export function Rewards() {
               Combine Invoices
             </Button>
           </div>
+          {selectedPendingAwards.length > 0 && (
+            <div
+              className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3"
+              data-testid="batch-approval-summary"
+            >
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {selectedPendingAwards.length} reward
+                  {selectedPendingAwards.length === 1 ? "" : "s"} selected
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatCurrency(selectedPendingTotal)} total Mint Bucks
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedPendingIds(new Set())}
+                  disabled={batchApproveAwards.isPending}
+                  data-testid="button-clear-pending-selection"
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setBatchApprovalOpen(true)}
+                  disabled={batchApproveAwards.isPending}
+                  data-testid="button-approve-selected"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Approve selected
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[1060px]">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
+                  <th className="w-12 px-5 py-3 text-left">
+                    <Checkbox
+                      checked={
+                        allDisplayedPendingSelected
+                          ? true
+                          : someDisplayedPendingSelected
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={toggleAllDisplayedPending}
+                      disabled={!pendingAwards.length || batchApproveAwards.isPending}
+                      aria-label="Select all displayed pending rewards"
+                      data-testid="checkbox-select-all-pending"
+                    />
+                  </th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Invoice</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
@@ -672,7 +821,7 @@ export function Rewards() {
                 {awardsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 10 }).map((_, j) => (
+                      {Array.from({ length: 11 }).map((_, j) => (
                         <td key={j} className="px-5 py-3.5"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
@@ -680,6 +829,21 @@ export function Rewards() {
                 ) : pendingAwards.length ? (
                   pendingAwards.map((a) => (
                     <tr key={a.id} data-testid={`row-pending-${a.id}`} className="hover:bg-muted/30 transition-colors">
+                      <td className="w-12 px-5 py-3.5">
+                        <Checkbox
+                          checked={selectedPendingIds.has(a.id)}
+                          onCheckedChange={(checked) =>
+                            togglePendingSelection(a.id, checked === true)
+                          }
+                          disabled={
+                            batchApproveAwards.isPending ||
+                            approveAward.isPending ||
+                            rejectAward.isPending
+                          }
+                          aria-label={`Select pending reward for ${a.customerName ?? `award ${a.id}`}`}
+                          data-testid={`checkbox-pending-${a.id}`}
+                        />
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="text-sm text-foreground font-medium">{a.customerName ?? "Unknown"}</div>
                         {a.customerCompany && <div className="text-xs text-muted-foreground">{a.customerCompany}</div>}
@@ -735,7 +899,7 @@ export function Rewards() {
                             size="sm"
                             className="gap-1 h-8"
                             onClick={() => handleApprove(a)}
-                            disabled={approveAward.isPending || rejectAward.isPending}
+                            disabled={approveAward.isPending || rejectAward.isPending || batchApproveAwards.isPending}
                             data-testid={`button-approve-${a.id}`}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Approve
@@ -745,7 +909,7 @@ export function Rewards() {
                             variant="outline"
                             className="gap-1 h-8 text-destructive hover:text-destructive"
                             onClick={() => handleReject(a)}
-                            disabled={approveAward.isPending || rejectAward.isPending}
+                            disabled={approveAward.isPending || rejectAward.isPending || batchApproveAwards.isPending}
                             data-testid={`button-reject-${a.id}`}
                           >
                             <XCircle className="w-3.5 h-3.5" /> Reject
@@ -756,7 +920,7 @@ export function Rewards() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={10} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
                       <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
                       {pendingSearch.trim() ? "No pending awards match your search" : "No awards waiting for approval"}
                     </td>
@@ -1243,6 +1407,55 @@ export function Rewards() {
         open={electDialogOpen}
         onOpenChange={setElectDialogOpen}
       />
+
+      <AlertDialog open={batchApprovalOpen} onOpenChange={setBatchApprovalOpen}>
+        <AlertDialogContent data-testid="dialog-confirm-batch-approval">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Approve {selectedPendingAwards.length} reward
+              {selectedPendingAwards.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will issue {formatCurrency(selectedPendingTotal)} in Mint Bucks
+              across {selectedPendingAwards.length} separate customer credit
+              {selectedPendingAwards.length === 1 ? "" : "s"}. Each customer will
+              receive the normal reward confirmation.
+              <span className="mt-3 block font-medium text-foreground">
+                {selectedPendingAwards
+                  .slice(0, 5)
+                  .map(
+                    (award) =>
+                      `${award.customerName ?? "Unknown customer"}${
+                        award.printavoVisualId
+                          ? ` · Invoice #${award.printavoVisualId}`
+                          : ""
+                      } · ${formatCurrency(award.amount)}`,
+                  )
+                  .join(" | ")}
+                {selectedPendingAwards.length > 5
+                  ? ` | +${selectedPendingAwards.length - 5} more`
+                  : ""}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchApproveAwards.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchApprove}
+              disabled={!selectedPendingAwards.length || batchApproveAwards.isPending}
+              data-testid="button-confirm-batch-approval"
+            >
+              {batchApproveAwards.isPending
+                ? "Approving…"
+                : `Approve ${selectedPendingAwards.length} reward${
+                    selectedPendingAwards.length === 1 ? "" : "s"
+                  }`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deletingRule} onOpenChange={(o) => !o && setDeletingRule(null)}>
         <AlertDialogContent>

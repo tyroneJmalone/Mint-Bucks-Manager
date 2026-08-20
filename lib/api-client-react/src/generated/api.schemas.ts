@@ -172,6 +172,30 @@ export interface MessageResult {
   message: string;
 }
 
+export interface BatchRewardApprovalRequest {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     * @items.minimum 1
+     */
+  awardIds: number[];
+}
+
+export interface BatchRewardApprovalItem {
+  awardId: number;
+  success: boolean;
+  /** @nullable */
+  creditId: number | null;
+  statusCode: number;
+  message: string;
+}
+
+export interface BatchRewardApprovalResult {
+  approvedCount: number;
+  failedCount: number;
+  results: BatchRewardApprovalItem[];
+}
+
 export interface ReportSummary {
   totalIssued: number;
   totalOutstanding: number;

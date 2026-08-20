@@ -1183,6 +1183,31 @@ export const ListRewardAwardsResponse = zod.array(ListRewardAwardsResponseItem)
 
 
 /**
+ * @summary Approve multiple pending awards and issue their credits independently
+ */
+
+export const batchApproveRewardAwardsBodyAwardIdsMax = 100;
+
+
+
+export const BatchApproveRewardAwardsBody = zod.object({
+  "awardIds": zod.array(zod.number().min(1)).min(1).max(batchApproveRewardAwardsBodyAwardIdsMax)
+})
+
+export const BatchApproveRewardAwardsResponse = zod.object({
+  "approvedCount": zod.number(),
+  "failedCount": zod.number(),
+  "results": zod.array(zod.object({
+  "awardId": zod.number(),
+  "success": zod.boolean(),
+  "creditId": zod.number().nullable(),
+  "statusCode": zod.number(),
+  "message": zod.string()
+}))
+})
+
+
+/**
  * @summary Approve a pending award and issue its credit
  */
 export const ApproveRewardAwardParams = zod.object({

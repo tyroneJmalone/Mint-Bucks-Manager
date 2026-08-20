@@ -9,6 +9,7 @@ import {
   UpdateRewardRuleBody,
   DeleteRewardRuleParams,
   ListRewardAwardsQueryParams,
+  BatchApproveRewardAwardsBody,
   ApproveRewardAwardParams,
   RejectRewardAwardParams,
   SendTestRewardEmailBody,
@@ -28,6 +29,7 @@ import {
   validateRewardParams,
   validateConditions,
   approveAward,
+  approveAwards,
   rejectAward,
   unrejectAward,
   getRewardsStats,
@@ -449,6 +451,27 @@ router.get("/rewards/awards", async (req, res): Promise<void> => {
       rejectedBy: r.award.rejectedBy ?? null,
     })),
   );
+});
+
+router.post("/rewards/awards/batch-approve", async (req, res): Promise<void> => {
+  const parsed = BatchApproveRewardAwardsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { awardIds } = parsed.data;
+  if (awardIds.some((id) => !Number.isSafeInteger(id))) {
+    res.status(400).json({ error: "awardIds must contain only whole-number award IDs" });
+    return;
+  }
+  if (new Set(awardIds).size !== awardIds.length) {
+    res.status(400).json({ error: "awardIds cannot contain duplicates" });
+    return;
+  }
+
+  const result = await approveAwards(awardIds, req.staffEmail ?? null);
+  res.json(result);
 });
 
 router.post("/rewards/awards/:id/approve", async (req, res): Promise<void> => {

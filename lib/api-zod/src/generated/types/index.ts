@@ -8,6 +8,9 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './batchRewardApprovalItem';
+export * from './batchRewardApprovalRequest';
+export * from './batchRewardApprovalResult';
 export * from './combinedAwardRequest';
 export * from './combinedAwardResult';
 export * from './combineInvoiceItem';

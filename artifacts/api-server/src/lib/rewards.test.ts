@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RewardRule } from "@workspace/db";
 import type { PrintavoPaidInvoice } from "./printavo";
-import { evaluateInvoiceRule, invoiceMatchesRule, pendingAwardMatchesInvoice } from "./rewards";
+import {
+  approveAwards,
+  evaluateInvoiceRule,
+  invoiceMatchesRule,
+  pendingAwardMatchesInvoice,
+} from "./rewards";
 
 function invoice(overrides: Partial<PrintavoPaidInvoice> = {}): PrintavoPaidInvoice {
   return {
@@ -282,5 +287,104 @@ describe("date exclusion election and combine eligibility", () => {
         override,
       ),
     ).toBe(false);
+  });
+});
+
+describe("batch reward approval", () => {
+  it("approves every award in order with the same staff identity", async () => {
+    const calls: { awardId: number; approvedBy: string | null | undefined }[] = [];
+
+    const result = await approveAwards(
+      [11, 12, 13],
+      "staff@example.invalid",
+      async (awardId, approvedBy) => {
+        calls.push({ awardId, approvedBy });
+        return { ok: true, creditId: awardId + 1000 };
+      },
+    );
+
+    expect(calls).toEqual([
+      { awardId: 11, approvedBy: "staff@example.invalid" },
+      { awardId: 12, approvedBy: "staff@example.invalid" },
+      { awardId: 13, approvedBy: "staff@example.invalid" },
+    ]);
+    expect(result).toEqual({
+      approvedCount: 3,
+      failedCount: 0,
+      results: [
+        { awardId: 11, success: true, creditId: 1011, statusCode: 200, message: "Award approved and credit issued" },
+        { awardId: 12, success: true, creditId: 1012, statusCode: 200, message: "Award approved and credit issued" },
+        { awardId: 13, success: true, creditId: 1013, statusCode: 200, message: "Award approved and credit issued" },
+      ],
+    });
+  });
+
+  it("reports invalid-state and duplicate-approval failures without undoing successes", async () => {
+    const result = await approveAwards(
+      [21, 22, 23],
+      "staff@example.invalid",
+      async (awardId) => {
+        if (awardId === 22) {
+          return { ok: false, status: 400, error: "Award is rejected and cannot be approved" };
+        }
+        if (awardId === 23) {
+          return { ok: false, status: 409, error: "Award already handled" };
+        }
+        return { ok: true, creditId: 2021 };
+      },
+    );
+
+    expect(result.approvedCount).toBe(1);
+    expect(result.failedCount).toBe(2);
+    expect(result.results).toEqual([
+      { awardId: 21, success: true, creditId: 2021, statusCode: 200, message: "Award approved and credit issued" },
+      { awardId: 22, success: false, creditId: null, statusCode: 400, message: "Award is rejected and cannot be approved" },
+      { awardId: 23, success: false, creditId: null, statusCode: 409, message: "Award already handled" },
+    ]);
+  });
+
+  it("does not execute a repeated award ID twice", async () => {
+    const calls: number[] = [];
+    const result = await approveAwards(
+      [31, 31],
+      null,
+      async (awardId) => {
+        calls.push(awardId);
+        return { ok: true, creditId: 3031 };
+      },
+    );
+
+    expect(calls).toEqual([31]);
+    expect(result.approvedCount).toBe(1);
+    expect(result.failedCount).toBe(1);
+    expect(result.results[1]).toEqual({
+      awardId: 31,
+      success: false,
+      creditId: null,
+      statusCode: 400,
+      message: "Duplicate award ID",
+    });
+  });
+
+  it("continues after an unexpected per-award exception", async () => {
+    const calls: number[] = [];
+    const result = await approveAwards(
+      [41, 42, 43],
+      "staff@example.invalid",
+      async (awardId) => {
+        calls.push(awardId);
+        if (awardId === 42) throw new Error("database connection reset");
+        return { ok: true, creditId: awardId + 4000 };
+      },
+    );
+
+    expect(calls).toEqual([41, 42, 43]);
+    expect(result.approvedCount).toBe(2);
+    expect(result.failedCount).toBe(1);
+    expect(result.results).toEqual([
+      { awardId: 41, success: true, creditId: 4041, statusCode: 200, message: "Award approved and credit issued" },
+      { awardId: 42, success: false, creditId: null, statusCode: 500, message: "Failed to approve award" },
+      { awardId: 43, success: true, creditId: 4043, statusCode: 200, message: "Award approved and credit issued" },
+    ]);
   });
 });
