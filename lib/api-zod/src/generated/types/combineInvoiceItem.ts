@@ -42,6 +42,12 @@ export interface CombineInvoiceItem {
   statusExclusionApplied: boolean;
   /** Whether staff may elect this invoice by confirming a status-only exclusion override. */
   canOverrideStatusExclusion: boolean;
+  /** Whether one or more date-based rule exclusions apply to this invoice. */
+  dateExclusionApplied: boolean;
+  /** Whether staff may use this invoice by confirming a date-only exclusion override. */
+  canOverrideDateExclusion: boolean;
+  /** Exact date-based exclusions identified for this invoice. */
+  dateExclusionReasons: string[];
   /** Whether this invoice already has an active pending/processing/issued award for this rule */
   alreadyUsed: boolean;
   /** @nullable */

@@ -123,10 +123,26 @@ function safeConditions(rule: RewardRule): RewardConditions {
   return parsed.success ? parsed.data : {};
 }
 
+type DateExclusionReasonCode =
+  | "rule_start"
+  | "rule_end"
+  | "created_date"
+  | "invoice_date"
+  | "production_date"
+  | "paid_date";
+
+type InvoiceRuleReasonCode =
+  | DateExclusionReasonCode
+  | "tag"
+  | "status_required"
+  | "status_excluded"
+  | "total_min"
+  | "total_max";
+
 type InvoiceRuleMatchResult = {
   matches: boolean;
   reason: string | null;
-  reasonCode: "rule_start" | "rule_end" | "tag" | "status_required" | "status_excluded" | "total_min" | "total_max" | "created_date" | "invoice_date" | "production_date" | "paid_date" | null;
+  reasonCode: InvoiceRuleReasonCode | null;
 };
 
 export type InvoiceRuleEligibility = {
@@ -134,19 +150,218 @@ export type InvoiceRuleEligibility = {
   ineligibleReason: string | null;
   statusExclusionApplied: boolean;
   canOverrideStatusExclusion: boolean;
+  dateExclusionApplied: boolean;
+  canOverrideDateExclusion: boolean;
+  dateExclusionReasons: string[];
+  dateExclusions: DateExclusionFingerprint[];
 };
+
+export type DateExclusionFingerprint = {
+  code: DateExclusionReasonCode;
+  actualDate: string | null;
+  fromDate: string | null;
+  toDate: string | null;
+};
+
+export type DateExclusionOverrideAudit = {
+  invoiceVisualId: string;
+  reasons: string[];
+  exclusions: DateExclusionFingerprint[];
+}[];
+
+type RuleMatchOptions = {
+  ignoreStatusExclusions?: boolean;
+  ignoreDateExclusions?: boolean;
+};
+
+type DateExclusionReason = DateExclusionFingerprint & {
+  reason: string;
+};
+
+function datePart(value: string | Date): string {
+  return (value instanceof Date ? value.toISOString() : value).slice(0, 10);
+}
+
+function requiredDateWindow(from?: string, to?: string): string {
+  if (from && to) return `between ${datePart(from)} and ${datePart(to)}`;
+  if (from) return `on or after ${datePart(from)}`;
+  if (to) return `on or before ${datePart(to)}`;
+  return "within the configured date range";
+}
+
+function collectDateExclusionReasons(
+  inv: PrintavoPaidInvoice,
+  rule: RewardRule,
+): DateExclusionReason[] {
+  const reasons: DateExclusionReason[] = [];
+  const nowMs = Date.now();
+  if (rule.startsAt && nowMs < new Date(rule.startsAt).getTime()) {
+    reasons.push({
+      code: "rule_start",
+      reason: `Rule active date has not started; it starts on ${datePart(rule.startsAt)}`,
+      actualDate: null,
+      fromDate: datePart(rule.startsAt),
+      toDate: null,
+    });
+  }
+  if (rule.endsAt && nowMs > new Date(rule.endsAt).getTime()) {
+    reasons.push({
+      code: "rule_end",
+      reason: `Rule active date has ended; it ended on ${datePart(rule.endsAt)}`,
+      actualDate: null,
+      fromDate: null,
+      toDate: datePart(rule.endsAt),
+    });
+  }
+
+  const cond = safeConditions(rule);
+  const createdDay = datePart(inv.createdAt);
+  if (cond.invoiceDateFrom && createdDay < datePart(cond.invoiceDateFrom)) {
+    reasons.push({
+      code: "created_date",
+      reason: `Invoice creation date ${createdDay} is before the allowed start date ${datePart(cond.invoiceDateFrom)}`,
+      actualDate: createdDay,
+      fromDate: datePart(cond.invoiceDateFrom),
+      toDate: null,
+    });
+  }
+  if (cond.invoiceDateTo && createdDay > datePart(cond.invoiceDateTo)) {
+    reasons.push({
+      code: "created_date",
+      reason: `Invoice creation date ${createdDay} is after the allowed end date ${datePart(cond.invoiceDateTo)}`,
+      actualDate: createdDay,
+      fromDate: null,
+      toDate: datePart(cond.invoiceDateTo),
+    });
+  }
+
+  if (cond.invoiceAtFrom || cond.invoiceAtTo) {
+    if (!inv.invoiceAt) {
+      reasons.push({
+        code: "invoice_date",
+        reason: `Invoice date is missing; this rule requires an invoice date ${requiredDateWindow(cond.invoiceAtFrom, cond.invoiceAtTo)}`,
+        actualDate: null,
+        fromDate: cond.invoiceAtFrom ? datePart(cond.invoiceAtFrom) : null,
+        toDate: cond.invoiceAtTo ? datePart(cond.invoiceAtTo) : null,
+      });
+    } else {
+      const invoiceDay = datePart(inv.invoiceAt);
+      if (cond.invoiceAtFrom && invoiceDay < datePart(cond.invoiceAtFrom)) {
+        reasons.push({
+          code: "invoice_date",
+          reason: `Invoice date ${invoiceDay} is before the allowed start date ${datePart(cond.invoiceAtFrom)}`,
+          actualDate: invoiceDay,
+          fromDate: datePart(cond.invoiceAtFrom),
+          toDate: null,
+        });
+      }
+      if (cond.invoiceAtTo && invoiceDay > datePart(cond.invoiceAtTo)) {
+        reasons.push({
+          code: "invoice_date",
+          reason: `Invoice date ${invoiceDay} is after the allowed end date ${datePart(cond.invoiceAtTo)}`,
+          actualDate: invoiceDay,
+          fromDate: null,
+          toDate: datePart(cond.invoiceAtTo),
+        });
+      }
+    }
+  }
+
+  if (cond.productionDateFrom || cond.productionDateTo) {
+    if (!inv.productionDueAt) {
+      reasons.push({
+        code: "production_date",
+        reason: `Production date is missing; this rule requires a production date ${requiredDateWindow(cond.productionDateFrom, cond.productionDateTo)}`,
+        actualDate: null,
+        fromDate: cond.productionDateFrom ? datePart(cond.productionDateFrom) : null,
+        toDate: cond.productionDateTo ? datePart(cond.productionDateTo) : null,
+      });
+    } else {
+      const productionDay = datePart(inv.productionDueAt);
+      if (cond.productionDateFrom && productionDay < datePart(cond.productionDateFrom)) {
+        reasons.push({
+          code: "production_date",
+          reason: `Production date ${productionDay} is before the allowed start date ${datePart(cond.productionDateFrom)}`,
+          actualDate: productionDay,
+          fromDate: datePart(cond.productionDateFrom),
+          toDate: null,
+        });
+      }
+      if (cond.productionDateTo && productionDay > datePart(cond.productionDateTo)) {
+        reasons.push({
+          code: "production_date",
+          reason: `Production date ${productionDay} is after the allowed end date ${datePart(cond.productionDateTo)}`,
+          actualDate: productionDay,
+          fromDate: null,
+          toDate: datePart(cond.productionDateTo),
+        });
+      }
+    }
+  }
+
+  if (cond.paidDateFrom || cond.paidDateTo) {
+    if (!inv.datePaid) {
+      reasons.push({
+        code: "paid_date",
+        reason: `Paid date is missing; this rule requires a paid date ${requiredDateWindow(cond.paidDateFrom, cond.paidDateTo)}`,
+        actualDate: null,
+        fromDate: cond.paidDateFrom ? datePart(cond.paidDateFrom) : null,
+        toDate: cond.paidDateTo ? datePart(cond.paidDateTo) : null,
+      });
+    } else {
+      if (cond.paidDateFrom && inv.datePaid < datePart(cond.paidDateFrom)) {
+        reasons.push({
+          code: "paid_date",
+          reason: `Paid date ${inv.datePaid} is before the allowed start date ${datePart(cond.paidDateFrom)}`,
+          actualDate: inv.datePaid,
+          fromDate: datePart(cond.paidDateFrom),
+          toDate: null,
+        });
+      }
+      if (cond.paidDateTo && inv.datePaid > datePart(cond.paidDateTo)) {
+        reasons.push({
+          code: "paid_date",
+          reason: `Paid date ${inv.datePaid} is after the allowed end date ${datePart(cond.paidDateTo)}`,
+          actualDate: inv.datePaid,
+          fromDate: null,
+          toDate: datePart(cond.paidDateTo),
+        });
+      }
+    }
+  }
+
+  return reasons;
+}
+
+function getStatusExclusionReason(
+  inv: PrintavoPaidInvoice,
+  rule: RewardRule,
+): string | null {
+  const excludedStatuses = safeConditions(rule).statusNameExclude;
+  if (!excludedStatuses?.length || !inv.statusName) return null;
+  const status = normalizeStatusName(inv.statusName);
+  return excludedStatuses.some((name) => normalizeStatusName(name) === status)
+    ? `Status "${inv.statusName}" is excluded by this rule`
+    : null;
+}
 
 function matchInvoiceRule(
   inv: PrintavoPaidInvoice,
   rule: RewardRule,
-  ignoreStatusExclusions: boolean,
+  options: RuleMatchOptions = {},
 ): InvoiceRuleMatchResult {
-  const nowMs = Date.now();
-  if (rule.startsAt && nowMs < new Date(rule.startsAt).getTime()) {
-    return { matches: false, reason: "Rule has not started yet", reasonCode: "rule_start" };
-  }
-  if (rule.endsAt && nowMs > new Date(rule.endsAt).getTime()) {
-    return { matches: false, reason: "Rule has ended", reasonCode: "rule_end" };
+  const dateExclusions = collectDateExclusionReasons(inv, rule);
+  if (!options.ignoreDateExclusions) {
+    const activeWindowExclusion = dateExclusions.find(
+      ({ code }) => code === "rule_start" || code === "rule_end",
+    );
+    if (activeWindowExclusion) {
+      return {
+        matches: false,
+        reason: activeWindowExclusion.reason,
+        reasonCode: activeWindowExclusion.code,
+      };
+    }
   }
 
   const cond = safeConditions(rule);
@@ -173,15 +388,13 @@ function matchInvoiceRule(
   }
 
   // Excluded statuses fail eligibility outright (case-insensitive exact match).
-  if (!ignoreStatusExclusions && cond.statusNameExclude?.length && inv.statusName) {
-    const status = normalizeStatusName(inv.statusName);
-    if (cond.statusNameExclude.some((name) => normalizeStatusName(name) === status)) {
-      return {
-        matches: false,
-        reason: `Status "${inv.statusName}" is excluded by this rule`,
-        reasonCode: "status_excluded",
-      };
-    }
+  const statusExclusionReason = getStatusExclusionReason(inv, rule);
+  if (!options.ignoreStatusExclusions && statusExclusionReason) {
+    return {
+      matches: false,
+      reason: statusExclusionReason,
+      reasonCode: "status_excluded",
+    };
   }
 
   const total = inv.total ?? 0;
@@ -192,58 +405,16 @@ function matchInvoiceRule(
     return { matches: false, reason: "Invoice total is above the rule maximum", reasonCode: "total_max" };
   }
 
-  // Date windows compare the calendar date exactly as Printavo wrote it
-  // (leading YYYY-MM-DD of the ISO timestamp) against the condition's plain
-  // YYYY-MM-DD, lexicographically. Comparing full timestamps to
-  // new Date("YYYY-MM-DD") (= midnight UTC) would exclude nearly every
-  // invoice that falls ON the upper-bound day.
-  const datePart = (iso: string) => iso.slice(0, 10);
-
-  const createdDay = datePart(inv.createdAt);
-  if (
-    (cond.invoiceDateFrom && createdDay < datePart(cond.invoiceDateFrom)) ||
-    (cond.invoiceDateTo && createdDay > datePart(cond.invoiceDateTo))
-  ) {
-    return { matches: false, reason: "Invoice creation date is outside the rule's window", reasonCode: "created_date" };
-  }
-
-  // Printavo "invoice date" (invoiceAt) window. Missing invoiceAt fails the
-  // filter, matching the production-date behavior.
-  if (cond.invoiceAtFrom || cond.invoiceAtTo) {
-    if (!inv.invoiceAt) {
-      return { matches: false, reason: "Invoice date is outside the rule's window", reasonCode: "invoice_date" };
-    }
-    const d = datePart(inv.invoiceAt);
-    if (
-      (cond.invoiceAtFrom && d < datePart(cond.invoiceAtFrom)) ||
-      (cond.invoiceAtTo && d > datePart(cond.invoiceAtTo))
-    ) {
-      return { matches: false, reason: "Invoice date is outside the rule's window", reasonCode: "invoice_date" };
-    }
-  }
-
-  if (cond.productionDateFrom || cond.productionDateTo) {
-    if (!inv.productionDueAt) {
-      return { matches: false, reason: "Production date is outside the rule's window", reasonCode: "production_date" };
-    }
-    const d = datePart(inv.productionDueAt);
-    if (
-      (cond.productionDateFrom && d < datePart(cond.productionDateFrom)) ||
-      (cond.productionDateTo && d > datePart(cond.productionDateTo))
-    ) {
-      return { matches: false, reason: "Production date is outside the rule's window", reasonCode: "production_date" };
-    }
-  }
-
-  // Paid-date window. datePaid and the conditions are plain YYYY-MM-DD strings,
-  // so lexicographic comparison is correct and avoids timezone day-shifts.
-  if (cond.paidDateFrom || cond.paidDateTo) {
-    if (
-      !inv.datePaid ||
-      (cond.paidDateFrom && inv.datePaid < cond.paidDateFrom) ||
-      (cond.paidDateTo && inv.datePaid > cond.paidDateTo)
-    ) {
-      return { matches: false, reason: "Paid date is outside the rule's window", reasonCode: "paid_date" };
+  if (!options.ignoreDateExclusions) {
+    const invoiceDateExclusion = dateExclusions.find(
+      ({ code }) => code !== "rule_start" && code !== "rule_end",
+    );
+    if (invoiceDateExclusion) {
+      return {
+        matches: false,
+        reason: invoiceDateExclusion.reason,
+        reasonCode: invoiceDateExclusion.code,
+      };
     }
   }
 
@@ -252,44 +423,62 @@ function matchInvoiceRule(
 
 /** Whether an invoice satisfies a rule's active window and conditions. */
 export function invoiceMatchesRule(inv: PrintavoPaidInvoice, rule: RewardRule): boolean {
-  return matchInvoiceRule(inv, rule, false).matches;
+  return matchInvoiceRule(inv, rule).matches;
 }
 
 /**
  * Return eligibility details used by staff-election search and authoritative
- * creation. A status override is available only when the status exclusion is
- * the sole failing condition; every other rule condition must still pass.
+ * creation. An override is available only when its exclusion category is the
+ * sole failing category; every non-overridden rule condition must still pass.
  */
 export function evaluateInvoiceRule(inv: PrintavoPaidInvoice, rule: RewardRule): InvoiceRuleEligibility {
-  const regular = matchInvoiceRule(inv, rule, false);
+  const regular = matchInvoiceRule(inv, rule);
   if (regular.matches) {
     return {
       eligible: true,
       ineligibleReason: null,
       statusExclusionApplied: false,
       canOverrideStatusExclusion: false,
+      dateExclusionApplied: false,
+      canOverrideDateExclusion: false,
+      dateExclusionReasons: [],
+      dateExclusions: [],
     };
   }
 
-  const statusExclusionApplied = regular.reasonCode === "status_excluded";
-  if (!statusExclusionApplied) {
-    return {
-      eligible: false,
-      ineligibleReason: regular.reason,
-      statusExclusionApplied: false,
-      canOverrideStatusExclusion: false,
-    };
-  }
+  const statusExclusionReason = getStatusExclusionReason(inv, rule);
+  const dateExclusions = collectDateExclusionReasons(inv, rule);
+  const statusExclusionApplied = statusExclusionReason != null;
+  const dateExclusionApplied = dateExclusions.length > 0;
+  const canOverrideStatusExclusion =
+    statusExclusionApplied &&
+    matchInvoiceRule(inv, rule, { ignoreStatusExclusions: true }).matches;
+  const canOverrideDateExclusion =
+    dateExclusionApplied &&
+    matchInvoiceRule(inv, rule, { ignoreDateExclusions: true }).matches;
+  const dateExclusionReasons = dateExclusions.map(({ reason }) => reason);
+  const dateExclusionFingerprints = dateExclusions.map(
+    ({ code, actualDate, fromDate, toDate }) => ({
+      code,
+      actualDate,
+      fromDate,
+      toDate,
+    }),
+  );
 
-  const withoutStatusExclusion = matchInvoiceRule(inv, rule, true);
-  const canOverrideStatusExclusion = withoutStatusExclusion.matches;
   return {
     eligible: false,
     ineligibleReason: canOverrideStatusExclusion
-      ? regular.reason
-      : `${regular.reason}; ${withoutStatusExclusion.reason?.replace(/^./, (char) => char.toLowerCase()) ?? "another rule condition is not met"}`,
-    statusExclusionApplied: true,
+      ? statusExclusionReason
+      : canOverrideDateExclusion
+        ? dateExclusionReasons.join("; ")
+        : regular.reason,
+    statusExclusionApplied,
     canOverrideStatusExclusion,
+    dateExclusionApplied,
+    canOverrideDateExclusion,
+    dateExclusionReasons,
+    dateExclusions: dateExclusionFingerprints,
   };
 }
 
@@ -303,17 +492,33 @@ export function pendingAwardMatchesInvoice(
   inv: PrintavoPaidInvoice,
   rule: RewardRule,
   statusExclusionOverride: string | null,
+  dateExclusionOverride: DateExclusionOverrideAudit | null = null,
 ): boolean {
   const eligibility = evaluateInvoiceRule(inv, rule);
   if (eligibility.eligible) return true;
   if (
-    !statusExclusionOverride ||
-    !inv.statusName ||
-    normalizeStatusName(statusExclusionOverride) !== normalizeStatusName(inv.statusName)
+    statusExclusionOverride &&
+    inv.statusName &&
+    normalizeStatusName(statusExclusionOverride) === normalizeStatusName(inv.statusName) &&
+    eligibility.canOverrideStatusExclusion
   ) {
+    return true;
+  }
+  const confirmedDateOverride = dateExclusionOverride?.find(
+    ({ invoiceVisualId }) => invoiceVisualId === inv.visualId,
+  );
+  if (!confirmedDateOverride || !eligibility.canOverrideDateExclusion) {
     return false;
   }
-  return eligibility.canOverrideStatusExclusion;
+  return eligibility.dateExclusions.every((current) =>
+    confirmedDateOverride.exclusions?.some(
+      (confirmed) =>
+        confirmed.code === current.code &&
+        confirmed.actualDate === current.actualDate &&
+        confirmed.fromDate === current.fromDate &&
+        confirmed.toDate === current.toDate,
+    ),
+  );
 }
 
 /**
@@ -676,6 +881,60 @@ async function removeStalePendingAwards(
       staleIds.push(award.id); // rule disabled or deleted
       continue;
     }
+    if (
+      award.source === "combined" &&
+      award.combinedInvoiceIds?.length
+    ) {
+      const combinedInvoices = award.combinedInvoiceIds.map((id) => invById.get(id));
+      if (combinedInvoices.some((inv) => !inv)) {
+        // A partial Printavo page cannot safely invalidate a combined award.
+        continue;
+      }
+      const invoices = combinedInvoices as PrintavoPaidInvoice[];
+      const ruleNoAmount = {
+        ...rule,
+        conditions: {
+          ...(rule.conditions as Record<string, unknown>),
+          totalMin: undefined,
+          totalMax: undefined,
+        },
+      };
+      const stillMatches = invoices.every(
+        (inv) =>
+          passesProgramStart(inv.datePaid, inv.createdAt, cfg) &&
+          pendingAwardMatchesInvoice(
+            inv,
+            ruleNoAmount as typeof rule,
+            null,
+            award.dateExclusionOverride,
+          ),
+      );
+      if (!stillMatches) {
+        staleIds.push(award.id);
+        continue;
+      }
+      const combinedTotal = invoices.reduce((sum, inv) => sum + (inv.total ?? 0), 0);
+      const combinedPaid = invoices.reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
+      const cond = safeConditions(rule);
+      if (
+        (cond.totalMin != null && combinedTotal < cond.totalMin - 1e-9) ||
+        (cond.totalMax != null && combinedTotal > cond.totalMax + 1e-9)
+      ) {
+        staleIds.push(award.id);
+        continue;
+      }
+      const merged: PrintavoPaidInvoice = {
+        ...invoices[0],
+        total: combinedTotal,
+        amountPaid: combinedPaid,
+        tags: Array.from(new Set(invoices.flatMap((inv) => inv.tags))),
+      };
+      const amount = computeAward(merged, rule);
+      if (amount <= 0 || Math.abs(amount - parseFloat(award.amount)) > 1e-9) {
+        staleIds.push(award.id);
+      }
+      continue;
+    }
     // Program start date, judged on the stored paid date (available whether or
     // not the invoice was re-fetched).
     if (award.datePaid && !passesProgramStart(award.datePaid, award.awardedAt, cfg)) {
@@ -687,7 +946,10 @@ async function removeStalePendingAwards(
       // Not re-fetched — judge the rule's paid-date window against the stored
       // paid date; other conditions can't be re-checked without live data.
       const cond = safeConditions(rule);
-      if (cond.paidDateFrom || cond.paidDateTo) {
+      if (
+        !award.dateExclusionOverride?.length &&
+        (cond.paidDateFrom || cond.paidDateTo)
+      ) {
         if (
           !award.datePaid ||
           (cond.paidDateFrom && award.datePaid < cond.paidDateFrom) ||
@@ -700,7 +962,12 @@ async function removeStalePendingAwards(
     }
     if (
       !passesProgramStart(inv.datePaid, inv.createdAt, cfg) ||
-      !pendingAwardMatchesInvoice(inv, rule, award.statusExclusionOverride)
+      !pendingAwardMatchesInvoice(
+        inv,
+        rule,
+        award.statusExclusionOverride,
+        award.dateExclusionOverride,
+      )
     ) {
       staleIds.push(award.id);
       continue;
@@ -1253,6 +1520,7 @@ export async function createCombinedAward(
   printavoConfig: PrintavoConfig,
   cfg: RewardsConfig,
   createdBy: string | null,
+  overrideDateExclusion = false,
 ): Promise<CreateCombinedAwardResult> {
   const uniqueIds = [...new Set(invoiceVisualIds.map((v) => v.trim()).filter(Boolean))];
   if (uniqueIds.length < 2) {
@@ -1310,13 +1578,27 @@ export async function createCombinedAward(
       totalMax: undefined,
     },
   };
+  const dateExclusionOverrideAudit: DateExclusionOverrideAudit = [];
   for (const inv of invoices) {
-    if (!invoiceMatchesRule(inv, ruleNoAmount as typeof rule)) {
+    const eligibility = evaluateInvoiceRule(inv, ruleNoAmount as typeof rule);
+    const dateExclusionOverridden =
+      overrideDateExclusion && eligibility.canOverrideDateExclusion;
+    if (!eligibility.eligible && !dateExclusionOverridden) {
+      const overrideHint = eligibility.canOverrideDateExclusion
+        ? " Confirm the date exclusion override to continue."
+        : "";
       return {
         ok: false,
         status: 422,
-        error: `Invoice #${inv.visualId} does not meet the rule's conditions (date window, status, or tag requirements). Check that the paid date and status are within the rule's allowed range.`,
+        error: `Invoice #${inv.visualId}: ${eligibility.ineligibleReason ?? "does not meet the rule's conditions"}.${overrideHint}`,
       };
+    }
+    if (dateExclusionOverridden) {
+      dateExclusionOverrideAudit.push({
+        invoiceVisualId: inv.visualId,
+        reasons: eligibility.dateExclusionReasons,
+        exclusions: eligibility.dateExclusions,
+      });
     }
   }
 
@@ -1463,7 +1745,15 @@ export async function createCombinedAward(
         ownerName: invoices[0].ownerName ?? null,
         status: "pending", // combined awards always pend for manual review
         source: "combined",
-        note: `${rule.name} · combined: ${visualIds}`,
+        dateExclusionOverride: dateExclusionOverrideAudit.length
+          ? dateExclusionOverrideAudit
+          : null,
+        dateExclusionOverriddenBy: dateExclusionOverrideAudit.length
+          ? createdBy
+          : null,
+        note: dateExclusionOverrideAudit.length
+          ? `${rule.name} · combined: ${visualIds} · date exclusion overridden by ${createdBy ?? "staff"}`
+          : `${rule.name} · combined: ${visualIds}`,
         combinedInvoiceIds: allIds,
       } as typeof rewardAwardsTable.$inferInsert)
       .onConflictDoNothing()
@@ -1474,7 +1764,15 @@ export async function createCombinedAward(
     }
 
     logger.info(
-      { awardId: award.id, ruleId, invoiceCount: invoices.length, amount, combinedTotal, createdBy },
+      {
+        awardId: award.id,
+        ruleId,
+        invoiceCount: invoices.length,
+        amount,
+        combinedTotal,
+        createdBy,
+        dateExclusionOverride: dateExclusionOverrideAudit,
+      },
       "Rewards: created combined invoice award",
     );
 
@@ -1503,6 +1801,7 @@ export async function createElectedAward(
   cfg: RewardsConfig,
   createdBy: string | null,
   overrideStatusExclusion = false,
+  overrideDateExclusion = false,
 ): Promise<CreateElectedAwardResult> {
   const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
   if (!rule) return { ok: false, status: 404, error: "Rule not found" };
@@ -1515,10 +1814,18 @@ export async function createElectedAward(
   const eligibility = evaluateInvoiceRule(invoice, rule);
   const statusExclusionOverridden =
     overrideStatusExclusion && eligibility.canOverrideStatusExclusion;
-  if (!eligibility.eligible && !statusExclusionOverridden) {
+  const dateExclusionOverridden =
+    overrideDateExclusion && eligibility.canOverrideDateExclusion;
+  if (
+    !eligibility.eligible &&
+    !statusExclusionOverridden &&
+    !dateExclusionOverridden
+  ) {
     const overrideHint = eligibility.canOverrideStatusExclusion
       ? " Confirm the status exclusion override to continue."
-      : "";
+      : eligibility.canOverrideDateExclusion
+        ? " Confirm the date exclusion override to continue."
+        : "";
     return {
       ok: false,
       status: 422,
@@ -1574,9 +1881,19 @@ export async function createElectedAward(
       source: "elected",
       statusExclusionOverride: statusExclusionOverridden ? invoice.statusName : null,
       statusExclusionOverriddenBy: statusExclusionOverridden ? createdBy : null,
+      dateExclusionOverride: dateExclusionOverridden
+        ? [{
+            invoiceVisualId: invoice.visualId,
+            reasons: eligibility.dateExclusionReasons,
+            exclusions: eligibility.dateExclusions,
+          }]
+        : null,
+      dateExclusionOverriddenBy: dateExclusionOverridden ? createdBy : null,
       note: statusExclusionOverridden
         ? `${rule.name} · elected · status exclusion overridden by ${createdBy ?? "staff"}`
-        : `${rule.name} · elected`,
+        : dateExclusionOverridden
+          ? `${rule.name} · elected · date exclusion overridden by ${createdBy ?? "staff"}`
+          : `${rule.name} · elected`,
     }).onConflictDoNothing().returning();
     if (!award) return { ok: false as const, status: 409, error: "This invoice already has a reward under the selected rule" };
     if (statusExclusionOverridden) {
@@ -1589,6 +1906,18 @@ export async function createElectedAward(
           createdBy,
         },
         "Rewards: elected award created with status exclusion override",
+      );
+    }
+    if (dateExclusionOverridden) {
+      logger.warn(
+        {
+          awardId: award.id,
+          ruleId,
+          invoiceVisualId: invoice.visualId,
+          dateExclusionReasons: eligibility.dateExclusionReasons,
+          createdBy,
+        },
+        "Rewards: elected award created with date exclusion override",
       );
     }
     return { ok: true as const, awardId: award.id, amount };

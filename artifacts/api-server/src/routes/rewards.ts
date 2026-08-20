@@ -13,6 +13,7 @@ import {
   RejectRewardAwardParams,
   SendTestRewardEmailBody,
   UpsertOrderNoteBody,
+  CreateCombinedRewardAwardBody,
   CreateElectedRewardAwardBody,
 } from "@workspace/api-zod";
 import {
@@ -688,6 +689,7 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
       const eligible = eligibility.eligible;
       const canOverrideStatusExclusion =
         mode === "elect" && eligibility.canOverrideStatusExclusion;
+      const canOverrideDateExclusion = eligibility.canOverrideDateExclusion;
 
       const existingAward = await findExistingAwardForInvoice(rule.id, inv.id);
       return {
@@ -709,9 +711,16 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         ineligibleReason: eligibility.ineligibleReason,
         statusExclusionApplied: eligibility.statusExclusionApplied,
         canOverrideStatusExclusion,
+        dateExclusionApplied: eligibility.dateExclusionApplied,
+        canOverrideDateExclusion,
+        dateExclusionReasons: eligibility.dateExclusionReasons,
         alreadyUsed: !!existingAward,
         existingAwardId: existingAward?.id ?? null,
-        rewardAmount: mode === "elect" && (eligible || canOverrideStatusExclusion)
+        rewardAmount: mode === "elect" && (
+          eligible ||
+          canOverrideStatusExclusion ||
+          canOverrideDateExclusion
+        )
           ? computeAward(inv, rule)
           : null,
       };
@@ -723,20 +732,15 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
 
 // ── Create combined award ─────────────────────────────────────────────────────
 router.post("/rewards/combined-award", async (req, res): Promise<void> => {
-  const body = req.body as { ruleId?: unknown; invoiceVisualIds?: unknown };
-
-  const ruleId = typeof body.ruleId === "number" ? body.ruleId : parseInt(String(body.ruleId ?? ""), 10);
-  if (isNaN(ruleId)) {
-    res.status(400).json({ error: "ruleId is required" });
+  const parsed = CreateCombinedRewardAwardBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
-
-  if (!Array.isArray(body.invoiceVisualIds) || body.invoiceVisualIds.length < 2) {
-    res.status(400).json({ error: "invoiceVisualIds must contain at least two order numbers" });
-    return;
-  }
-
-  const invoiceVisualIds = body.invoiceVisualIds.map((v) => String(v).trim()).filter(Boolean);
+  const { ruleId, overrideDateExclusion } = parsed.data;
+  const invoiceVisualIds = parsed.data.invoiceVisualIds
+    .map((value) => value.trim())
+    .filter(Boolean);
   if (invoiceVisualIds.length < 2) {
     res.status(400).json({ error: "invoiceVisualIds must contain at least two non-empty order numbers" });
     return;
@@ -755,6 +759,7 @@ router.post("/rewards/combined-award", async (req, res): Promise<void> => {
     printavoConfig,
     cfg,
     req.staffEmail ?? null,
+    overrideDateExclusion,
   );
 
   if (!result.ok) {
@@ -777,7 +782,12 @@ router.post("/rewards/elected-award", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { ruleId, invoiceVisualId, overrideStatusExclusion } = parsed.data;
+  const {
+    ruleId,
+    invoiceVisualId,
+    overrideStatusExclusion,
+    overrideDateExclusion,
+  } = parsed.data;
   const printavoConfig = await getPrintavoConfig();
   if (!printavoConfig) {
     res.status(400).json({ error: "Printavo is not configured" });
@@ -790,6 +800,7 @@ router.post("/rewards/elected-award", async (req, res): Promise<void> => {
     await getRewardsConfig(),
     req.staffEmail ?? null,
     overrideStatusExclusion,
+    overrideDateExclusion,
   );
   if (!result.ok) {
     res.status(result.status).json({ error: result.error });

@@ -16,4 +16,6 @@ export interface CombinedAwardRequest {
      * @minItems 2
      */
   invoiceVisualIds: string[];
+  /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
+  overrideDateExclusion?: boolean;
 }

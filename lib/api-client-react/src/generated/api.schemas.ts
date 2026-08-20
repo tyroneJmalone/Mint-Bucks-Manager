@@ -906,6 +906,12 @@ export interface CombineInvoiceItem {
   statusExclusionApplied: boolean;
   /** Whether staff may elect this invoice by confirming a status-only exclusion override. */
   canOverrideStatusExclusion: boolean;
+  /** Whether one or more date-based rule exclusions apply to this invoice. */
+  dateExclusionApplied: boolean;
+  /** Whether staff may use this invoice by confirming a date-only exclusion override. */
+  canOverrideDateExclusion: boolean;
+  /** Exact date-based exclusions identified for this invoice. */
+  dateExclusionReasons: string[];
   /** Whether this invoice already has an active pending/processing/issued award for this rule */
   alreadyUsed: boolean;
   /** @nullable */
@@ -933,6 +939,8 @@ export interface CombinedAwardRequest {
      * @minItems 2
      */
   invoiceVisualIds: string[];
+  /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
+  overrideDateExclusion?: boolean;
 }
 
 export interface CombinedAwardResult {
@@ -951,6 +959,8 @@ export interface ElectedAwardRequest {
   invoiceVisualId: string;
   /** Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced. */
   overrideStatusExclusion?: boolean;
+  /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
+  overrideDateExclusion?: boolean;
 }
 
 export interface ElectedAwardResult {

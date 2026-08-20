@@ -30,6 +30,24 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   statusExclusionOverride: text("status_exclusion_override"),
   /** Staff email that confirmed the status exclusion override. */
   statusExclusionOverriddenBy: text("status_exclusion_overridden_by"),
+  /**
+   * Staff-confirmed date exclusions, grouped by contributing invoice. Null for
+   * ordinary awards. Pending scans continue enforcing every non-date condition.
+   */
+  dateExclusionOverride: jsonb("date_exclusion_override").$type<
+    {
+      invoiceVisualId: string;
+      reasons: string[];
+      exclusions: {
+        code: "rule_start" | "rule_end" | "created_date" | "invoice_date" | "production_date" | "paid_date";
+        actualDate: string | null;
+        fromDate: string | null;
+        toDate: string | null;
+      }[];
+    }[]
+  >(),
+  /** Staff email that confirmed the date exclusion override. */
+  dateExclusionOverriddenBy: text("date_exclusion_overridden_by"),
   creditId: integer("credit_id"),
   note: text("note"),
   /** Email of the staff member who approved this award (null for auto-issued). */

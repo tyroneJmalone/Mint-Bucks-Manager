@@ -9,6 +9,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +53,9 @@ interface CombineInvoiceItem {
   tags: string[];
   eligible: boolean;
   ineligibleReason: string | null;
+  dateExclusionApplied: boolean;
+  canOverrideDateExclusion: boolean;
+  dateExclusionReasons: string[];
   alreadyUsed: boolean;
   existingAwardId: number | null;
 }
@@ -140,6 +153,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   const [searching, setSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [overrideConfirmationOpen, setOverrideConfirmationOpen] = useState(false);
 
   const enabledRules = useMemo(() => (rules ?? []).filter((rule) => rule.enabled), [rules]);
   const selectedRule = enabledRules.find((r) => String(r.id) === selectedRuleId) ?? null;
@@ -159,11 +173,17 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   const combinedTotal = selectedInvoices.reduce((s, i) => s + (i.total ?? 0), 0);
 
   // Any selected invoice that is already used or not eligible?
-  const selectedIneligible = selectedInvoices.filter((i) => !i.eligible);
+  const selectedDateOverrides = selectedInvoices.filter(
+    (i) => !i.eligible && i.canOverrideDateExclusion,
+  );
+  const selectedBlocked = selectedInvoices.filter(
+    (i) => !i.eligible && !i.canOverrideDateExclusion,
+  );
   const selectedAlreadyUsed = selectedInvoices.filter((i) => i.alreadyUsed);
   const canSubmit =
     selectedInvoices.length >= 2 && // must combine at least two invoices
     selectedAlreadyUsed.length === 0 &&
+    selectedBlocked.length === 0 &&
     previewAmount > 0;
 
   function resetDialog() {
@@ -171,6 +191,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
     setSearchQuery("");
     setSearchResult(null);
     setSelectedIds(new Set());
+    setOverrideConfirmationOpen(false);
   }
 
   function handleClose(open: boolean) {
@@ -209,7 +230,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
     });
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(overrideDateExclusion = false) {
     if (!canSubmit || !selectedRuleId) return;
     setSubmitting(true);
     try {
@@ -221,6 +242,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
         body: JSON.stringify({
           ruleId: parseInt(selectedRuleId, 10),
           invoiceVisualIds: selectedInvoices.map((i) => i.visualId),
+          overrideDateExclusion,
         }),
       });
       const data = await res.json();
@@ -231,7 +253,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
       const result = data as CombinedAwardResult;
       toast({
         title: "Combined award created",
-        description: `${formatCurrency(result.amount)} pending for ${result.invoiceCount} invoice${result.invoiceCount !== 1 ? "s" : ""} · combined total ${formatCurrency(result.combinedTotal)}`,
+        description: `${formatCurrency(result.amount)} pending for ${result.invoiceCount} invoice${result.invoiceCount !== 1 ? "s" : ""} · combined total ${formatCurrency(result.combinedTotal)}${overrideDateExclusion ? " · identified date exclusions overridden" : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() });
@@ -244,6 +266,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-0 p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
@@ -346,7 +369,9 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                     <tbody className="divide-y divide-border">
                       {searchResult.invoices.map((inv) => {
                         const isSelected = selectedIds.has(inv.id);
-                        const disabled = inv.alreadyUsed;
+                        const disabled =
+                          inv.alreadyUsed ||
+                          (!inv.eligible && !inv.canOverrideDateExclusion);
 
                         return (
                           <tr
@@ -391,16 +416,26 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                                 )}
                                 {!inv.eligible && !inv.alreadyUsed && (
                                   <span
-                                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700"
+                                    className={cn(
+                                      "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                                      inv.canOverrideDateExclusion
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-red-100 text-red-700",
+                                    )}
                                     title={inv.ineligibleReason ?? "Not eligible"}
                                   >
-                                    Ineligible
+                                    {inv.canOverrideDateExclusion ? "Date override" : "Ineligible"}
                                   </span>
                                 )}
                               </div>
                               {inv.nickname && (
                                 <div className="text-xs text-muted-foreground truncate max-w-[180px]" title={inv.nickname}>
                                   {inv.nickname}
+                                </div>
+                              )}
+                              {inv.canOverrideDateExclusion && (
+                                <div className="text-xs text-amber-700 mt-1 max-w-[260px]">
+                                  {inv.dateExclusionReasons.join("; ")}
                                 </div>
                               )}
                             </td>
@@ -461,14 +496,24 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                 </div>
               )}
 
-              {selectedIneligible.length > 0 && selectedAlreadyUsed.length === 0 && (
+              {selectedDateOverrides.length > 0 && selectedAlreadyUsed.length === 0 && (
                 <div className="flex items-start gap-2 text-sm text-amber-700">
                   <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    {selectedIneligible.map((i) => `#${i.visualId}`).join(", ")}{" "}
-                    {selectedIneligible.length === 1 ? "does" : "do"} not meet the rule's conditions
-                    ({selectedIneligible[0]?.ineligibleReason ?? "ineligible"}). You can still include it —
-                    the award will need manual review.
+                    Date confirmation required:{" "}
+                    {selectedDateOverrides.map((invoice) =>
+                      `#${invoice.visualId}: ${invoice.dateExclusionReasons.join("; ")}`
+                    ).join(" | ")}
+                  </span>
+                </div>
+              )}
+
+              {selectedBlocked.length > 0 && selectedAlreadyUsed.length === 0 && (
+                <div className="flex items-start gap-2 text-sm text-destructive">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    {selectedBlocked.map((i) => `#${i.visualId}`).join(", ")} cannot be combined because a
+                    non-date rule condition is not met.
                   </span>
                 </div>
               )}
@@ -500,7 +545,13 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => {
+              if (selectedDateOverrides.length) {
+                setOverrideConfirmationOpen(true);
+              } else {
+                void handleSubmit(false);
+              }
+            }}
             disabled={!canSubmit || submitting}
             data-testid="button-combine-submit"
           >
@@ -519,5 +570,34 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={overrideConfirmationOpen} onOpenChange={setOverrideConfirmationOpen}>
+      <AlertDialogContent data-testid="dialog-confirm-combine-date-override">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are You Sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The selected invoices have the following date exclusions:{" "}
+            <strong>
+              {selectedDateOverrides.map((invoice) =>
+                `#${invoice.visualId}: ${invoice.dateExclusionReasons.join("; ")}`
+              ).join(" | ")}
+            </strong>
+            . This will override only these identified date exclusions. Fully-paid status,
+            customer matching, non-date rule conditions, duplicate checks, combined amount
+            requirements, and the annual limit will still be enforced.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Go Back</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => void handleSubmit(true)}
+            disabled={submitting}
+            data-testid="button-confirm-combine-date-override"
+          >
+            Yes, Override Exclusion
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

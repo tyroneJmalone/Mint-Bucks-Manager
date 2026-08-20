@@ -15,4 +15,6 @@ export interface ElectedAwardRequest {
   invoiceVisualId: string;
   /** Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced. */
   overrideStatusExclusion?: boolean;
+  /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
+  overrideDateExclusion?: boolean;
 }

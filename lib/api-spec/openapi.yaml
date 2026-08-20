@@ -2090,7 +2090,7 @@ components:
 
     CombineInvoiceItem:
       type: object
-      required: [id, visualId, customerName, customerEmail, eligible, statusExclusionApplied, canOverrideStatusExclusion, alreadyUsed]
+      required: [id, visualId, customerName, customerEmail, eligible, statusExclusionApplied, canOverrideStatusExclusion, dateExclusionApplied, canOverrideDateExclusion, dateExclusionReasons, alreadyUsed]
       properties:
         id:
           type: string
@@ -2136,6 +2136,17 @@ components:
         canOverrideStatusExclusion:
           type: boolean
           description: Whether staff may elect this invoice by confirming a status-only exclusion override.
+        dateExclusionApplied:
+          type: boolean
+          description: Whether one or more date-based rule exclusions apply to this invoice.
+        canOverrideDateExclusion:
+          type: boolean
+          description: Whether staff may use this invoice by confirming a date-only exclusion override.
+        dateExclusionReasons:
+          type: array
+          description: Exact date-based exclusions identified for this invoice.
+          items:
+            type: string
         alreadyUsed:
           type: boolean
           description: Whether this invoice already has an active pending/processing/issued award for this rule
@@ -2174,6 +2185,10 @@ components:
           description: Printavo order (visual) numbers of at least two distinct invoices, e.g. ["12345", "12346"]
           items:
             type: string
+        overrideDateExclusion:
+          type: boolean
+          default: false
+          description: Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.
 
     CombinedAwardResult:
       type: object
@@ -2202,6 +2217,10 @@ components:
           type: boolean
           default: false
           description: Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced.
+        overrideDateExclusion:
+          type: boolean
+          default: false
+          description: Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.
 
     ElectedAwardResult:
       type: object
