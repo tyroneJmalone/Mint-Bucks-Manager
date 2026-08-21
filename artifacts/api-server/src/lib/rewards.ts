@@ -795,7 +795,6 @@ async function issueClaimedAward(
       creditId: credit.id,
       customerId: customer.id,
       imageObjectPath: rule.imageObjectPath ?? null,
-      ccEmail: award.ownerEmail ?? null,
       customSubject: rule.issuedEmailSubject ?? null,
       customBody: rule.issuedEmailBody ?? null,
     }).catch(() => {});
@@ -1400,7 +1399,6 @@ export async function approveAward(
       creditId: credit.id,
       customerId: customer.id,
       imageObjectPath: rule?.imageObjectPath ?? null,
-      ccEmail: award.ownerEmail ?? null,
       triggeredBy: approvedBy ?? null,
       customSubject: rule?.issuedEmailSubject ?? null,
       customBody: rule?.issuedEmailBody ?? null,

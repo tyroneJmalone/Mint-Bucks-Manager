@@ -16,6 +16,11 @@ export interface EmailLogEntry {
   creditId: number | null;
   emailType: EmailLogEntryEmailType;
   recipientEmail: string;
+  /**
+     * Optional CC recipient included in the provider delivery request.
+     * @nullable
+     */
+  ccEmail: string | null;
   subject: string;
   status: EmailLogEntryStatus;
   sentAt: string;

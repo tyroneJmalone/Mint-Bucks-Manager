@@ -1284,6 +1284,7 @@ export const ListEmailLogResponseItem = zod.object({
   "creditId": zod.number().nullable(),
   "emailType": zod.enum(['issued', 'reminder', 'redemption', 'printavo_notification', 'test_issued', 'test_reminder', 'test_printavo_notification', 'award_declined']),
   "recipientEmail": zod.string(),
+  "ccEmail": zod.string().nullable().describe('Optional CC recipient included in the provider delivery request.'),
   "subject": zod.string(),
   "status": zod.enum(['sent', 'failed']),
   "sentAt": zod.string(),

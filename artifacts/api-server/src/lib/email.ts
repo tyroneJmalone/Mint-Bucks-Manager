@@ -16,7 +16,17 @@ interface EmailLogMeta {
 
 const BUSINESS_NAME = "Mint Printworks";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? `noreply@mintprintworks.com`;
+export const ISSUED_EMAIL_CC = "info@mintprintworks.com";
 
+interface SendEmailOptions {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  cc?: string | null;
+  idempotencyKey?: string;
+  log?: EmailLogMeta;
+}
 
 function logoImgTag(): string {
   const url = getAppUrl();
@@ -24,7 +34,7 @@ function logoImgTag(): string {
   return `<img src="${url}/logo.png" alt="Mint Printworks" style="height:68px;width:auto">`;
 }
 
-async function send(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; idempotencyKey?: string; log?: EmailLogMeta }): Promise<boolean> {
+async function send(opts: SendEmailOptions): Promise<boolean> {
   const ok = await sendViaResend(opts);
   if (opts.log) {
     // Extract the bare address from "Name <addr>" format.
@@ -35,6 +45,7 @@ async function send(opts: { from: string; to: string; subject: string; html: str
         creditId: opts.log.creditId ?? null,
         emailType: opts.log.emailType,
         recipientEmail: recipient,
+        ccEmail: opts.cc ?? null,
         subject: opts.subject,
         status: ok ? "sent" : "failed",
         triggeredBy: opts.log.triggeredBy ?? null,
@@ -44,7 +55,19 @@ async function send(opts: { from: string; to: string; subject: string; html: str
   return ok;
 }
 
-async function sendViaResend(opts: { from: string; to: string; subject: string; html: string; cc?: string | null; idempotencyKey?: string }): Promise<boolean> {
+export function buildResendEmailPayload(
+  opts: Pick<SendEmailOptions, "from" | "to" | "subject" | "html" | "cc">,
+): { from: string; to: string; subject: string; html: string; cc?: string } {
+  return {
+    from: opts.from,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.cc ? { cc: opts.cc } : {}),
+  };
+}
+
+async function sendViaResend(opts: SendEmailOptions): Promise<boolean> {
   try {
     const connectors = new ReplitConnectors();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -56,21 +79,30 @@ async function sendViaResend(opts: { from: string; to: string; subject: string; 
     }
     const response = await connectors.proxy("resend", "/emails", {
       method: "POST",
-      body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, ...(opts.cc ? { cc: opts.cc } : {}) }),
+      body: JSON.stringify(buildResendEmailPayload(opts)),
       headers,
     });
 
     if (!response.ok) {
       const body = await response.text().catch(() => "(unreadable)");
-      logger.error({ to: opts.to, subject: opts.subject, status: response.status, body }, "Resend API error");
+      logger.error(
+        { to: opts.to, cc: opts.cc ?? null, subject: opts.subject, status: response.status, body },
+        "Resend API error",
+      );
       return false;
     }
 
     const result = await response.json() as { id?: string };
-    logger.info({ to: opts.to, subject: opts.subject, id: result.id }, "Email sent via Resend");
+    logger.info(
+      { to: opts.to, cc: opts.cc ?? null, subject: opts.subject, id: result.id },
+      "Email sent via Resend",
+    );
     return true;
   } catch (err) {
-    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email via Resend");
+    logger.error(
+      { err, to: opts.to, cc: opts.cc ?? null, subject: opts.subject },
+      "Failed to send email via Resend",
+    );
     return false;
   }
 }
@@ -91,8 +123,6 @@ interface CreditEmailData {
   isTest?: boolean;
   /** Used only for the email log. */
   customerId?: number | null;
-  /** Internal address (e.g. the Printavo order owner) to CC on the email. */
-  ccEmail?: string | null;
   /** Staff member whose action triggered this send (for the email log). */
   triggeredBy?: string | null;
   /** Custom subject line ({{placeholders}} supported). Null/empty = default. */
@@ -109,6 +139,13 @@ interface CreditEmailData {
    * with the same key for ~24 hours. Omit for test/manual sends.
    */
   idempotencyKey?: string | null;
+}
+
+export function getIssuedEmailCc(customerEmail: string, isTest?: boolean): string | null {
+  if (isTest) return null;
+  return customerEmail.trim().toLowerCase() === ISSUED_EMAIL_CC
+    ? null
+    : ISSUED_EMAIL_CC;
 }
 
 function escapeHtml(s: string): string {
@@ -287,7 +324,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
-    cc: data.isTest ? null : data.ccEmail ?? null,
+    cc: getIssuedEmailCc(data.customerEmail, data.isTest),
     log: {
       emailType: data.isTest ? "test_issued" : "issued",
       customerId: data.customerId ?? null,

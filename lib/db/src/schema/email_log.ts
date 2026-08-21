@@ -9,6 +9,8 @@ export const emailLogTable = pgTable("email_log", {
   creditId: integer("credit_id"),
   emailType: text("email_type").notNull(),
   recipientEmail: text("recipient_email").notNull(),
+  /** Optional CC recipient included in the provider delivery request. */
+  ccEmail: text("cc_email"),
   subject: text("subject").notNull(),
   status: text("status").notNull().default("sent"), // sent | failed
   /** Email of the staff member whose action triggered this send (null for automated sends). */

@@ -25,6 +25,7 @@ router.get("/emails", async (req, res): Promise<void> => {
       creditId: emailLogTable.creditId,
       emailType: emailLogTable.emailType,
       recipientEmail: emailLogTable.recipientEmail,
+      ccEmail: emailLogTable.ccEmail,
       subject: emailLogTable.subject,
       status: emailLogTable.status,
       sentAt: emailLogTable.sentAt,
