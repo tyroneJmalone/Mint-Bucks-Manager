@@ -324,6 +324,88 @@ describe("Paid requirement override eligibility", () => {
     }
   });
 
+  it("treats a missing paid date on an unpaid invoice as part of the Paid override", () => {
+    const unpaid = invoice({
+      amountPaid: 0,
+      datePaid: null,
+      createdAt: "2026-07-15T12:00:00.000Z",
+      productionDueAt: "2026-08-10T12:00:00.000Z",
+    });
+    const result = evaluateManualInvoiceEligibility(
+      unpaid,
+      rule({
+        totalMin: 50,
+        paidDateFrom: "2026-07-01",
+        paidDateTo: "2026-07-31",
+        productionDateFrom: "2026-08-01",
+        productionDateTo: "2026-08-31",
+      }),
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.canOverridePaymentRequirement).toBe(true);
+    expect(result.ineligibleReason).toContain("unpaid");
+  });
+
+  it("does not let Paid override hide a known out-of-range paid date", () => {
+    const result = evaluateManualInvoiceEligibility(
+      invoice({
+        amountPaid: 25,
+        datePaid: "2026-08-01",
+      }),
+      rule({
+        paidDateFrom: "2026-07-01",
+        paidDateTo: "2026-07-31",
+      }),
+    );
+
+    expect(result.canOverridePaymentRequirement).toBe(false);
+    expect(result.ineligibleReason).toContain("after the allowed end date");
+  });
+
+  it("keeps a pending payment override valid while its paid date is still missing", () => {
+    const unpaid = invoice({
+      amountPaid: 0,
+      datePaid: null,
+      createdAt: "2026-07-15T12:00:00.000Z",
+    });
+    const testRule = rule({
+      paidDateFrom: "2026-07-01",
+      paidDateTo: "2026-07-31",
+    });
+    const audit = buildPaymentOverrideAudit(
+      [unpaid],
+      "staff@example.invalid",
+    );
+
+    expect(
+      pendingAwardMatchesInvoice(unpaid, testRule, null, null, audit),
+    ).toBe(true);
+  });
+
+  it("re-enforces the paid-date window when a later known paid date is outside it", () => {
+    const partiallyPaid = invoice({
+      amountPaid: 25,
+      datePaid: null,
+    });
+    const testRule = rule({
+      paidDateFrom: "2026-07-01",
+      paidDateTo: "2026-07-31",
+    });
+    const audit = buildPaymentOverrideAudit(
+      [partiallyPaid],
+      "staff@example.invalid",
+    );
+    const laterPaid = invoice({
+      amountPaid: 100,
+      datePaid: "2026-08-01",
+    });
+
+    expect(
+      pendingAwardMatchesInvoice(laterPaid, testRule, null, null, audit),
+    ).toBe(false);
+  });
+
   it("keeps existing status and date overrides available for paid invoices", () => {
     const statusResult = evaluateManualInvoiceEligibility(
       invoice(),

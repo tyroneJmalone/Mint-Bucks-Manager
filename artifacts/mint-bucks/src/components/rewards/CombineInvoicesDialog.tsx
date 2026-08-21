@@ -626,7 +626,8 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                   ).join(" | ")}
                 </strong>
                 . This will override only the Paid requirement for these invoices. Percent-of-paid
-                rules continue to use the current amounts paid shown above.
+                rules continue to use the current amounts paid shown above. A missing paid date is
+                included because unpaid invoices do not have one; every other known date stays enforced.
               </div>
             )}
             {selectedDateOverrides.length > 0 && (

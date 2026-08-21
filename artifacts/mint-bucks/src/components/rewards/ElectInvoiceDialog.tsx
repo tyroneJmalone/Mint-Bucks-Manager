@@ -410,7 +410,8 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
             <AlertDialogDescription>
               Invoice #{selectedInvoice?.visualId} is not fully paid (Paid {formatCurrency(selectedInvoice?.amountPaid ?? 0)} of {formatCurrency(selectedInvoice?.total ?? 0)}).
               This will override only the Paid requirement and place the calculated reward in Pending.
-              Customer identity, every other rule condition, duplicate checks, and the annual limit will still be enforced.
+              Since an unpaid invoice has no paid date, the missing paid date is included in this override.
+              Customer identity, every other known date and rule condition, duplicate checks, and the annual limit will still be enforced.
               Percent-of-paid rules continue to use the current amount paid shown above.
             </AlertDialogDescription>
           </AlertDialogHeader>

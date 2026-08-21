@@ -180,6 +180,13 @@ export type DateExclusionOverrideAudit = {
 type RuleMatchOptions = {
   ignoreStatusExclusions?: boolean;
   ignoreDateExclusions?: boolean;
+  /**
+   * An unpaid invoice cannot have a paid date. Manual Paid-requirement
+   * overrides may treat only that missing value as part of the payment
+   * requirement; known out-of-range paid dates and every other date filter
+   * remain enforced.
+   */
+  ignoreMissingPaidDate?: boolean;
 };
 
 type DateExclusionReason = DateExclusionFingerprint & {
@@ -358,7 +365,14 @@ function matchInvoiceRule(
   rule: RewardRule,
   options: RuleMatchOptions = {},
 ): InvoiceRuleMatchResult {
-  const dateExclusions = collectDateExclusionReasons(inv, rule);
+  const dateExclusions = collectDateExclusionReasons(inv, rule).filter(
+    (exclusion) =>
+      !(
+        options.ignoreMissingPaidDate &&
+        exclusion.code === "paid_date" &&
+        exclusion.actualDate === null
+      ),
+  );
   if (!options.ignoreDateExclusions) {
     const activeWindowExclusion = dateExclusions.find(
       ({ code }) => code === "rule_start" || code === "rule_end",
@@ -513,6 +527,9 @@ export function evaluateManualInvoiceEligibility(
 
   const amountPaid = inv.amountPaid ?? 0;
   const total = inv.total ?? 0;
+  const paymentIsOnlyFailure = matchInvoiceRule(inv, rule, {
+    ignoreMissingPaidDate: true,
+  }).matches;
   const paymentReason = amountPaid > 0
     ? `Invoice is only partially paid (${amountPaid.toFixed(2)} of ${total.toFixed(2)})`
     : `Invoice is unpaid (${amountPaid.toFixed(2)} of ${total.toFixed(2)})`;
@@ -520,14 +537,14 @@ export function evaluateManualInvoiceEligibility(
   return {
     ...ruleEligibility,
     eligible: false,
-    ineligibleReason: ruleEligibility.eligible
+    ineligibleReason: paymentIsOnlyFailure
       ? paymentReason
       : ruleEligibility.ineligibleReason,
     canOverrideStatusExclusion: false,
     canOverrideDateExclusion: false,
     isFullyPaid: false,
     paymentRequirementApplied: true,
-    canOverridePaymentRequirement: ruleEligibility.eligible && total > 0,
+    canOverridePaymentRequirement: paymentIsOnlyFailure && total > 0,
   };
 }
 
@@ -563,6 +580,7 @@ export function pendingAwardMatchesInvoice(
   rule: RewardRule,
   statusExclusionOverride: string | null,
   dateExclusionOverride: DateExclusionOverrideAudit | null = null,
+  paymentRequirementOverride: PaymentRequirementOverrideAudit | null = null,
 ): boolean {
   const eligibility = evaluateInvoiceRule(inv, rule);
   if (eligibility.eligible) return true;
@@ -571,6 +589,16 @@ export function pendingAwardMatchesInvoice(
     inv.statusName &&
     normalizeStatusName(statusExclusionOverride) === normalizeStatusName(inv.statusName) &&
     eligibility.canOverrideStatusExclusion
+  ) {
+    return true;
+  }
+  const confirmedPaymentOverride = paymentRequirementOverride?.some(
+    ({ invoiceVisualId }) => invoiceVisualId === inv.visualId,
+  );
+  if (
+    confirmedPaymentOverride &&
+    !inv.datePaid &&
+    matchInvoiceRule(inv, rule, { ignoreMissingPaidDate: true }).matches
   ) {
     return true;
   }
@@ -977,6 +1005,7 @@ async function removeStalePendingAwards(
             ruleNoAmount as typeof rule,
             null,
             award.dateExclusionOverride,
+            award.paymentRequirementOverride,
           ),
       );
       if (!stillMatches) {
@@ -1018,6 +1047,7 @@ async function removeStalePendingAwards(
       const cond = safeConditions(rule);
       if (
         !award.dateExclusionOverride?.length &&
+        !award.paymentRequirementOverride?.length &&
         (cond.paidDateFrom || cond.paidDateTo)
       ) {
         if (
@@ -1037,6 +1067,7 @@ async function removeStalePendingAwards(
         rule,
         award.statusExclusionOverride,
         award.dateExclusionOverride,
+        award.paymentRequirementOverride,
       )
     ) {
       staleIds.push(award.id);
