@@ -94,6 +94,21 @@ function printavoOrderUrl(printavoId: string) {
   return `https://www.printavo.com/invoices/${printavoId}`;
 }
 
+function mergeSearchResults(
+  previous: InvoiceSearchResult | null,
+  next: InvoiceSearchResult,
+): InvoiceSearchResult {
+  if (!previous || previous.ruleId !== next.ruleId) return next;
+
+  const invoicesById = new Map(previous.invoices.map((invoice) => [invoice.id, invoice]));
+  for (const invoice of next.invoices) invoicesById.set(invoice.id, invoice);
+
+  return {
+    ...next,
+    invoices: [...invoicesById.values()],
+  };
+}
+
 // Compute the combined award amount from selected invoices and a rule.
 // Mirrors the server-side logic: per-invoice totalMin/totalMax are skipped,
 // but the AGGREGATE combined total is checked against the rule threshold.
@@ -202,8 +217,6 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   async function handleSearch() {
     if (!selectedRuleId || !searchQuery.trim()) return;
     setSearching(true);
-    setSearchResult(null);
-    setSelectedIds(new Set());
     try {
       const res = await fetch(
         `/api/rewards/search-invoices?query=${encodeURIComponent(searchQuery.trim())}&ruleId=${selectedRuleId}`,
@@ -213,7 +226,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
         toast({ title: data.error ?? "Search failed", variant: "destructive" });
         return;
       }
-      setSearchResult(data as InvoiceSearchResult);
+      setSearchResult((previous) => mergeSearchResults(previous, data as InvoiceSearchResult));
     } catch {
       toast({ title: "Search failed — check your connection", variant: "destructive" });
     } finally {
@@ -276,7 +289,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
             Search for fully-paid invoices by customer name or order number. Select multiple invoices
-            to combine their totals — the merged amount is used to compute the award.
+            to combine their totals — each new search keeps your existing selections.
           </p>
         </DialogHeader>
 
