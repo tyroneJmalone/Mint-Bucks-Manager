@@ -3,6 +3,9 @@ import type { RewardRule } from "@workspace/db";
 import type { PrintavoPaidInvoice } from "./printavo";
 import {
   approveAwards,
+  buildPaymentOverrideAudit,
+  calendarYearInTimezone,
+  evaluateManualInvoiceEligibility,
   evaluateInvoiceRule,
   invoiceMatchesRule,
   pendingAwardMatchesInvoice,
@@ -287,6 +290,121 @@ describe("date exclusion election and combine eligibility", () => {
         override,
       ),
     ).toBe(false);
+  });
+});
+
+describe("Paid requirement override eligibility", () => {
+  it("offers the override only when payment is the sole failed requirement", () => {
+    const result = evaluateManualInvoiceEligibility(
+      invoice({ amountPaid: 25, datePaid: "2026-08-05" }),
+      rule({}),
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.isFullyPaid).toBe(false);
+    expect(result.paymentRequirementApplied).toBe(true);
+    expect(result.canOverridePaymentRequirement).toBe(true);
+    expect(result.ineligibleReason).toContain("partially paid");
+  });
+
+  it("does not let payment bypass tags, status, dates, or amount requirements", () => {
+    const unpaid = invoice({ amountPaid: 0, datePaid: null, tags: [] });
+    const failures = [
+      rule({ tagAny: ["required-tag"] }),
+      rule({ statusNameAny: ["A different status"] }),
+      rule({ invoiceDateTo: "2026-07-31" }),
+      rule({ totalMin: 200 }),
+    ];
+
+    for (const testRule of failures) {
+      const result = evaluateManualInvoiceEligibility(unpaid, testRule);
+      expect(result.canOverridePaymentRequirement).toBe(false);
+      expect(result.canOverrideStatusExclusion).toBe(false);
+      expect(result.canOverrideDateExclusion).toBe(false);
+    }
+  });
+
+  it("keeps existing status and date overrides available for paid invoices", () => {
+    const statusResult = evaluateManualInvoiceEligibility(
+      invoice(),
+      rule({ statusNameExclude: ["🏋️‍♀️ EMB - PICKED UP"] }),
+    );
+    const dateResult = evaluateManualInvoiceEligibility(
+      invoice(),
+      rule({ paidDateTo: "2026-08-04" }),
+    );
+
+    expect(statusResult.canOverrideStatusExclusion).toBe(true);
+    expect(statusResult.canOverridePaymentRequirement).toBe(false);
+    expect(dateResult.canOverrideDateExclusion).toBe(true);
+    expect(dateResult.canOverridePaymentRequirement).toBe(false);
+  });
+
+  it("captures the authoritative payment snapshot and staff identity for audit", () => {
+    const audit = buildPaymentOverrideAudit(
+      [
+        invoice({
+          id: "partial-id",
+          visualId: "2001",
+          total: 250,
+          amountPaid: 75,
+          datePaid: "2026-08-10",
+        }),
+        invoice({
+          id: "unpaid-id",
+          visualId: "2002",
+          total: 100,
+          amountPaid: 0,
+          datePaid: null,
+        }),
+        invoice({
+          id: "paid-id",
+          visualId: "2003",
+          total: 100,
+          amountPaid: 100,
+        }),
+      ],
+      "staff@example.invalid",
+    );
+
+    expect(audit).toHaveLength(2);
+    expect(audit[0]).toEqual(expect.objectContaining({
+      printavoInvoiceId: "partial-id",
+      invoiceVisualId: "2001",
+      paymentState: "partially_paid",
+      invoiceTotal: 250,
+      amountPaid: 75,
+      datePaid: "2026-08-10",
+      overriddenBy: "staff@example.invalid",
+      overriddenAt: expect.any(String),
+    }));
+    expect(audit[1]).toEqual(expect.objectContaining({
+      printavoInvoiceId: "unpaid-id",
+      invoiceVisualId: "2002",
+      paymentState: "unpaid",
+      amountPaid: 0,
+      datePaid: null,
+    }));
+  });
+});
+
+describe("shop-timezone annual boundary", () => {
+  it("uses the new local year before UTC does in UTC-positive timezones", () => {
+    expect(
+      calendarYearInTimezone(
+        "Pacific/Auckland",
+        new Date("2025-12-31T11:30:00.000Z"),
+      ),
+    ).toBe(2026);
+  });
+
+  it("keeps the prior local year after UTC advances in UTC-negative timezones", () => {
+    expect(
+      calendarYearInTimezone(
+        "America/New_York",
+        new Date("2026-01-01T04:30:00.000Z"),
+      ),
+    ).toBe(2025);
   });
 });
 

@@ -26,8 +26,10 @@ vi.mock("./logger", () => ({
 import {
   buildResendEmailPayload,
   getIssuedEmailBcc,
+  getPrintavoNotificationBcc,
   ISSUED_EMAIL_BCC,
   sendCreditIssuedEmail,
+  sendPrintavoNotificationEmail,
 } from "./email";
 
 describe("issued email internal copy", () => {
@@ -146,6 +148,86 @@ describe("issued email internal copy", () => {
     expect(mocks.values).toHaveBeenCalledWith(
       expect.objectContaining({
         emailType: "test_issued",
+        bccEmail: null,
+      }),
+    );
+  });
+
+  it("selects the Printavo invoice owner as a private New Order copy", () => {
+    expect(
+      getPrintavoNotificationBcc(
+        "customer@example.invalid",
+        " OWNER@MINTPRINTWORKS.COM ",
+      ),
+    ).toBe("owner@mintprintworks.com");
+    expect(
+      getPrintavoNotificationBcc(
+        "owner@mintprintworks.com",
+        "OWNER@MINTPRINTWORKS.COM",
+      ),
+    ).toBeNull();
+    expect(
+      getPrintavoNotificationBcc(
+        "customer@example.invalid",
+        "owner@mintprintworks.com",
+        true,
+      ),
+    ).toBeNull();
+  });
+
+  it("sends and audits the New Order owner BCC without exposing a CC", async () => {
+    await expect(
+      sendPrintavoNotificationEmail({
+        customerName: "Test Customer",
+        customerEmail: "customer@example.invalid",
+        totalOutstanding: 25,
+        orderNumber: "12345",
+        ownerEmail: "owner@mintprintworks.com",
+        customerId: 456,
+      }),
+    ).resolves.toBe(true);
+
+    const [, , request] = mocks.proxy.mock.calls[0] as [
+      string,
+      string,
+      { body: string },
+    ];
+    expect(JSON.parse(request.body)).toEqual(
+      expect.objectContaining({
+        to: "Test Customer <customer@example.invalid>",
+        bcc: "owner@mintprintworks.com",
+      }),
+    );
+    expect(JSON.parse(request.body)).not.toHaveProperty("cc");
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailType: "printavo_notification",
+        recipientEmail: "customer@example.invalid",
+        ccEmail: null,
+        bccEmail: "owner@mintprintworks.com",
+      }),
+    );
+  });
+
+  it("does not add the owner BCC to test New Order emails", async () => {
+    await sendPrintavoNotificationEmail({
+      customerName: "Test Customer",
+      customerEmail: "customer@example.invalid",
+      totalOutstanding: 25,
+      orderNumber: "12345",
+      ownerEmail: "owner@mintprintworks.com",
+      isTest: true,
+    });
+
+    const [, , request] = mocks.proxy.mock.calls[0] as [
+      string,
+      string,
+      { body: string },
+    ];
+    expect(JSON.parse(request.body)).not.toHaveProperty("bcc");
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailType: "test_printavo_notification",
         bccEmail: null,
       }),
     );

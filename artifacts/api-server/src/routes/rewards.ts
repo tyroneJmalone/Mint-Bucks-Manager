@@ -24,7 +24,7 @@ import {
   getPrintavoConfig,
   type RewardsConfig,
 } from "../lib/settings";
-import { searchPaidInvoices } from "../lib/printavo";
+import { searchInvoices } from "../lib/printavo";
 import {
   validateRewardParams,
   validateConditions,
@@ -37,6 +37,7 @@ import {
   invalidatePipelineCache,
   invoiceMatchesRule,
   evaluateInvoiceRule,
+  evaluateManualInvoiceEligibility,
   computeAward,
   findExistingAwardForInvoice,
   createCombinedAward,
@@ -201,18 +202,37 @@ router.put("/rewards/settings", async (req, res): Promise<void> => {
 // ── Summary ──────────────────────────────────────────────────────────────────
 router.get("/rewards/summary", async (_req, res): Promise<void> => {
   const cfg = await getRewardsConfig();
-  const [stats, lastScanAt] = await Promise.all([
+  const [stats, lastScanAt, printavoConfig] = await Promise.all([
     getRewardsStats(cfg),
     getSetting("rewards_last_scan_at"),
+    getPrintavoConfig(),
   ]);
+  let pipelineAmount = 0;
+  let pipelineCount = 0;
+  let pipelineAvailable = false;
+  if (printavoConfig) {
+    try {
+      const pipeline = await computePipelinePreview(printavoConfig);
+      pipelineAmount = pipeline.totalPotential;
+      pipelineCount = pipeline.items.length;
+      pipelineAvailable = true;
+    } catch (err) {
+      logger.error({ err }, "Rewards: failed to calculate pipeline summary");
+    }
+  }
 
   res.json({
     enabled: cfg.enabled,
     mode: cfg.mode,
     annualLimit: cfg.annualLimit,
     annualAwarded: stats.annualAwarded,
+    pendingAmount: stats.pendingAmount,
     pendingCount: stats.pendingCount,
     issuedCount: stats.issuedCount,
+    pipelineAmount,
+    pipelineCount,
+    pipelineAvailable,
+    activeRuleCount: stats.activeRuleCount,
     lastScanAt: lastScanAt ?? null,
   });
 });
@@ -687,7 +707,7 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
 
   let printavoInvoices;
   try {
-    printavoInvoices = await searchPaidInvoices(printavoConfig, query, 25);
+    printavoInvoices = await searchInvoices(printavoConfig, query, 25);
   } catch (err) {
     logger.error({ err }, "Rewards: failed to search Printavo invoices");
     res.status(502).json({ error: "Failed to search Printavo" });
@@ -708,11 +728,12 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
           totalMax: mode === "combine" ? undefined : (rule.conditions as Record<string, unknown>)?.totalMax,
         },
       };
-      const eligibility = evaluateInvoiceRule(inv, ruleForEligibilityCheck as typeof rule);
+      const eligibility = evaluateManualInvoiceEligibility(inv, ruleForEligibilityCheck as typeof rule);
       const eligible = eligibility.eligible;
       const canOverrideStatusExclusion =
         mode === "elect" && eligibility.canOverrideStatusExclusion;
       const canOverrideDateExclusion = eligibility.canOverrideDateExclusion;
+      const canOverridePaymentRequirement = eligibility.canOverridePaymentRequirement;
 
       const existingAward = await findExistingAwardForInvoice(rule.id, inv.id);
       return {
@@ -732,6 +753,9 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         tags: inv.tags,
         eligible,
         ineligibleReason: eligibility.ineligibleReason,
+        isFullyPaid: eligibility.isFullyPaid,
+        paymentRequirementApplied: eligibility.paymentRequirementApplied,
+        canOverridePaymentRequirement,
         statusExclusionApplied: eligibility.statusExclusionApplied,
         canOverrideStatusExclusion,
         dateExclusionApplied: eligibility.dateExclusionApplied,
@@ -742,7 +766,8 @@ router.get("/rewards/search-invoices", async (req, res): Promise<void> => {
         rewardAmount: mode === "elect" && (
           eligible ||
           canOverrideStatusExclusion ||
-          canOverrideDateExclusion
+          canOverrideDateExclusion ||
+          canOverridePaymentRequirement
         )
           ? computeAward(inv, rule)
           : null,
@@ -760,7 +785,7 @@ router.post("/rewards/combined-award", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { ruleId, overrideDateExclusion } = parsed.data;
+  const { ruleId, overrideDateExclusion, overridePaymentRequirement } = parsed.data;
   const invoiceVisualIds = parsed.data.invoiceVisualIds
     .map((value) => value.trim())
     .filter(Boolean);
@@ -783,6 +808,7 @@ router.post("/rewards/combined-award", async (req, res): Promise<void> => {
     cfg,
     req.staffEmail ?? null,
     overrideDateExclusion,
+    overridePaymentRequirement,
   );
 
   if (!result.ok) {
@@ -810,6 +836,7 @@ router.post("/rewards/elected-award", async (req, res): Promise<void> => {
     invoiceVisualId,
     overrideStatusExclusion,
     overrideDateExclusion,
+    overridePaymentRequirement,
   } = parsed.data;
   const printavoConfig = await getPrintavoConfig();
   if (!printavoConfig) {
@@ -824,6 +851,7 @@ router.post("/rewards/elected-award", async (req, res): Promise<void> => {
     req.staffEmail ?? null,
     overrideStatusExclusion,
     overrideDateExclusion,
+    overridePaymentRequirement,
   );
   if (!result.ok) {
     res.status(result.status).json({ error: result.error });

@@ -126,6 +126,7 @@ export async function runPoll(): Promise<void> {
         orderNumber: order.visualId,
         orderPublicUrl: order.publicUrl ?? null,
         orderTotal: order.total ?? undefined,
+        ownerEmail: order.ownerEmail,
         imageObjectPath,
         customerId: localCustomer.id,
       });

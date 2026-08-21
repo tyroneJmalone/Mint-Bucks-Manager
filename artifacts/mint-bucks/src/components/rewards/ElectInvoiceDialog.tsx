@@ -49,6 +49,9 @@ interface InvoiceItem {
   statusName: string | null;
   eligible: boolean;
   ineligibleReason: string | null;
+  isFullyPaid: boolean;
+  paymentRequirementApplied: boolean;
+  canOverridePaymentRequirement: boolean;
   statusExclusionApplied: boolean;
   canOverrideStatusExclusion: boolean;
   dateExclusionApplied: boolean;
@@ -91,6 +94,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [overrideConfirmationOpen, setOverrideConfirmationOpen] = useState(false);
+  const [overridePaymentConfirmationOpen, setOverridePaymentConfirmationOpen] = useState(false);
 
   function reset() {
     setSelectedRuleId("");
@@ -98,6 +102,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
     setResult(null);
     setSelectedInvoice(null);
     setOverrideConfirmationOpen(false);
+    setOverridePaymentConfirmationOpen(false);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -130,6 +135,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
   async function handleElect(
     overrideStatusExclusion = false,
     overrideDateExclusion = false,
+    overridePaymentRequirement = false,
   ) {
     if (!selectedInvoice || !selectedRuleId) return;
     setSubmitting(true);
@@ -142,6 +148,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
           invoiceVisualId: selectedInvoice.visualId,
           overrideStatusExclusion,
           overrideDateExclusion,
+          overridePaymentRequirement,
         }),
       });
       const data = await response.json();
@@ -152,7 +159,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
       ]);
       toast({
         title: "Invoice elected",
-        description: `${formatCurrency(data.amount)} is now in Pending and must be approved before it is issued.${overrideStatusExclusion ? " The status exclusion was overridden." : ""}${overrideDateExclusion ? " The identified date exclusion was overridden." : ""}`,
+        description: `${formatCurrency(data.amount)} is now in Pending and must be approved before it is issued.${overrideStatusExclusion ? " The status exclusion was overridden." : ""}${overrideDateExclusion ? " The identified date exclusion was overridden." : ""}${overridePaymentRequirement ? " The payment requirement was overridden." : ""}`,
       });
       handleOpenChange(false);
     } catch (error) {
@@ -176,7 +183,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
             Elect a Printavo invoice
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Choose a rule and a fully-paid invoice. The calculated reward will go to Pending for approval—nothing is issued yet.
+            Choose a rule and a Printavo invoice. Invoices normally must be fully paid; a payment-only exception requires separate confirmation. Nothing is issued until the pending award is approved.
           </p>
         </DialogHeader>
 
@@ -237,7 +244,8 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                     (
                       invoice.eligible ||
                       invoice.canOverrideStatusExclusion ||
-                      invoice.canOverrideDateExclusion
+                      invoice.canOverrideDateExclusion ||
+                      invoice.canOverridePaymentRequirement
                     ) &&
                     !invoice.alreadyUsed &&
                     (invoice.rewardAmount ?? 0) > 0;
@@ -265,8 +273,11 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                             {invoice.rewardAmount != null ? formatCurrency(invoice.rewardAmount) : "—"}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {invoice.nickname || invoice.customerCompany || invoice.customerEmail} · Invoice total {formatCurrency(invoice.total ?? 0)}
+                        <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className={cn("px-1.5 py-0.5 rounded-sm text-[10px] uppercase font-bold tracking-wider", invoice.isFullyPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800")}>
+                            {invoice.isFullyPaid ? "Fully Paid" : (invoice.amountPaid ?? 0) > 0 ? "Partially Paid" : "Unpaid"}
+                          </span>
+                          <span>{invoice.nickname || invoice.customerCompany || invoice.customerEmail} · Total {formatCurrency(invoice.total ?? 0)} · Paid {formatCurrency(invoice.amountPaid ?? 0)}</span>
                         </div>
                         {!selectable && (
                           <div className="text-xs text-destructive mt-1">
@@ -277,7 +288,8 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                         )}
                         {selectable && (
                           invoice.canOverrideStatusExclusion ||
-                          invoice.canOverrideDateExclusion
+                          invoice.canOverrideDateExclusion ||
+                          invoice.canOverridePaymentRequirement
                         ) && (
                           <div className="text-xs text-amber-700 mt-1">
                             {invoice.ineligibleReason} Select this invoice to override the exclusion with confirmation.
@@ -298,7 +310,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                   );
                 })
               ) : (
-                <div className="p-6 text-center text-sm text-muted-foreground">No fully-paid invoices found.</div>
+                <div className="p-6 text-center text-sm text-muted-foreground">No invoices found.</div>
               )}
             </div>
           )}
@@ -316,13 +328,15 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
           <Button
             type="button"
             onClick={() => {
-              if (
+              if (selectedInvoice?.canOverridePaymentRequirement) {
+                setOverridePaymentConfirmationOpen(true);
+              } else if (
                 selectedInvoice?.canOverrideStatusExclusion ||
                 selectedInvoice?.canOverrideDateExclusion
               ) {
                 setOverrideConfirmationOpen(true);
               } else {
-                void handleElect(false);
+                void handleElect(false, false, false);
               }
             }}
             disabled={!selectedInvoice || submitting}
@@ -373,6 +387,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
                 void handleElect(
                   Boolean(selectedInvoice?.canOverrideStatusExclusion),
                   Boolean(selectedInvoice?.canOverrideDateExclusion),
+                  false
                 )
               }
               disabled={submitting}
@@ -383,6 +398,30 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
               }
             >
               Yes, Override Exclusion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={overridePaymentConfirmationOpen} onOpenChange={setOverridePaymentConfirmationOpen}>
+        <AlertDialogContent data-testid="dialog-confirm-payment-override">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are You Sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Invoice #{selectedInvoice?.visualId} is not fully paid (Paid {formatCurrency(selectedInvoice?.amountPaid ?? 0)} of {formatCurrency(selectedInvoice?.total ?? 0)}).
+              This will override only the Paid requirement and place the calculated reward in Pending.
+              Customer identity, every other rule condition, duplicate checks, and the annual limit will still be enforced.
+              Percent-of-paid rules continue to use the current amount paid shown above.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Go Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleElect(false, false, true)}
+              disabled={submitting}
+              data-testid="button-confirm-payment-override"
+            >
+              Yes, Override Paid Requirement
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

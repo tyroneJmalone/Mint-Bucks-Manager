@@ -3,6 +3,17 @@ import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex, jsonb 
 export const rewardAwardStatusEnum = ["processing", "pending", "issued", "rejected"] as const;
 export type RewardAwardStatus = (typeof rewardAwardStatusEnum)[number];
 
+export type PaymentRequirementOverrideAudit = {
+  printavoInvoiceId: string;
+  invoiceVisualId: string;
+  paymentState: "unpaid" | "partially_paid";
+  invoiceTotal: number | null;
+  amountPaid: number | null;
+  datePaid: string | null;
+  overriddenBy: string;
+  overriddenAt: string;
+}[];
+
 export const rewardAwardsTable = pgTable("reward_awards", {
   id: serial("id").primaryKey(),
   ruleId: integer("rule_id").notNull(),
@@ -48,6 +59,11 @@ export const rewardAwardsTable = pgTable("reward_awards", {
   >(),
   /** Staff email that confirmed the date exclusion override. */
   dateExclusionOverriddenBy: text("date_exclusion_overridden_by"),
+  /**
+   * Authoritative Printavo payment snapshot for each invoice whose normal
+   * fully-paid requirement staff explicitly overrode.
+   */
+  paymentRequirementOverride: jsonb("payment_requirement_override").$type<PaymentRequirementOverrideAudit>(),
   creditId: integer("credit_id"),
   note: text("note"),
   /** Email of the staff member who approved this award (null for auto-issued). */

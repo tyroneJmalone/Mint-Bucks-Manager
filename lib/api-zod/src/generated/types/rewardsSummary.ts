@@ -12,9 +12,16 @@ export interface RewardsSummary {
   mode: RewardsSummaryMode;
   /** @nullable */
   annualLimit?: number | null;
+  /** Total dollars actually issued during the current calendar year in the configured shop timezone. */
   annualAwarded: number;
+  pendingAmount: number;
   pendingCount: number;
   issuedCount: number;
+  pipelineAmount: number;
+  pipelineCount: number;
+  /** False when Printavo is unavailable or not configured and pipeline values could not be calculated. */
+  pipelineAvailable: boolean;
+  activeRuleCount: number;
   /** @nullable */
   lastScanAt?: string | null;
 }

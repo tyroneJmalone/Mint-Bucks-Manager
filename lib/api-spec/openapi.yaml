@@ -2043,7 +2043,7 @@ components:
 
     RewardsSummary:
       type: object
-      required: [enabled, mode, annualAwarded, pendingCount, issuedCount]
+      required: [enabled, mode, annualAwarded, pendingAmount, pendingCount, issuedCount, pipelineAmount, pipelineCount, pipelineAvailable, activeRuleCount]
       properties:
         enabled:
           type: boolean
@@ -2054,9 +2054,21 @@ components:
           type: ["number", "null"]
         annualAwarded:
           type: number
+          description: Total dollars actually issued during the current calendar year in the configured shop timezone.
+        pendingAmount:
+          type: number
         pendingCount:
           type: integer
         issuedCount:
+          type: integer
+        pipelineAmount:
+          type: number
+        pipelineCount:
+          type: integer
+        pipelineAvailable:
+          type: boolean
+          description: False when Printavo is unavailable or not configured and pipeline values could not be calculated.
+        activeRuleCount:
           type: integer
         lastScanAt:
           type: ["string", "null"]
@@ -2158,7 +2170,7 @@ components:
 
     CombineInvoiceItem:
       type: object
-      required: [id, visualId, customerName, customerEmail, eligible, statusExclusionApplied, canOverrideStatusExclusion, dateExclusionApplied, canOverrideDateExclusion, dateExclusionReasons, alreadyUsed]
+      required: [id, visualId, customerName, customerEmail, eligible, isFullyPaid, paymentRequirementApplied, canOverridePaymentRequirement, statusExclusionApplied, canOverrideStatusExclusion, dateExclusionApplied, canOverrideDateExclusion, dateExclusionReasons, alreadyUsed]
       properties:
         id:
           type: string
@@ -2194,10 +2206,18 @@ components:
             type: string
         eligible:
           type: boolean
-          description: Whether this invoice satisfies the rule's date windows and status conditions
+          description: Whether this invoice is fully paid and satisfies every selected-rule condition.
         ineligibleReason:
           type: ["string", "null"]
           description: Human-readable explanation if the invoice is not eligible
+        isFullyPaid:
+          type: boolean
+        paymentRequirementApplied:
+          type: boolean
+          description: Whether the invoice fails the normal fully-paid requirement.
+        canOverridePaymentRequirement:
+          type: boolean
+          description: Whether payment is the invoice's sole eligibility failure and staff may confirm a Paid-requirement override.
         statusExclusionApplied:
           type: boolean
           description: Whether the invoice's exact Printavo status is explicitly excluded by the selected rule.
@@ -2242,8 +2262,8 @@ components:
       required: [ruleId, invoiceVisualIds]
       description: >
         The server re-fetches each invoice from Printavo using the visual (order) numbers.
-        Only fully-paid invoices that belong to the same customer and meet the rule's
-        non-amount conditions will be accepted.
+        Invoices must belong to the same customer and meet the rule's non-amount
+        conditions. Unpaid invoices require a separate staff-confirmed Paid override.
       properties:
         ruleId:
           type: integer
@@ -2257,6 +2277,10 @@ components:
           type: boolean
           default: false
           description: Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.
+        overridePaymentRequirement:
+          type: boolean
+          default: false
+          description: Confirmed staff override of the fully-paid requirement for invoices whose payment state is the sole eligibility failure.
 
     CombinedAwardResult:
       type: object
@@ -2289,6 +2313,10 @@ components:
           type: boolean
           default: false
           description: Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.
+        overridePaymentRequirement:
+          type: boolean
+          default: false
+          description: Confirmed staff override of the fully-paid requirement when payment state is the invoice's sole eligibility failure.
 
     ElectedAwardResult:
       type: object

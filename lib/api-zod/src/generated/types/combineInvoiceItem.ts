@@ -31,13 +31,18 @@ export interface CombineInvoiceItem {
   /** @nullable */
   invoiceAt?: string | null;
   tags?: string[];
-  /** Whether this invoice satisfies the rule's date windows and status conditions */
+  /** Whether this invoice is fully paid and satisfies every selected-rule condition. */
   eligible: boolean;
   /**
      * Human-readable explanation if the invoice is not eligible
      * @nullable
      */
   ineligibleReason?: string | null;
+  isFullyPaid: boolean;
+  /** Whether the invoice fails the normal fully-paid requirement. */
+  paymentRequirementApplied: boolean;
+  /** Whether payment is the invoice's sole eligibility failure and staff may confirm a Paid-requirement override. */
+  canOverridePaymentRequirement: boolean;
   /** Whether the invoice's exact Printavo status is explicitly excluded by the selected rule. */
   statusExclusionApplied: boolean;
   /** Whether staff may elect this invoice by confirming a status-only exclusion override. */

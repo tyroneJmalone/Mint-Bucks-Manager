@@ -489,8 +489,23 @@ export interface PrintavoNotificationData {
   imageObjectPath?: string | null;
   /** Used only for the email log. */
   customerId?: number | null;
+  /** Printavo invoice owner who receives a private copy of real notifications. */
+  ownerEmail?: string | null;
   /** Test send: [TEST] subject prefix, warning banner, logged as test type. */
   isTest?: boolean;
+}
+
+export function getPrintavoNotificationBcc(
+  customerEmail: string,
+  ownerEmail?: string | null,
+  isTest?: boolean,
+): string | null {
+  if (isTest) return null;
+  const normalizedOwner = ownerEmail?.trim().toLowerCase();
+  if (!normalizedOwner) return null;
+  return normalizedOwner === customerEmail.trim().toLowerCase()
+    ? null
+    : normalizedOwner;
 }
 
 export async function sendPrintavoNotificationEmail(data: PrintavoNotificationData): Promise<boolean> {
@@ -551,6 +566,7 @@ export async function sendPrintavoNotificationEmail(data: PrintavoNotificationDa
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
+    bcc: getPrintavoNotificationBcc(data.customerEmail, data.ownerEmail, data.isTest),
     log: {
       emailType: data.isTest ? "test_printavo_notification" : "printavo_notification",
       customerId: data.customerId ?? null,

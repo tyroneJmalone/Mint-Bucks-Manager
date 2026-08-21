@@ -816,9 +816,16 @@ export interface RewardsSummary {
   mode: RewardsSummaryMode;
   /** @nullable */
   annualLimit?: number | null;
+  /** Total dollars actually issued during the current calendar year in the configured shop timezone. */
   annualAwarded: number;
+  pendingAmount: number;
   pendingCount: number;
   issuedCount: number;
+  pipelineAmount: number;
+  pipelineCount: number;
+  /** False when Printavo is unavailable or not configured and pipeline values could not be calculated. */
+  pipelineAvailable: boolean;
+  activeRuleCount: number;
   /** @nullable */
   lastScanAt?: string | null;
 }
@@ -929,13 +936,18 @@ export interface CombineInvoiceItem {
   /** @nullable */
   invoiceAt?: string | null;
   tags?: string[];
-  /** Whether this invoice satisfies the rule's date windows and status conditions */
+  /** Whether this invoice is fully paid and satisfies every selected-rule condition. */
   eligible: boolean;
   /**
      * Human-readable explanation if the invoice is not eligible
      * @nullable
      */
   ineligibleReason?: string | null;
+  isFullyPaid: boolean;
+  /** Whether the invoice fails the normal fully-paid requirement. */
+  paymentRequirementApplied: boolean;
+  /** Whether payment is the invoice's sole eligibility failure and staff may confirm a Paid-requirement override. */
+  canOverridePaymentRequirement: boolean;
   /** Whether the invoice's exact Printavo status is explicitly excluded by the selected rule. */
   statusExclusionApplied: boolean;
   /** Whether staff may elect this invoice by confirming a status-only exclusion override. */
@@ -964,7 +976,7 @@ export interface InvoiceSearchResult {
 }
 
 /**
- * The server re-fetches each invoice from Printavo using the visual (order) numbers. Only fully-paid invoices that belong to the same customer and meet the rule's non-amount conditions will be accepted.
+ * The server re-fetches each invoice from Printavo using the visual (order) numbers. Invoices must belong to the same customer and meet the rule's non-amount conditions. Unpaid invoices require a separate staff-confirmed Paid override.
  */
 export interface CombinedAwardRequest {
   ruleId: number;
@@ -975,6 +987,8 @@ export interface CombinedAwardRequest {
   invoiceVisualIds: string[];
   /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
   overrideDateExclusion?: boolean;
+  /** Confirmed staff override of the fully-paid requirement for invoices whose payment state is the sole eligibility failure. */
+  overridePaymentRequirement?: boolean;
 }
 
 export interface CombinedAwardResult {
@@ -995,6 +1009,8 @@ export interface ElectedAwardRequest {
   overrideStatusExclusion?: boolean;
   /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
   overrideDateExclusion?: boolean;
+  /** Confirmed staff override of the fully-paid requirement when payment state is the invoice's sole eligibility failure. */
+  overridePaymentRequirement?: boolean;
 }
 
 export interface ElectedAwardResult {

@@ -866,9 +866,14 @@ export const GetRewardsSummaryResponse = zod.object({
   "enabled": zod.boolean(),
   "mode": zod.enum(['auto', 'approve']),
   "annualLimit": zod.number().nullish(),
-  "annualAwarded": zod.number(),
+  "annualAwarded": zod.number().describe('Total dollars actually issued during the current calendar year in the configured shop timezone.'),
+  "pendingAmount": zod.number(),
   "pendingCount": zod.number(),
   "issuedCount": zod.number(),
+  "pipelineAmount": zod.number(),
+  "pipelineCount": zod.number(),
+  "pipelineAvailable": zod.boolean().describe('False when Printavo is unavailable or not configured and pipeline values could not be calculated.'),
+  "activeRuleCount": zod.number(),
   "lastScanAt": zod.string().nullish()
 })
 
@@ -1391,8 +1396,11 @@ export const SearchRewardInvoicesResponse = zod.object({
   "createdAt": zod.string().optional(),
   "invoiceAt": zod.string().nullish(),
   "tags": zod.array(zod.string()).optional(),
-  "eligible": zod.boolean().describe('Whether this invoice satisfies the rule\'s date windows and status conditions'),
+  "eligible": zod.boolean().describe('Whether this invoice is fully paid and satisfies every selected-rule condition.'),
   "ineligibleReason": zod.string().nullish().describe('Human-readable explanation if the invoice is not eligible'),
+  "isFullyPaid": zod.boolean(),
+  "paymentRequirementApplied": zod.boolean().describe('Whether the invoice fails the normal fully-paid requirement.'),
+  "canOverridePaymentRequirement": zod.boolean().describe('Whether payment is the invoice\'s sole eligibility failure and staff may confirm a Paid-requirement override.'),
   "statusExclusionApplied": zod.boolean().describe('Whether the invoice\'s exact Printavo status is explicitly excluded by the selected rule.'),
   "canOverrideStatusExclusion": zod.boolean().describe('Whether staff may elect this invoice by confirming a status-only exclusion override.'),
   "dateExclusionApplied": zod.boolean().describe('Whether one or more date-based rule exclusions apply to this invoice.'),
@@ -1413,12 +1421,14 @@ export const SearchRewardInvoicesResponse = zod.object({
 export const createCombinedRewardAwardBodyInvoiceVisualIdsMin = 2;
 
 export const createCombinedRewardAwardBodyOverrideDateExclusionDefault = false;
+export const createCombinedRewardAwardBodyOverridePaymentRequirementDefault = false;
 
 export const CreateCombinedRewardAwardBody = zod.object({
   "ruleId": zod.number(),
   "invoiceVisualIds": zod.array(zod.string()).min(createCombinedRewardAwardBodyInvoiceVisualIdsMin).describe('Printavo order (visual) numbers of at least two distinct invoices, e.g. [\"12345\", \"12346\"]'),
-  "overrideDateExclusion": zod.boolean().default(createCombinedRewardAwardBodyOverrideDateExclusionDefault).describe('Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.')
-}).describe('The server re-fetches each invoice from Printavo using the visual (order) numbers. Only fully-paid invoices that belong to the same customer and meet the rule\'s non-amount conditions will be accepted.\n')
+  "overrideDateExclusion": zod.boolean().default(createCombinedRewardAwardBodyOverrideDateExclusionDefault).describe('Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.'),
+  "overridePaymentRequirement": zod.boolean().default(createCombinedRewardAwardBodyOverridePaymentRequirementDefault).describe('Confirmed staff override of the fully-paid requirement for invoices whose payment state is the sole eligibility failure.')
+}).describe('The server re-fetches each invoice from Printavo using the visual (order) numbers. Invoices must belong to the same customer and meet the rule\'s non-amount conditions. Unpaid invoices require a separate staff-confirmed Paid override.\n')
 
 export const CreateCombinedRewardAwardResponse = zod.object({
   "awardId": zod.number(),
@@ -1434,12 +1444,14 @@ export const CreateCombinedRewardAwardResponse = zod.object({
 
 export const createElectedRewardAwardBodyOverrideStatusExclusionDefault = false;
 export const createElectedRewardAwardBodyOverrideDateExclusionDefault = false;
+export const createElectedRewardAwardBodyOverridePaymentRequirementDefault = false;
 
 export const CreateElectedRewardAwardBody = zod.object({
   "ruleId": zod.number(),
   "invoiceVisualId": zod.string().min(1).describe('Printavo order number shown to users.'),
   "overrideStatusExclusion": zod.boolean().default(createElectedRewardAwardBodyOverrideStatusExclusionDefault).describe('Confirmed staff override of an exact status exclusion. All other rule conditions remain enforced.'),
-  "overrideDateExclusion": zod.boolean().default(createElectedRewardAwardBodyOverrideDateExclusionDefault).describe('Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.')
+  "overrideDateExclusion": zod.boolean().default(createElectedRewardAwardBodyOverrideDateExclusionDefault).describe('Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced.'),
+  "overridePaymentRequirement": zod.boolean().default(createElectedRewardAwardBodyOverridePaymentRequirementDefault).describe('Confirmed staff override of the fully-paid requirement when payment state is the invoice\'s sole eligibility failure.')
 })
 
 export const CreateElectedRewardAwardResponse = zod.object({

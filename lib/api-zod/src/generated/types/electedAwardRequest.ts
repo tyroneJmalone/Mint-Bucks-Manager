@@ -17,4 +17,6 @@ export interface ElectedAwardRequest {
   overrideStatusExclusion?: boolean;
   /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
   overrideDateExclusion?: boolean;
+  /** Confirmed staff override of the fully-paid requirement when payment state is the invoice's sole eligibility failure. */
+  overridePaymentRequirement?: boolean;
 }

@@ -7,7 +7,7 @@
  */
 
 /**
- * The server re-fetches each invoice from Printavo using the visual (order) numbers. Only fully-paid invoices that belong to the same customer and meet the rule's non-amount conditions will be accepted.
+ * The server re-fetches each invoice from Printavo using the visual (order) numbers. Invoices must belong to the same customer and meet the rule's non-amount conditions. Unpaid invoices require a separate staff-confirmed Paid override.
  */
 export interface CombinedAwardRequest {
   ruleId: number;
@@ -18,4 +18,6 @@ export interface CombinedAwardRequest {
   invoiceVisualIds: string[];
   /** Confirmed staff override of the identified date-based rule exclusions. All non-date conditions remain enforced. */
   overrideDateExclusion?: boolean;
+  /** Confirmed staff override of the fully-paid requirement for invoices whose payment state is the sole eligibility failure. */
+  overridePaymentRequirement?: boolean;
 }

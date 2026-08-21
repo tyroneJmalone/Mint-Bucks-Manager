@@ -6,6 +6,7 @@ import {
   customersTable,
   type RewardRule,
   type RewardAward,
+  type PaymentRequirementOverrideAudit,
 } from "@workspace/db";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -15,7 +16,8 @@ import { getRewardsConfig, setSetting, type RewardsConfig } from "./settings";
 import {
   fetchPaidInvoices,
   fetchPipelineInvoices,
-  fetchPaidInvoiceByVisualId,
+  fetchInvoiceByVisualId,
+  isInvoiceFullyPaid,
   type PrintavoConfig,
   type PrintavoPaidInvoice,
 } from "./printavo";
@@ -154,6 +156,12 @@ export type InvoiceRuleEligibility = {
   canOverrideDateExclusion: boolean;
   dateExclusionReasons: string[];
   dateExclusions: DateExclusionFingerprint[];
+};
+
+export type ManualInvoiceEligibility = InvoiceRuleEligibility & {
+  isFullyPaid: boolean;
+  paymentRequirementApplied: boolean;
+  canOverridePaymentRequirement: boolean;
 };
 
 export type DateExclusionFingerprint = {
@@ -483,6 +491,68 @@ export function evaluateInvoiceRule(inv: PrintavoPaidInvoice, rule: RewardRule):
 }
 
 /**
+ * Manual Elect/Combine eligibility adds the program's fully-paid requirement as
+ * a separate category. Payment can be overridden only when the rule itself has
+ * no other failure; status/date overrides remain separate and are available
+ * only to already-paid invoices.
+ */
+export function evaluateManualInvoiceEligibility(
+  inv: PrintavoPaidInvoice,
+  rule: RewardRule,
+): ManualInvoiceEligibility {
+  const ruleEligibility = evaluateInvoiceRule(inv, rule);
+  const fullyPaid = isInvoiceFullyPaid(inv);
+  if (fullyPaid) {
+    return {
+      ...ruleEligibility,
+      isFullyPaid: true,
+      paymentRequirementApplied: false,
+      canOverridePaymentRequirement: false,
+    };
+  }
+
+  const amountPaid = inv.amountPaid ?? 0;
+  const total = inv.total ?? 0;
+  const paymentReason = amountPaid > 0
+    ? `Invoice is only partially paid (${amountPaid.toFixed(2)} of ${total.toFixed(2)})`
+    : `Invoice is unpaid (${amountPaid.toFixed(2)} of ${total.toFixed(2)})`;
+
+  return {
+    ...ruleEligibility,
+    eligible: false,
+    ineligibleReason: ruleEligibility.eligible
+      ? paymentReason
+      : ruleEligibility.ineligibleReason,
+    canOverrideStatusExclusion: false,
+    canOverrideDateExclusion: false,
+    isFullyPaid: false,
+    paymentRequirementApplied: true,
+    canOverridePaymentRequirement: ruleEligibility.eligible && total > 0,
+  };
+}
+
+export function buildPaymentOverrideAudit(
+  invoices: PrintavoPaidInvoice[],
+  overriddenBy: string,
+): PaymentRequirementOverrideAudit {
+  const overriddenAt = new Date().toISOString();
+  return invoices
+    .filter((invoice) => !isInvoiceFullyPaid(invoice))
+    .map((invoice) => ({
+      printavoInvoiceId: invoice.id,
+      invoiceVisualId: invoice.visualId,
+      paymentState: (invoice.amountPaid ?? 0) > 0
+        ? "partially_paid" as const
+        : "unpaid" as const,
+      invoiceTotal: invoice.total ?? null,
+      amountPaid: invoice.amountPaid ?? null,
+      datePaid: invoice.datePaid ?? null,
+      overriddenBy,
+      overriddenAt,
+    }));
+}
+
+/**
  * Pending awards with a confirmed status override remain valid only while the
  * live invoice still has the exact overridden status and all other conditions
  * continue to pass. This prevents a routine scan from deleting a legitimate
@@ -587,31 +657,33 @@ function todayInTimezone(timezone: string): string {
   }
 }
 
-/** Jan 1 (00:00) of the current year in the shop timezone, as an instant. */
-function startOfCurrentYear(timezone: string): Date {
-  let year: number;
+/** Calendar year containing the supplied instant in the shop timezone. */
+export function calendarYearInTimezone(timezone: string, at = new Date()): number {
   try {
-    year = parseInt(
-      new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric" }).format(new Date()),
+    return parseInt(
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric" }).format(at),
       10,
     );
   } catch {
-    year = new Date().getUTCFullYear();
+    return at.getUTCFullYear();
   }
-  return new Date(Date.UTC(year, 0, 1));
 }
 
-/** Sum of award dollars committed (reserved or issued) in the current year. */
+function awardedInCurrentShopYear(timezone: string) {
+  const year = calendarYearInTimezone(timezone);
+  return sql`EXTRACT(YEAR FROM ${rewardAwardsTable.awardedAt} AT TIME ZONE ${timezone}) = ${year}`;
+}
+
+/** Sum of award dollars committed (reserved or issued) for annual-limit enforcement. */
 export async function getAnnualAwardedTotal(cfg?: RewardsConfig): Promise<number> {
   const config = cfg ?? (await getRewardsConfig());
-  const yearStart = startOfCurrentYear(config.timezone);
   const rows = await db
     .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
     .from(rewardAwardsTable)
     .where(
       and(
         inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
-        gte(rewardAwardsTable.awardedAt, yearStart),
+        awardedInCurrentShopYear(config.timezone),
       ),
     );
   return parseFloat(rows[0]?.total ?? "0");
@@ -702,14 +774,13 @@ async function claimAward(
     if (combinedMembership.length) return { kind: "dup" };
 
     if (cfg.annualLimit != null) {
-      const yearStart = startOfCurrentYear(cfg.timezone);
       const rows = await tx
         .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
         .from(rewardAwardsTable)
         .where(
           and(
             inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
-            gte(rewardAwardsTable.awardedAt, yearStart),
+            awardedInCurrentShopYear(cfg.timezone),
           ),
         );
       const used = parseFloat(rows[0]?.total ?? "0");
@@ -1299,26 +1370,47 @@ async function buildPipelinePreview(config: PrintavoConfig): Promise<PipelinePre
 /** Aggregate stats for the rewards summary endpoint. */
 export async function getRewardsStats(
   cfg?: RewardsConfig,
-): Promise<{ annualAwarded: number; pendingCount: number; issuedCount: number }> {
+): Promise<{
+  annualAwarded: number;
+  pendingAmount: number;
+  pendingCount: number;
+  issuedCount: number;
+  activeRuleCount: number;
+}> {
   const config = cfg ?? (await getRewardsConfig());
-  const yearStart = startOfCurrentYear(config.timezone);
+  const currentYear = calendarYearInTimezone(config.timezone);
 
-  const [awarded, pending, issued] = await Promise.all([
-    getAnnualAwardedTotal(config),
+  const [issued, pending, activeRules] = await Promise.all([
     db
-      .select({ c: sql<string>`COUNT(*)` })
+      .select({
+        amount: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      })
+      .from(rewardAwardsTable)
+      .where(and(
+        eq(rewardAwardsTable.status, "issued"),
+        sql`${rewardAwardsTable.issuedAt} IS NOT NULL`,
+        sql`EXTRACT(YEAR FROM ${rewardAwardsTable.issuedAt} AT TIME ZONE ${config.timezone}) = ${currentYear}`,
+      )),
+    db
+      .select({
+        amount: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)`,
+        count: sql<string>`COUNT(*)`,
+      })
       .from(rewardAwardsTable)
       .where(eq(rewardAwardsTable.status, "pending")),
     db
-      .select({ c: sql<string>`COUNT(*)` })
-      .from(rewardAwardsTable)
-      .where(and(eq(rewardAwardsTable.status, "issued"), gte(rewardAwardsTable.awardedAt, yearStart))),
+      .select({ count: sql<string>`COUNT(*)` })
+      .from(rewardRulesTable)
+      .where(eq(rewardRulesTable.enabled, true)),
   ]);
 
   return {
-    annualAwarded: awarded,
-    pendingCount: parseInt(pending[0]?.c ?? "0", 10),
-    issuedCount: parseInt(issued[0]?.c ?? "0", 10),
+    annualAwarded: parseFloat(issued[0]?.amount ?? "0"),
+    pendingAmount: parseFloat(pending[0]?.amount ?? "0"),
+    pendingCount: parseInt(pending[0]?.count ?? "0", 10),
+    issuedCount: parseInt(issued[0]?.count ?? "0", 10),
+    activeRuleCount: parseInt(activeRules[0]?.count ?? "0", 10),
   };
 }
 
@@ -1597,7 +1689,7 @@ export type CreateCombinedAwardResult =
  *
  * Security properties:
  * - Accepts only Printavo visual IDs; fetches authoritative invoice data from Printavo.
- * - Verifies each invoice is fully paid (amountPaid >= total − $0.01).
+ * - Requires full payment unless staff explicitly confirms a payment-only override.
  * - Requires all invoices to belong to the same customer (same normalized email).
  * - Applies all non-amount rule conditions server-side (date windows, status, tags).
  * - Double-count check is inside the advisory-locked transaction: no concurrent
@@ -1610,6 +1702,7 @@ export async function createCombinedAward(
   cfg: RewardsConfig,
   createdBy: string | null,
   overrideDateExclusion = false,
+  overridePaymentRequirement = false,
 ): Promise<CreateCombinedAwardResult> {
   const uniqueIds = [...new Set(invoiceVisualIds.map((v) => v.trim()).filter(Boolean))];
   if (uniqueIds.length < 2) {
@@ -1619,19 +1712,22 @@ export async function createCombinedAward(
   const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
   if (!rule) return { ok: false, status: 404, error: "Rule not found" };
   if (!rule.enabled) return { ok: false, status: 422, error: "This reward rule is disabled" };
+  if (overridePaymentRequirement && !createdBy) {
+    return { ok: false, status: 403, error: "A staff identity is required to override the Paid requirement" };
+  }
 
   // ── Fetch authoritative invoice data from Printavo ────────────────────────
   const fetchedInvoices = await Promise.all(
-    uniqueIds.map((vid) => fetchPaidInvoiceByVisualId(printavoConfig, vid)),
+    uniqueIds.map((vid) => fetchInvoiceByVisualId(printavoConfig, vid)),
   );
 
-  // Report the first invoice that couldn't be resolved (not found / not fully paid).
+  // Report the first invoice that couldn't be resolved as an Invoice.
   for (let i = 0; i < fetchedInvoices.length; i++) {
     if (!fetchedInvoices[i]) {
       return {
         ok: false,
         status: 422,
-        error: `Invoice #${uniqueIds[i]} was not found in Printavo or is not fully paid. Only fully-paid invoices can be combined.`,
+        error: `Invoice #${uniqueIds[i]} was not found in Printavo`,
       };
     }
   }
@@ -1668,13 +1764,18 @@ export async function createCombinedAward(
     },
   };
   const dateExclusionOverrideAudit: DateExclusionOverrideAudit = [];
+  const paymentOverrideInvoices: PrintavoPaidInvoice[] = [];
   for (const inv of invoices) {
-    const eligibility = evaluateInvoiceRule(inv, ruleNoAmount as typeof rule);
+    const eligibility = evaluateManualInvoiceEligibility(inv, ruleNoAmount as typeof rule);
     const dateExclusionOverridden =
       overrideDateExclusion && eligibility.canOverrideDateExclusion;
-    if (!eligibility.eligible && !dateExclusionOverridden) {
+    const paymentRequirementOverridden =
+      overridePaymentRequirement && eligibility.canOverridePaymentRequirement;
+    if (!eligibility.eligible && !dateExclusionOverridden && !paymentRequirementOverridden) {
       const overrideHint = eligibility.canOverrideDateExclusion
         ? " Confirm the date exclusion override to continue."
+        : eligibility.canOverridePaymentRequirement
+          ? " Confirm the Paid requirement override to continue."
         : "";
       return {
         ok: false,
@@ -1689,7 +1790,13 @@ export async function createCombinedAward(
         exclusions: eligibility.dateExclusions,
       });
     }
+    if (paymentRequirementOverridden) {
+      paymentOverrideInvoices.push(inv);
+    }
   }
+  const paymentRequirementOverrideAudit = paymentOverrideInvoices.length && createdBy
+    ? buildPaymentOverrideAudit(paymentOverrideInvoices, createdBy)
+    : null;
 
   // ── Find or create the customer ───────────────────────────────────────────
   const customer = await findOrCreateCustomerForInvoice(invoices[0]);
@@ -1789,14 +1896,13 @@ export async function createCombinedAward(
 
     // Annual limit check (inside the lock so budget can't be double-spent).
     if (cfg.annualLimit != null) {
-      const yearStart = startOfCurrentYear(cfg.timezone);
       const rows = await tx
         .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
         .from(rewardAwardsTable)
         .where(
           and(
             inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
-            gte(rewardAwardsTable.awardedAt, yearStart),
+            awardedInCurrentShopYear(cfg.timezone),
           ),
         );
       const used = parseFloat(rows[0]?.total ?? "0");
@@ -1816,6 +1922,10 @@ export async function createCombinedAward(
       return !latest || i.datePaid > latest ? i.datePaid : latest;
     }, null);
     const visualIds = invoices.map((i) => `#${i.visualId}`).join(", ");
+    const overrideNotes = [
+      dateExclusionOverrideAudit.length ? `date exclusion overridden by ${createdBy ?? "staff"}` : null,
+      paymentRequirementOverrideAudit?.length ? `Paid requirement overridden by ${createdBy}` : null,
+    ].filter((value): value is string => !!value);
 
     const [award] = await tx
       .insert(rewardAwardsTable)
@@ -1840,9 +1950,8 @@ export async function createCombinedAward(
         dateExclusionOverriddenBy: dateExclusionOverrideAudit.length
           ? createdBy
           : null,
-        note: dateExclusionOverrideAudit.length
-          ? `${rule.name} · combined: ${visualIds} · date exclusion overridden by ${createdBy ?? "staff"}`
-          : `${rule.name} · combined: ${visualIds}`,
+        paymentRequirementOverride: paymentRequirementOverrideAudit,
+        note: `${rule.name} · combined: ${visualIds}${overrideNotes.length ? ` · ${overrideNotes.join(" · ")}` : ""}`,
         combinedInvoiceIds: allIds,
       } as typeof rewardAwardsTable.$inferInsert)
       .onConflictDoNothing()
@@ -1861,6 +1970,7 @@ export async function createCombinedAward(
         combinedTotal,
         createdBy,
         dateExclusionOverride: dateExclusionOverrideAudit,
+        paymentRequirementOverride: paymentRequirementOverrideAudit,
       },
       "Rewards: created combined invoice award",
     );
@@ -1891,29 +2001,38 @@ export async function createElectedAward(
   createdBy: string | null,
   overrideStatusExclusion = false,
   overrideDateExclusion = false,
+  overridePaymentRequirement = false,
 ): Promise<CreateElectedAwardResult> {
   const [rule] = await db.select().from(rewardRulesTable).where(eq(rewardRulesTable.id, ruleId));
   if (!rule) return { ok: false, status: 404, error: "Rule not found" };
   if (!rule.enabled) return { ok: false, status: 422, error: "This reward rule is disabled" };
-
-  const invoice = await fetchPaidInvoiceByVisualId(printavoConfig, invoiceVisualId.trim());
-  if (!invoice) {
-    return { ok: false, status: 422, error: `Invoice #${invoiceVisualId} was not found or is not fully paid` };
+  if (overridePaymentRequirement && !createdBy) {
+    return { ok: false, status: 403, error: "A staff identity is required to override the Paid requirement" };
   }
-  const eligibility = evaluateInvoiceRule(invoice, rule);
+
+  const invoice = await fetchInvoiceByVisualId(printavoConfig, invoiceVisualId.trim());
+  if (!invoice) {
+    return { ok: false, status: 422, error: `Invoice #${invoiceVisualId} was not found in Printavo` };
+  }
+  const eligibility = evaluateManualInvoiceEligibility(invoice, rule);
   const statusExclusionOverridden =
     overrideStatusExclusion && eligibility.canOverrideStatusExclusion;
   const dateExclusionOverridden =
     overrideDateExclusion && eligibility.canOverrideDateExclusion;
+  const paymentRequirementOverridden =
+    overridePaymentRequirement && eligibility.canOverridePaymentRequirement;
   if (
     !eligibility.eligible &&
     !statusExclusionOverridden &&
-    !dateExclusionOverridden
+    !dateExclusionOverridden &&
+    !paymentRequirementOverridden
   ) {
     const overrideHint = eligibility.canOverrideStatusExclusion
       ? " Confirm the status exclusion override to continue."
       : eligibility.canOverrideDateExclusion
         ? " Confirm the date exclusion override to continue."
+        : eligibility.canOverridePaymentRequirement
+          ? " Confirm the Paid requirement override to continue."
         : "";
     return {
       ok: false,
@@ -1926,6 +2045,9 @@ export async function createElectedAward(
 
   const customer = await findOrCreateCustomerForInvoice(invoice);
   if (!customer) return { ok: false, status: 422, error: "The invoice customer has no email address" };
+  const paymentRequirementOverrideAudit = paymentRequirementOverridden && createdBy
+    ? buildPaymentOverrideAudit([invoice], createdBy)
+    : null;
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${REWARDS_LOCK_KEY})`);
@@ -1947,7 +2069,10 @@ export async function createElectedAward(
     if (cfg.annualLimit != null) {
       const rows = await tx.select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
         .from(rewardAwardsTable)
-        .where(and(inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]), gte(rewardAwardsTable.awardedAt, startOfCurrentYear(cfg.timezone))));
+        .where(and(
+          inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
+          awardedInCurrentShopYear(cfg.timezone),
+        ));
       if (parseFloat(rows[0]?.total ?? "0") + amount > cfg.annualLimit + 1e-9) {
         return { ok: false as const, status: 409, error: "Creating this reward would exceed the annual rewards limit" };
       }
@@ -1978,11 +2103,14 @@ export async function createElectedAward(
           }]
         : null,
       dateExclusionOverriddenBy: dateExclusionOverridden ? createdBy : null,
+      paymentRequirementOverride: paymentRequirementOverrideAudit,
       note: statusExclusionOverridden
         ? `${rule.name} · elected · status exclusion overridden by ${createdBy ?? "staff"}`
         : dateExclusionOverridden
           ? `${rule.name} · elected · date exclusion overridden by ${createdBy ?? "staff"}`
-          : `${rule.name} · elected`,
+          : paymentRequirementOverridden
+            ? `${rule.name} · elected · Paid requirement overridden by ${createdBy}`
+            : `${rule.name} · elected`,
     }).onConflictDoNothing().returning();
     if (!award) return { ok: false as const, status: 409, error: "This invoice already has a reward under the selected rule" };
     if (statusExclusionOverridden) {
@@ -2009,6 +2137,20 @@ export async function createElectedAward(
         "Rewards: elected award created with date exclusion override",
       );
     }
+    if (paymentRequirementOverridden) {
+      logger.warn(
+        {
+          awardId: award.id,
+          ruleId,
+          invoiceVisualId: invoice.visualId,
+          invoiceTotal: invoice.total,
+          amountPaid: invoice.amountPaid,
+          datePaid: invoice.datePaid,
+          createdBy,
+        },
+        "Rewards: elected award created with Paid requirement override",
+      );
+    }
     return { ok: true as const, awardId: award.id, amount };
   });
 }
@@ -2028,14 +2170,13 @@ export async function unrejectAward(
     }
 
     if (cfg.annualLimit != null) {
-      const yearStart = startOfCurrentYear(cfg.timezone);
       const rows = await tx
         .select({ total: sql<string>`COALESCE(SUM(${rewardAwardsTable.amount}), 0)` })
         .from(rewardAwardsTable)
         .where(
           and(
             inArray(rewardAwardsTable.status, ["processing", "pending", "issued"]),
-            gte(rewardAwardsTable.awardedAt, yearStart),
+            awardedInCurrentShopYear(cfg.timezone),
           ),
         );
       const used = parseFloat(rows[0]?.total ?? "0");

@@ -624,7 +624,6 @@ export function Rewards() {
   const enabled = summary?.enabled ?? false;
   const mode = summary?.mode ?? "approve";
   const annualLimit = summary?.annualLimit ?? null;
-  const annualAwarded = summary?.annualAwarded ?? 0;
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
@@ -647,16 +646,22 @@ export function Rewards() {
             Automatically award Mint Bucks when a Printavo invoice is fully paid
           </p>
         </div>
-        <Button
-          variant="outline"
-          className="gap-1.5"
-          onClick={handleScan}
-          disabled={triggerScan.isPending || !enabled}
-          data-testid="button-run-scan"
-        >
-          <Play className="w-3.5 h-3.5" />
-          {triggerScan.isPending ? "Scanning…" : "Run Scan Now"}
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Last scan</div>
+            <div className="text-sm font-medium text-foreground">{formatDateTime(summary?.lastScanAt)}</div>
+          </div>
+          <Button
+            variant="outline"
+            className="gap-1.5"
+            onClick={handleScan}
+            disabled={triggerScan.isPending || !enabled}
+            data-testid="button-run-scan"
+          >
+            <Play className="w-3.5 h-3.5" />
+            {triggerScan.isPending ? "Scanning…" : "Run Scan Now"}
+          </Button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -665,17 +670,38 @@ export function Rewards() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[72px] w-full rounded-lg" />)
         ) : (
           <>
-            <StatCard label="Mode" value={mode === "auto" ? "Auto-issue" : "Approve first"} />
             <StatCard
               label="Awarded this year"
-              value={formatCurrency(annualAwarded)}
-              sub={annualLimit != null ? `of ${formatCurrency(annualLimit)} limit` : "No annual limit"}
+              value={formatCurrency(summary?.annualAwarded ?? 0)}
+              sub={`${summary?.issuedCount ?? 0} award${summary?.issuedCount === 1 ? "" : "s"} issued`}
             />
-            <StatCard label="Pending approval" value={summary?.pendingCount ?? 0} />
-            <StatCard
-              label="Last scan"
-              value={<span className="text-sm font-semibold">{formatDateTime(summary?.lastScanAt)}</span>}
+            <StatCard 
+              label="Pending approval" 
+              value={formatCurrency(summary?.pendingAmount ?? 0)}
+              sub={`${summary?.pendingCount ?? 0} award${summary?.pendingCount === 1 ? "" : "s"} waiting`} 
             />
+            {summary?.pipelineAvailable ? (
+              <StatCard 
+                label="In pipeline" 
+                value={formatCurrency(summary?.pipelineAmount ?? 0)} 
+                sub={`${summary?.pipelineCount ?? 0} potential award${summary?.pipelineCount === 1 ? "" : "s"}`} 
+              />
+            ) : (
+              <div className="bg-card border border-border rounded-lg px-4 py-3 flex flex-col justify-center min-h-[72px]">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">In pipeline</div>
+                <div className="text-sm font-medium text-muted-foreground">Printavo unavailable</div>
+              </div>
+            )}
+            <div className="flex flex-col gap-3 min-h-[72px]">
+              <div className="bg-card border border-border rounded-lg px-4 flex-1 flex items-center justify-between">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Active Rules</span>
+                <span className="text-sm font-bold text-foreground">{summary?.activeRuleCount ?? 0}</span>
+              </div>
+              <div className="bg-card border border-border rounded-lg px-4 flex-1 flex items-center justify-between">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
+                <span className="text-sm font-bold text-foreground">{summary?.mode === "auto" ? "Auto-issue" : "Approve first"}</span>
+              </div>
+            </div>
           </>
         )}
       </div>

@@ -53,6 +53,9 @@ interface CombineInvoiceItem {
   tags: string[];
   eligible: boolean;
   ineligibleReason: string | null;
+  isFullyPaid: boolean;
+  paymentRequirementApplied: boolean;
+  canOverridePaymentRequirement: boolean;
   dateExclusionApplied: boolean;
   canOverrideDateExclusion: boolean;
   dateExclusionReasons: string[];
@@ -191,8 +194,11 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
   const selectedDateOverrides = selectedInvoices.filter(
     (i) => !i.eligible && i.canOverrideDateExclusion,
   );
+  const selectedPaymentOverrides = selectedInvoices.filter(
+    (i) => !i.eligible && i.canOverridePaymentRequirement,
+  );
   const selectedBlocked = selectedInvoices.filter(
-    (i) => !i.eligible && !i.canOverrideDateExclusion,
+    (i) => !i.eligible && !i.canOverrideDateExclusion && !i.canOverridePaymentRequirement,
   );
   const selectedAlreadyUsed = selectedInvoices.filter((i) => i.alreadyUsed);
   const canSubmit =
@@ -243,12 +249,13 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
     });
   }
 
-  async function handleSubmit(overrideDateExclusion = false) {
+  async function handleSubmit(overrideDateExclusion = false, overridePaymentRequirement = false) {
     if (!canSubmit || !selectedRuleId) return;
     setSubmitting(true);
     try {
       // Send only visual IDs — the server re-fetches authoritative data from Printavo
-      // and validates each invoice (fully paid, same customer, rule conditions).
+      // and validates payment or an explicit payment-only override, customer,
+      // duplicate, rule, combined-threshold, and annual-limit requirements.
       const res = await fetch("/api/rewards/combined-award", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,6 +263,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
           ruleId: parseInt(selectedRuleId, 10),
           invoiceVisualIds: selectedInvoices.map((i) => i.visualId),
           overrideDateExclusion,
+          overridePaymentRequirement,
         }),
       });
       const data = await res.json();
@@ -266,7 +274,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
       const result = data as CombinedAwardResult;
       toast({
         title: "Combined award created",
-        description: `${formatCurrency(result.amount)} pending for ${result.invoiceCount} invoice${result.invoiceCount !== 1 ? "s" : ""} · combined total ${formatCurrency(result.combinedTotal)}${overrideDateExclusion ? " · identified date exclusions overridden" : ""}`,
+        description: `${formatCurrency(result.amount)} pending for ${result.invoiceCount} invoice${result.invoiceCount !== 1 ? "s" : ""} · combined total ${formatCurrency(result.combinedTotal)}${overrideDateExclusion ? " · identified date exclusions overridden" : ""}${overridePaymentRequirement ? " · payment requirements overridden" : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() });
@@ -288,8 +296,8 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
             Combine invoices to qualify for a reward
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Search for fully-paid invoices by customer name or order number. Select multiple invoices
-            to combine their totals — each new search keeps your existing selections.
+            Search by customer name or order number. Invoices normally must be fully paid; a
+            payment-only exception requires separate confirmation. Each new search keeps your selections.
           </p>
         </DialogHeader>
 
@@ -363,7 +371,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
             searchResult.invoices.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 <Search className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                No fully-paid invoices found matching "{searchQuery}"
+                No invoices found matching "{searchQuery}"
               </div>
             ) : (
               <div className="border border-border rounded-lg overflow-hidden">
@@ -384,7 +392,7 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                         const isSelected = selectedIds.has(inv.id);
                         const disabled =
                           inv.alreadyUsed ||
-                          (!inv.eligible && !inv.canOverrideDateExclusion);
+                          (!inv.eligible && !inv.canOverrideDateExclusion && !inv.canOverridePaymentRequirement);
 
                         return (
                           <tr
@@ -430,14 +438,14 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                                 {!inv.eligible && !inv.alreadyUsed && (
                                   <span
                                     className={cn(
-                                      "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                                      inv.canOverrideDateExclusion
+                                      "text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap",
+                                      (inv.canOverrideDateExclusion || inv.canOverridePaymentRequirement)
                                         ? "bg-amber-100 text-amber-800"
                                         : "bg-red-100 text-red-700",
                                     )}
                                     title={inv.ineligibleReason ?? "Not eligible"}
                                   >
-                                    {inv.canOverrideDateExclusion ? "Date override" : "Ineligible"}
+                                    {inv.canOverridePaymentRequirement ? "Payment override" : inv.canOverrideDateExclusion ? "Date override" : "Ineligible"}
                                   </span>
                                 )}
                               </div>
@@ -465,7 +473,16 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                               {inv.total != null ? formatCurrency(inv.total) : "—"}
                             </td>
                             <td className="px-3 py-3 text-right text-muted-foreground whitespace-nowrap">
-                              {formatDateOnly(inv.datePaid)}
+                              <div className="flex flex-col items-end">
+                                <span className={cn(inv.isFullyPaid ? "text-muted-foreground" : "text-amber-600 font-medium")}>
+                                  {inv.amountPaid != null ? formatCurrency(inv.amountPaid) : "—"}
+                                </span>
+                                {!inv.isFullyPaid && (
+                                  <span className="text-[10px] uppercase tracking-wider text-amber-600/70">
+                                    {(inv.amountPaid ?? 0) > 0 ? "Partially paid" : "Unpaid"}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -505,6 +522,18 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
                     {selectedAlreadyUsed.map((i) => `#${i.visualId}`).join(", ")}{" "}
                     {selectedAlreadyUsed.length === 1 ? "is" : "are"} already covered by an existing award —
                     deselect {selectedAlreadyUsed.length === 1 ? "it" : "them"} before continuing.
+                  </span>
+                </div>
+              )}
+
+              {selectedPaymentOverrides.length > 0 && selectedAlreadyUsed.length === 0 && (
+                <div className="flex items-start gap-2 text-sm text-amber-700">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Payment confirmation required:{" "}
+                    {selectedPaymentOverrides.map((invoice) =>
+                      `#${invoice.visualId} (${formatCurrency(invoice.amountPaid ?? 0)} of ${formatCurrency(invoice.total ?? 0)})`
+                    ).join(" | ")}
                   </span>
                 </div>
               )}
@@ -559,10 +588,10 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
           </Button>
           <Button
             onClick={() => {
-              if (selectedDateOverrides.length) {
+              if (selectedDateOverrides.length || selectedPaymentOverrides.length) {
                 setOverrideConfirmationOpen(true);
               } else {
-                void handleSubmit(false);
+                void handleSubmit(false, false);
               }
             }}
             disabled={!canSubmit || submitting}
@@ -584,29 +613,45 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
       </DialogContent>
     </Dialog>
     <AlertDialog open={overrideConfirmationOpen} onOpenChange={setOverrideConfirmationOpen}>
-      <AlertDialogContent data-testid="dialog-confirm-combine-date-override">
+      <AlertDialogContent data-testid="dialog-confirm-combine-override">
         <AlertDialogHeader>
           <AlertDialogTitle>Are You Sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            The selected invoices have the following date exclusions:{" "}
-            <strong>
-              {selectedDateOverrides.map((invoice) =>
-                `#${invoice.visualId}: ${invoice.dateExclusionReasons.join("; ")}`
-              ).join(" | ")}
-            </strong>
-            . This will override only these identified date exclusions. Fully-paid status,
-            customer matching, non-date rule conditions, duplicate checks, combined amount
+            {selectedPaymentOverrides.length > 0 && (
+              <div className="mb-3">
+                The following invoices are not fully paid:{" "}
+                <strong>
+                  {selectedPaymentOverrides.map((invoice) =>
+                    `#${invoice.visualId} (Paid ${formatCurrency(invoice.amountPaid ?? 0)} of ${formatCurrency(invoice.total ?? 0)})`
+                  ).join(" | ")}
+                </strong>
+                . This will override only the Paid requirement for these invoices. Percent-of-paid
+                rules continue to use the current amounts paid shown above.
+              </div>
+            )}
+            {selectedDateOverrides.length > 0 && (
+              <div className="mb-3">
+                The selected invoices have the following date exclusions:{" "}
+                <strong>
+                  {selectedDateOverrides.map((invoice) =>
+                    `#${invoice.visualId}: ${invoice.dateExclusionReasons.join("; ")}`
+                  ).join(" | ")}
+                </strong>
+                . This will override only these identified date exclusions.
+              </div>
+            )}
+            Customer matching, all non-overridden rule conditions, duplicate checks, combined amount
             requirements, and the annual limit will still be enforced.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={submitting}>Go Back</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => void handleSubmit(true)}
+            onClick={() => void handleSubmit(selectedDateOverrides.length > 0, selectedPaymentOverrides.length > 0)}
             disabled={submitting}
-            data-testid="button-confirm-combine-date-override"
+            data-testid="button-confirm-combine-override"
           >
-            Yes, Override Exclusion
+            Yes, Override
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
