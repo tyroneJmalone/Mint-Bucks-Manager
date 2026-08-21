@@ -25,8 +25,8 @@ vi.mock("./logger", () => ({
 
 import {
   buildResendEmailPayload,
-  getIssuedEmailCc,
-  ISSUED_EMAIL_CC,
+  getIssuedEmailBcc,
+  ISSUED_EMAIL_BCC,
   sendCreditIssuedEmail,
 } from "./email";
 
@@ -41,50 +41,50 @@ describe("issued email internal copy", () => {
     });
   });
 
-  it("adds the fixed internal CC to every real customer issuance", () => {
-    expect(getIssuedEmailCc("customer@example.invalid")).toBe(ISSUED_EMAIL_CC);
-    expect(getIssuedEmailCc("customer@example.invalid", false)).toBe(ISSUED_EMAIL_CC);
+  it("adds the fixed internal BCC to every real customer issuance", () => {
+    expect(getIssuedEmailBcc("customer@example.invalid")).toBe(ISSUED_EMAIL_BCC);
+    expect(getIssuedEmailBcc("customer@example.invalid", false)).toBe(ISSUED_EMAIL_BCC);
   });
 
-  it("does not CC internal staff on test Issued emails", () => {
-    expect(getIssuedEmailCc("customer@example.invalid", true)).toBeNull();
+  it("does not BCC internal staff on test Issued emails", () => {
+    expect(getIssuedEmailBcc("customer@example.invalid", true)).toBeNull();
   });
 
   it("does not duplicate the internal address when it is the customer", () => {
-    expect(getIssuedEmailCc(" INFO@MINTPRINTWORKS.COM ")).toBeNull();
+    expect(getIssuedEmailBcc(" INFO@MINTPRINTWORKS.COM ")).toBeNull();
   });
 
-  it("includes the selected CC in the Resend request payload", () => {
+  it("includes the selected BCC in the Resend request payload", () => {
     expect(
       buildResendEmailPayload({
         from: "Mint Printworks <noreply@mintprintworks.com>",
         to: "Customer <customer@example.invalid>",
-        cc: ISSUED_EMAIL_CC,
+        bcc: ISSUED_EMAIL_BCC,
         subject: "Mint Bucks issued",
         html: "<p>Issued</p>",
       }),
     ).toEqual({
       from: "Mint Printworks <noreply@mintprintworks.com>",
       to: "Customer <customer@example.invalid>",
-      cc: "info@mintprintworks.com",
+        bcc: "info@mintprintworks.com",
       subject: "Mint Bucks issued",
       html: "<p>Issued</p>",
     });
   });
 
-  it("omits CC from the Resend request payload when none is selected", () => {
+  it("omits BCC from the Resend request payload when none is selected", () => {
     expect(
       buildResendEmailPayload({
         from: "Mint Printworks <noreply@mintprintworks.com>",
         to: "Customer <customer@example.invalid>",
-        cc: null,
+        bcc: null,
         subject: "Test Mint Bucks email",
         html: "<p>Preview</p>",
       }),
-    ).not.toHaveProperty("cc");
+    ).not.toHaveProperty("bcc");
   });
 
-  it("sends and logs the fixed CC through the real Issued-email path", async () => {
+  it("sends and logs the fixed BCC through the real Issued-email path", async () => {
     await expect(
       sendCreditIssuedEmail({
         customerName: "Test Customer",
@@ -105,13 +105,14 @@ describe("issued email internal copy", () => {
     expect(JSON.parse(request.body)).toEqual(
       expect.objectContaining({
         to: "Test Customer <customer@example.invalid>",
-        cc: "info@mintprintworks.com",
+        bcc: "info@mintprintworks.com",
       }),
     );
+    expect(JSON.parse(request.body)).not.toHaveProperty("cc");
     expect(mocks.info).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "Test Customer <customer@example.invalid>",
-        cc: "info@mintprintworks.com",
+        bcc: "info@mintprintworks.com",
         id: "resend-test-id",
       }),
       "Email sent via Resend",
@@ -120,13 +121,13 @@ describe("issued email internal copy", () => {
       expect.objectContaining({
         emailType: "issued",
         recipientEmail: "customer@example.invalid",
-        ccEmail: "info@mintprintworks.com",
+        bccEmail: "info@mintprintworks.com",
         status: "sent",
       }),
     );
   });
 
-  it("keeps the internal CC out of the real test-email path", async () => {
+  it("keeps the internal BCC out of the real test-email path", async () => {
     await sendCreditIssuedEmail({
       customerName: "Test Customer",
       customerEmail: "customer@example.invalid",
@@ -141,11 +142,11 @@ describe("issued email internal copy", () => {
       string,
       { body: string },
     ];
-    expect(JSON.parse(request.body)).not.toHaveProperty("cc");
+    expect(JSON.parse(request.body)).not.toHaveProperty("bcc");
     expect(mocks.values).toHaveBeenCalledWith(
       expect.objectContaining({
         emailType: "test_issued",
-        ccEmail: null,
+        bccEmail: null,
       }),
     );
   });

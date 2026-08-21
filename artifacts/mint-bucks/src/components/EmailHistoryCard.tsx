@@ -72,6 +72,9 @@ export function EmailHistoryCard({ customerId, creditId }: EmailHistoryCardProps
                   {email.ccEmail && (
                     <span data-testid={`email-cc-${email.id}`}> · CC {email.ccEmail}</span>
                   )}
+                  {email.bccEmail && (
+                    <span data-testid={`email-bcc-${email.id}`}> · BCC {email.bccEmail}</span>
+                  )}
                   {" · "}{formatDateTime(email.sentAt)}
                   {email.triggeredBy && <> · Sent by {email.triggeredBy}</>}
                 </div>

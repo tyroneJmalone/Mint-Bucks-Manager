@@ -11,6 +11,8 @@ export const emailLogTable = pgTable("email_log", {
   recipientEmail: text("recipient_email").notNull(),
   /** Optional CC recipient included in the provider delivery request. */
   ccEmail: text("cc_email"),
+  /** Optional BCC recipient included in the provider delivery request. */
+  bccEmail: text("bcc_email"),
   subject: text("subject").notNull(),
   status: text("status").notNull().default("sent"), // sent | failed
   /** Email of the staff member whose action triggered this send (null for automated sends). */

@@ -1880,7 +1880,7 @@ components:
 
     EmailLogEntry:
       type: object
-      required: [id, customerId, creditId, emailType, recipientEmail, ccEmail, subject, status, sentAt]
+      required: [id, customerId, creditId, emailType, recipientEmail, ccEmail, bccEmail, subject, status, sentAt]
       properties:
         id:
           type: integer
@@ -1896,6 +1896,9 @@ components:
         ccEmail:
           type: ["string", "null"]
           description: Optional CC recipient included in the provider delivery request.
+        bccEmail:
+          type: ["string", "null"]
+          description: Optional BCC recipient included in the provider delivery request.
         subject:
           type: string
         status:

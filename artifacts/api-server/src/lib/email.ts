@@ -16,7 +16,7 @@ interface EmailLogMeta {
 
 const BUSINESS_NAME = "Mint Printworks";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? `noreply@mintprintworks.com`;
-export const ISSUED_EMAIL_CC = "info@mintprintworks.com";
+export const ISSUED_EMAIL_BCC = "info@mintprintworks.com";
 
 interface SendEmailOptions {
   from: string;
@@ -24,6 +24,7 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   cc?: string | null;
+  bcc?: string | null;
   idempotencyKey?: string;
   log?: EmailLogMeta;
 }
@@ -46,6 +47,7 @@ async function send(opts: SendEmailOptions): Promise<boolean> {
         emailType: opts.log.emailType,
         recipientEmail: recipient,
         ccEmail: opts.cc ?? null,
+        bccEmail: opts.bcc ?? null,
         subject: opts.subject,
         status: ok ? "sent" : "failed",
         triggeredBy: opts.log.triggeredBy ?? null,
@@ -56,14 +58,15 @@ async function send(opts: SendEmailOptions): Promise<boolean> {
 }
 
 export function buildResendEmailPayload(
-  opts: Pick<SendEmailOptions, "from" | "to" | "subject" | "html" | "cc">,
-): { from: string; to: string; subject: string; html: string; cc?: string } {
+  opts: Pick<SendEmailOptions, "from" | "to" | "subject" | "html" | "cc" | "bcc">,
+): { from: string; to: string; subject: string; html: string; cc?: string; bcc?: string } {
   return {
     from: opts.from,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
     ...(opts.cc ? { cc: opts.cc } : {}),
+    ...(opts.bcc ? { bcc: opts.bcc } : {}),
   };
 }
 
@@ -86,7 +89,7 @@ async function sendViaResend(opts: SendEmailOptions): Promise<boolean> {
     if (!response.ok) {
       const body = await response.text().catch(() => "(unreadable)");
       logger.error(
-        { to: opts.to, cc: opts.cc ?? null, subject: opts.subject, status: response.status, body },
+        { to: opts.to, cc: opts.cc ?? null, bcc: opts.bcc ?? null, subject: opts.subject, status: response.status, body },
         "Resend API error",
       );
       return false;
@@ -94,13 +97,13 @@ async function sendViaResend(opts: SendEmailOptions): Promise<boolean> {
 
     const result = await response.json() as { id?: string };
     logger.info(
-      { to: opts.to, cc: opts.cc ?? null, subject: opts.subject, id: result.id },
+      { to: opts.to, cc: opts.cc ?? null, bcc: opts.bcc ?? null, subject: opts.subject, id: result.id },
       "Email sent via Resend",
     );
     return true;
   } catch (err) {
     logger.error(
-      { err, to: opts.to, cc: opts.cc ?? null, subject: opts.subject },
+      { err, to: opts.to, cc: opts.cc ?? null, bcc: opts.bcc ?? null, subject: opts.subject },
       "Failed to send email via Resend",
     );
     return false;
@@ -141,11 +144,11 @@ interface CreditEmailData {
   idempotencyKey?: string | null;
 }
 
-export function getIssuedEmailCc(customerEmail: string, isTest?: boolean): string | null {
+export function getIssuedEmailBcc(customerEmail: string, isTest?: boolean): string | null {
   if (isTest) return null;
-  return customerEmail.trim().toLowerCase() === ISSUED_EMAIL_CC
+  return customerEmail.trim().toLowerCase() === ISSUED_EMAIL_BCC
     ? null
-    : ISSUED_EMAIL_CC;
+    : ISSUED_EMAIL_BCC;
 }
 
 function escapeHtml(s: string): string {
@@ -324,7 +327,7 @@ export async function sendCreditIssuedEmail(data: CreditEmailData): Promise<bool
     to: `${data.customerName} <${data.customerEmail}>`,
     subject,
     html,
-    cc: getIssuedEmailCc(data.customerEmail, data.isTest),
+    bcc: getIssuedEmailBcc(data.customerEmail, data.isTest),
     log: {
       emailType: data.isTest ? "test_issued" : "issued",
       customerId: data.customerId ?? null,

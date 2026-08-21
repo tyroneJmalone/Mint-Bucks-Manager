@@ -626,6 +626,11 @@ export interface EmailLogEntry {
      * @nullable
      */
   ccEmail: string | null;
+  /**
+     * Optional BCC recipient included in the provider delivery request.
+     * @nullable
+     */
+  bccEmail: string | null;
   subject: string;
   status: EmailLogEntryStatus;
   sentAt: string;
