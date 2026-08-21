@@ -1,6 +1,11 @@
 import { useState, useMemo } from "react";
 import { Search, Combine, CheckCircle2, AlertCircle, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
-import { useListRewardRules, getListRewardAwardsQueryKey, getGetRewardsSummaryQueryKey } from "@workspace/api-client-react";
+import {
+  getGetRewardsPipelineQueryKey,
+  getGetRewardsSummaryQueryKey,
+  getListRewardAwardsQueryKey,
+  useListRewardRules,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -276,8 +281,11 @@ export function CombineInvoicesDialog({ open, onOpenChange }: CombineInvoicesDia
         title: "Combined award created",
         description: `${formatCurrency(result.amount)} pending for ${result.invoiceCount} invoice${result.invoiceCount !== 1 ? "s" : ""} · combined total ${formatCurrency(result.combinedTotal)}${overrideDateExclusion ? " · identified date exclusions overridden" : ""}${overridePaymentRequirement ? " · payment requirements overridden" : ""}`,
       });
-      queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetRewardsPipelineQueryKey() }),
+      ]);
       handleClose(false);
     } catch {
       toast({ title: "Failed to create combined award", variant: "destructive" });

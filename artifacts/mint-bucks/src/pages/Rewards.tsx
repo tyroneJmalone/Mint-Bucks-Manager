@@ -339,7 +339,20 @@ export function Rewards() {
   const { data: summary, isLoading: summaryLoading } = useGetRewardsSummary();
   const { data: settings } = useGetRewardsSettings();
   const { data: rules, isLoading: rulesLoading } = useListRewardRules();
-  const { data: awards, isLoading: awardsLoading } = useListRewardAwards();
+  const {
+    data: awards,
+    isLoading: awardsLoading,
+    isFetching: awardsFetching,
+    error: awardsError,
+    refetch: refetchAwards,
+  } = useListRewardAwards(undefined, {
+    query: {
+      queryKey: getListRewardAwardsQueryKey(),
+      // Keep the visible Pending list in place during post-action refreshes.
+      // A refresh should update rows, never replace them with an empty table.
+      placeholderData: (previous) => previous,
+    },
+  });
 
   const {
     data: pipeline,
@@ -353,6 +366,9 @@ export function Rewards() {
       enabled: activeTab === "pipeline",
       staleTime: 5 * 60 * 1000,
       retry: false,
+      // Pipeline recomputation can take several seconds against Printavo.
+      // Preserve the last successful forecast while the fresh one is loading.
+      placeholderData: (previous) => previous,
     },
   });
 
@@ -811,6 +827,24 @@ export function Rewards() {
               </div>
             </div>
           )}
+          {awardsError && awards?.length ? (
+            <div
+              className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              data-testid="notice-pending-stale"
+            >
+              <span>Pending couldn&apos;t refresh. Showing the last successful list.</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+                onClick={() => refetchAwards()}
+                disabled={awardsFetching}
+              >
+                {awardsFetching ? "Retrying…" : "Retry"}
+              </Button>
+            </div>
+          ) : null}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[1060px]">
@@ -844,7 +878,7 @@ export function Rewards() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {awardsLoading ? (
+                {awardsLoading && !awards ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
                       {Array.from({ length: 11 }).map((_, j) => (
@@ -944,6 +978,13 @@ export function Rewards() {
                       </td>
                     </tr>
                   ))
+                ) : awardsError && !awards ? (
+                  <tr>
+                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                      <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                      {(awardsError as Error).message || "Couldn't load Pending rewards."}
+                    </td>
+                  </tr>
                 ) : (
                   <tr>
                     <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
@@ -1005,6 +1046,24 @@ export function Rewards() {
               data-testid="input-search-pipeline"
             />
           </div>
+          {pipelineError && pipeline?.items.length ? (
+            <div
+              className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              data-testid="notice-pipeline-stale"
+            >
+              <span>Pipeline couldn&apos;t refresh. Showing the last successful list.</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+                onClick={() => refetchPipeline()}
+                disabled={pipelineFetching}
+              >
+                {pipelineFetching ? "Retrying…" : "Retry"}
+              </Button>
+            </div>
+          ) : null}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px]">
@@ -1024,7 +1083,7 @@ export function Rewards() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {pipelineLoading ? (
+                {pipelineLoading && !pipeline ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
                       {Array.from({ length: 11 }).map((_, j) => (
@@ -1032,13 +1091,6 @@ export function Rewards() {
                       ))}
                     </tr>
                   ))
-                ) : pipelineError ? (
-                  <tr>
-                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
-                      <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                      {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
-                    </td>
-                  </tr>
                 ) : sortedPipelineItems.length ? (
                   sortedPipelineItems.map((item: RewardsPipelineItem) => (
                     <tr
@@ -1118,6 +1170,13 @@ export function Rewards() {
                       </td>
                     </tr>
                   ))
+                ) : pipelineError && !pipeline ? (
+                  <tr>
+                    <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">
+                      <AlertCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                      {(pipelineError as Error).message || "Couldn't load the pipeline. Check your Printavo connection in Settings."}
+                    </td>
+                  </tr>
                 ) : (
                   <tr>
                     <td colSpan={11} className="px-5 py-12 text-center text-muted-foreground text-sm">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Loader2, Search, Vote } from "lucide-react";
 import {
+  getGetRewardsPipelineQueryKey,
   getGetRewardsSummaryQueryKey,
   getListRewardAwardsQueryKey,
   useListRewardRules,
@@ -156,6 +157,7 @@ export function ElectInvoiceDialog({ open, onOpenChange }: ElectInvoiceDialogPro
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: getListRewardAwardsQueryKey() }),
         queryClient.invalidateQueries({ queryKey: getGetRewardsSummaryQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetRewardsPipelineQueryKey() }),
       ]);
       toast({
         title: "Invoice elected",
