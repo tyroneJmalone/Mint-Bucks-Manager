@@ -1,11 +1,12 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient, useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useGetAuthMe } from "@workspace/api-client-react";
 import { Layout } from "@/components/Layout";
 import { Dashboard } from "@/pages/Dashboard";
 import { Customers } from "@/pages/Customers";
@@ -98,6 +99,7 @@ const clerkAppearance = {
     formFieldInput: "bg-[hsl(96_25%_97%)]",
     dividerLine: "bg-[hsl(96_20%_88%)]",
     otpCodeFieldInput: "border-[hsl(96_20%_80%)]",
+    footerAction: "hidden",
   },
 };
 
@@ -137,26 +139,12 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-interface AuthMe {
-  userId: string;
-  email: string | null;
-  approved: boolean;
-}
-
 /**
  * Gate between "signed in" and "approved staff". Unapproved accounts (open
  * sign-up) see the access-pending screen instead of the dashboard.
  */
 function AccessGate({ children }: { children: React.ReactNode }) {
-  const { data, isLoading, isError } = useQuery<AuthMe>({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const res = await fetch(`${basePath}/api/auth/me`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    },
-    staleTime: 60_000,
-  });
+  const { data, isLoading, isError } = useGetAuthMe();
 
   if (isLoading) {
     return (
@@ -230,13 +218,13 @@ function ClerkProviderWithRoutes() {
         signIn: {
           start: {
             title: "Staff sign in",
-            subtitle: "Sign in to the Mint Bucks staff portal",
+            subtitle: "Sign in with your Mint Printworks account",
           },
         },
         signUp: {
           start: {
-            title: "Create a staff account",
-            subtitle: "Join the Mint Printworks team portal",
+            title: "Accept invitation",
+            subtitle: "Create your Mint Printworks staff account",
           },
         },
       }}

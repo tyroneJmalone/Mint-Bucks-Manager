@@ -27,3 +27,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 FROM_EMAIL = "info@mintprintworks.com"
+
+[userenv.production]
+MINT_BUCKS_APP_ORIGIN = "https://mintbucks.replit.app"

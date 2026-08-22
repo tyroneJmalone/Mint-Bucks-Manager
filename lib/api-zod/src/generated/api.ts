@@ -52,6 +52,18 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the signed-in staff identity and access role
+ */
+export const GetAuthMeResponse = zod.object({
+  "userId": zod.string(),
+  "email": zod.string().nullable(),
+  "approved": zod.boolean(),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "isAdmin": zod.boolean()
+})
+
+
+/**
  * @summary List all customers
  */
 export const ListCustomersQueryParams = zod.object({
@@ -716,6 +728,122 @@ export const UpdateEmailTemplatesResponse = zod.object({
   "issuedEmailImage": zod.string().max(updateEmailTemplatesResponseIssuedEmailImageMax).nullish(),
   "reminderEmailImage": zod.string().max(updateEmailTemplatesResponseReminderEmailImageMax).nullish(),
   "printavoEmailImage": zod.string().max(updateEmailTemplatesResponsePrintavoEmailImageMax).nullish()
+})
+
+
+/**
+ * @summary List active staff, pending invitations, and revoked staff identities
+ */
+export const ListStaffAccessResponse = zod.object({
+  "workspaceDomain": zod.string(),
+  "active": zod.array(zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullable(),
+  "role": zod.enum(['admin', 'member']),
+  "status": zod.enum(['active', 'revoked']),
+  "isCurrentUser": zod.boolean(),
+  "lastActiveAt": zod.string().nullable()
+})),
+  "pending": zod.array(zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['admin', 'member']),
+  "createdAt": zod.string()
+})),
+  "revoked": zod.array(zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullable(),
+  "role": zod.enum(['admin', 'member']),
+  "status": zod.enum(['active', 'revoked']),
+  "isCurrentUser": zod.boolean(),
+  "lastActiveAt": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Invite a Mint Printworks staff member or re-enable a revoked identity
+ */
+export const inviteStaffBodyRedirectPathRegExp = new RegExp('^');
+
+
+export const InviteStaffBody = zod.object({
+  "email": zod.string().email(),
+  "role": zod.enum(['admin', 'member']),
+  "redirectPath": zod.string().regex(inviteStaffBodyRedirectPathRegExp).optional()
+})
+
+export const inviteStaffResponseSessionsRevokedMin = 0;
+
+
+
+export const InviteStaffResponse = zod.object({
+  "success": zod.boolean(),
+  "action": zod.enum(['invited', 'reactivated', 'invitation_cancelled', 'access_revoked']),
+  "message": zod.string(),
+  "sessionsRevoked": zod.number().min(inviteStaffResponseSessionsRevokedMin).optional()
+})
+
+
+/**
+ * @summary Cancel a pending staff invitation
+ */
+export const CancelStaffInvitationParams = zod.object({
+  "invitationId": zod.coerce.string()
+})
+
+export const cancelStaffInvitationResponseSessionsRevokedMin = 0;
+
+
+
+export const CancelStaffInvitationResponse = zod.object({
+  "success": zod.boolean(),
+  "action": zod.enum(['invited', 'reactivated', 'invitation_cancelled', 'access_revoked']),
+  "message": zod.string(),
+  "sessionsRevoked": zod.number().min(cancelStaffInvitationResponseSessionsRevokedMin).optional()
+})
+
+
+/**
+ * @summary Change an active staff member's role
+ */
+export const UpdateStaffUserRoleParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const UpdateStaffUserRoleBody = zod.object({
+  "role": zod.enum(['admin', 'member'])
+})
+
+export const UpdateStaffUserRoleResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullable(),
+  "role": zod.enum(['admin', 'member']),
+  "status": zod.enum(['active', 'revoked']),
+  "isCurrentUser": zod.boolean(),
+  "lastActiveAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Revoke staff access and active sessions without deleting the Clerk identity
+ */
+export const RevokeStaffUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const revokeStaffUserResponseSessionsRevokedMin = 0;
+
+
+
+export const RevokeStaffUserResponse = zod.object({
+  "success": zod.boolean(),
+  "action": zod.enum(['invited', 'reactivated', 'invitation_cancelled', 'access_revoked']),
+  "message": zod.string(),
+  "sessionsRevoked": zod.number().min(revokeStaffUserResponseSessionsRevokedMin).optional()
 })
 
 

@@ -8,6 +8,7 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './authMe';
 export * from './batchRewardApprovalItem';
 export * from './batchRewardApprovalRequest';
 export * from './batchRewardApprovalResult';
@@ -89,6 +90,15 @@ export * from './ruleReminderInputAnchor';
 export * from './searchRewardInvoicesMode';
 export * from './searchRewardInvoicesParams';
 export * from './sendTestRewardEmail200';
+export * from './staffAccessActionResult';
+export * from './staffAccessActionResultAction';
+export * from './staffAccessOverview';
+export * from './staffInvitation';
+export * from './staffInvitationInput';
+export * from './staffRole';
+export * from './staffRoleUpdate';
+export * from './staffUser';
+export * from './staffUserStatus';
 export * from './testEmailRequest';
 export * from './testEmailRequestEmailType';
 export * from './uploadUrlRequest';

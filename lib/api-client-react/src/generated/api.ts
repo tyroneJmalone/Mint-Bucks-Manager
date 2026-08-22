@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityItem,
+  AuthMe,
   BatchRewardApprovalRequest,
   BatchRewardApprovalResult,
   CombinedAwardRequest,
@@ -76,6 +77,11 @@ import type {
   RewardsSummary,
   SearchRewardInvoicesParams,
   SendTestRewardEmail200,
+  StaffAccessActionResult,
+  StaffAccessOverview,
+  StaffInvitationInput,
+  StaffRoleUpdate,
+  StaffUser,
   TestEmailRequest,
   UploadUrlRequest,
   UploadUrlResponse
@@ -397,6 +403,83 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAuthMeUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Get the signed-in staff identity and access role
+ */
+export const getAuthMe = async ( options?: RequestInit): Promise<AuthMe> => {
+
+  return customFetch<AuthMe>(getGetAuthMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthMeQueryKey = () => {
+    return [
+    `/api/auth/me`
+    ] as const;
+    }
+
+
+export const getGetAuthMeQueryOptions = <TData = Awaited<ReturnType<typeof getAuthMe>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthMe>>> = ({ signal }) => getAuthMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthMeQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthMe>>>
+export type GetAuthMeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the signed-in staff identity and access role
+ */
+
+export function useGetAuthMe<TData = Awaited<ReturnType<typeof getAuthMe>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthMeQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2384,6 +2467,364 @@ export const useUpdateEmailTemplates = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateEmailTemplatesMutationOptions(options));
+    }
+
+export const getListStaffAccessUrl = () => {
+
+
+
+
+  return `/api/settings/staff-access`
+}
+
+/**
+ * @summary List active staff, pending invitations, and revoked staff identities
+ */
+export const listStaffAccess = async ( options?: RequestInit): Promise<StaffAccessOverview> => {
+
+  return customFetch<StaffAccessOverview>(getListStaffAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffAccessQueryKey = () => {
+    return [
+    `/api/settings/staff-access`
+    ] as const;
+    }
+
+
+export const getListStaffAccessQueryOptions = <TData = Awaited<ReturnType<typeof listStaffAccess>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffAccess>>> = ({ signal }) => listStaffAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffAccessQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffAccess>>>
+export type ListStaffAccessQueryError = ErrorType<void>
+
+
+/**
+ * @summary List active staff, pending invitations, and revoked staff identities
+ */
+
+export function useListStaffAccess<TData = Awaited<ReturnType<typeof listStaffAccess>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteStaffUrl = () => {
+
+
+
+
+  return `/api/settings/staff-access/invitations`
+}
+
+/**
+ * @summary Invite a Mint Printworks staff member or re-enable a revoked identity
+ */
+export const inviteStaff = async (staffInvitationInput: StaffInvitationInput, options?: RequestInit): Promise<StaffAccessActionResult> => {
+
+  return customFetch<StaffAccessActionResult>(getInviteStaffUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffInvitationInput)
+  }
+);}
+
+
+
+
+export const getInviteStaffMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteStaff>>, TError,{data: BodyType<StaffInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteStaff>>, TError,{data: BodyType<StaffInvitationInput>}, TContext> => {
+
+const mutationKey = ['inviteStaff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteStaff>>, {data: BodyType<StaffInvitationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteStaff(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteStaffMutationResult = NonNullable<Awaited<ReturnType<typeof inviteStaff>>>
+    export type InviteStaffMutationBody = BodyType<StaffInvitationInput>
+    export type InviteStaffMutationError = ErrorType<void>
+
+    /**
+ * @summary Invite a Mint Printworks staff member or re-enable a revoked identity
+ */
+export const useInviteStaff = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteStaff>>, TError,{data: BodyType<StaffInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteStaff>>,
+        TError,
+        {data: BodyType<StaffInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getInviteStaffMutationOptions(options));
+    }
+
+export const getCancelStaffInvitationUrl = (invitationId: string,) => {
+
+
+
+
+  return `/api/settings/staff-access/invitations/${invitationId}`
+}
+
+/**
+ * @summary Cancel a pending staff invitation
+ */
+export const cancelStaffInvitation = async (invitationId: string, options?: RequestInit): Promise<StaffAccessActionResult> => {
+
+  return customFetch<StaffAccessActionResult>(getCancelStaffInvitationUrl(invitationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getCancelStaffInvitationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelStaffInvitation>>, TError,{invitationId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelStaffInvitation>>, TError,{invitationId: string}, TContext> => {
+
+const mutationKey = ['cancelStaffInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelStaffInvitation>>, {invitationId: string}> = (props) => {
+          const {invitationId} = props ?? {};
+
+          return  cancelStaffInvitation(invitationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelStaffInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof cancelStaffInvitation>>>
+
+    export type CancelStaffInvitationMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel a pending staff invitation
+ */
+export const useCancelStaffInvitation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelStaffInvitation>>, TError,{invitationId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelStaffInvitation>>,
+        TError,
+        {invitationId: string},
+        TContext
+      > => {
+      return useMutation(getCancelStaffInvitationMutationOptions(options));
+    }
+
+export const getUpdateStaffUserRoleUrl = (userId: string,) => {
+
+
+
+
+  return `/api/settings/staff-access/users/${userId}`
+}
+
+/**
+ * @summary Change an active staff member's role
+ */
+export const updateStaffUserRole = async (userId: string,
+    staffRoleUpdate: StaffRoleUpdate, options?: RequestInit): Promise<StaffUser> => {
+
+  return customFetch<StaffUser>(getUpdateStaffUserRoleUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffRoleUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateStaffUserRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffUserRole>>, TError,{userId: string;data: BodyType<StaffRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffUserRole>>, TError,{userId: string;data: BodyType<StaffRoleUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffUserRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffUserRole>>, {userId: string;data: BodyType<StaffRoleUpdate>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateStaffUserRole(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffUserRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffUserRole>>>
+    export type UpdateStaffUserRoleMutationBody = BodyType<StaffRoleUpdate>
+    export type UpdateStaffUserRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Change an active staff member's role
+ */
+export const useUpdateStaffUserRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffUserRole>>, TError,{userId: string;data: BodyType<StaffRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffUserRole>>,
+        TError,
+        {userId: string;data: BodyType<StaffRoleUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffUserRoleMutationOptions(options));
+    }
+
+export const getRevokeStaffUserUrl = (userId: string,) => {
+
+
+
+
+  return `/api/settings/staff-access/users/${userId}`
+}
+
+/**
+ * @summary Revoke staff access and active sessions without deleting the Clerk identity
+ */
+export const revokeStaffUser = async (userId: string, options?: RequestInit): Promise<StaffAccessActionResult> => {
+
+  return customFetch<StaffAccessActionResult>(getRevokeStaffUserUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRevokeStaffUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeStaffUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeStaffUser>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['revokeStaffUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeStaffUser>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  revokeStaffUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeStaffUserMutationResult = NonNullable<Awaited<ReturnType<typeof revokeStaffUser>>>
+
+    export type RevokeStaffUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Revoke staff access and active sessions without deleting the Clerk identity
+ */
+export const useRevokeStaffUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeStaffUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeStaffUser>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getRevokeStaffUserMutationOptions(options));
     }
 
 export const getTestPrintavoConnectionUrl = () => {

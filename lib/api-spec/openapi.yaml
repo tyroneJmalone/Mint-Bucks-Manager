@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: staff
+    description: Staff identity, invitations, roles, and access administration
   - name: customers
     description: Customer management
   - name: credits
@@ -118,6 +120,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      tags: [staff]
+      summary: Get the signed-in staff identity and access role
+      responses:
+        "200":
+          description: Current signed-in identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMe"
 
   # ── Customers ──────────────────────────────────────────────────────────────
   /customers:
@@ -614,6 +629,122 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EmailTemplates"
+
+  /settings/staff-access:
+    get:
+      operationId: listStaffAccess
+      tags: [staff]
+      summary: List active staff, pending invitations, and revoked staff identities
+      responses:
+        "200":
+          description: Staff access overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessOverview"
+        "403":
+          description: Admin role required
+
+  /settings/staff-access/invitations:
+    post:
+      operationId: inviteStaff
+      tags: [staff]
+      summary: Invite a Mint Printworks staff member or re-enable a revoked identity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffInvitationInput"
+      responses:
+        "201":
+          description: Invitation sent or revoked identity re-enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessActionResult"
+        "400":
+          description: Invalid or non-Workspace email
+        "403":
+          description: Admin role required
+        "409":
+          description: User is already active or invitation is already pending
+
+  /settings/staff-access/invitations/{invitationId}:
+    delete:
+      operationId: cancelStaffInvitation
+      tags: [staff]
+      summary: Cancel a pending staff invitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Invitation cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessActionResult"
+        "403":
+          description: Admin role required
+        "404":
+          description: Invitation not found
+
+  /settings/staff-access/users/{userId}:
+    patch:
+      operationId: updateStaffUserRole
+      tags: [staff]
+      summary: Change an active staff member's role
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffRoleUpdate"
+      responses:
+        "200":
+          description: Updated staff member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffUser"
+        "400":
+          description: Invalid role
+        "403":
+          description: Admin role required
+        "404":
+          description: Staff user not found
+        "409":
+          description: Cannot remove the final admin role
+    delete:
+      operationId: revokeStaffUser
+      tags: [staff]
+      summary: Revoke staff access and active sessions without deleting the Clerk identity
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Staff access and sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessActionResult"
+        "403":
+          description: Admin role required
+        "404":
+          description: Staff user not found
+        "409":
+          description: Unsafe self-removal or final-admin removal
 
   # ── Printavo ─────────────────────────────────────────────────────────────────
   /printavo/test:
@@ -1206,6 +1337,114 @@ components:
         status:
           type: string
       required: [status]
+
+    StaffRole:
+      type: string
+      enum: [admin, member]
+
+    AuthMe:
+      type: object
+      required: [userId, email, approved, role, isAdmin]
+      properties:
+        userId:
+          type: string
+        email:
+          type: ["string", "null"]
+        approved:
+          type: boolean
+        role:
+          oneOf:
+            - $ref: "#/components/schemas/StaffRole"
+            - type: "null"
+        isAdmin:
+          type: boolean
+
+    StaffUser:
+      type: object
+      required: [id, email, name, role, status, isCurrentUser, lastActiveAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        role:
+          $ref: "#/components/schemas/StaffRole"
+        status:
+          type: string
+          enum: [active, revoked]
+        isCurrentUser:
+          type: boolean
+        lastActiveAt:
+          type: ["string", "null"]
+
+    StaffInvitation:
+      type: object
+      required: [id, email, role, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/StaffRole"
+        createdAt:
+          type: string
+
+    StaffAccessOverview:
+      type: object
+      required: [workspaceDomain, active, pending, revoked]
+      properties:
+        workspaceDomain:
+          type: string
+        active:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffUser"
+        pending:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffInvitation"
+        revoked:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffUser"
+
+    StaffInvitationInput:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/StaffRole"
+        redirectPath:
+          type: string
+          pattern: "^/"
+
+    StaffRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/StaffRole"
+
+    StaffAccessActionResult:
+      type: object
+      required: [success, action, message]
+      properties:
+        success:
+          type: boolean
+        action:
+          type: string
+          enum: [invited, reactivated, invitation_cancelled, access_revoked]
+        message:
+          type: string
+        sessionsRevoked:
+          type: integer
+          minimum: 0
 
     Customer:
       type: object

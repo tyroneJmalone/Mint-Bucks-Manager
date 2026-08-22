@@ -2,13 +2,23 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Settings as SettingsIcon, Plug, RefreshCw, Users, Play, CheckCircle2, XCircle, AlertCircle, ShieldCheck, X } from "lucide-react";
+import { Settings as SettingsIcon, Plug, RefreshCw, Users, Play, CheckCircle2, XCircle, AlertCircle, ShieldCheck, Mail, Trash2, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetAuthMe,
+  useListStaffAccess,
+  useInviteStaff,
+  useCancelStaffInvitation,
+  useUpdateStaffUserRole,
+  useRevokeStaffUser,
+  getListStaffAccessQueryKey,
+  getGetAuthMeQueryKey,
+} from "@workspace/api-client-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -54,99 +64,269 @@ const settingsSchema = z.object({
 type SettingsFormData = z.infer<typeof settingsSchema>;
 
 const SETTINGS_KEY = ["settings", "printavo"];
-const STAFF_ACCESS_KEY = ["settings", "staff-access"];
+
+function getMutationErrorMessage(err: unknown): string {
+  const data = (err as { data?: unknown } | null)?.data;
+  if (
+    data
+    && typeof data === "object"
+    && "error" in data
+    && typeof data.error === "string"
+  ) {
+    return data.error;
+  }
+  return err instanceof Error ? err.message : "The staff access update failed.";
+}
 
 function StaffAccessCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [newEntry, setNewEntry] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [activeTab, setActiveTab] = useState<"active" | "pending" | "revoked">("active");
 
-  const { data } = useQuery<{ allowlist: string[] }>({
-    queryKey: STAFF_ACCESS_KEY,
-    queryFn: () => apiFetch("/settings/staff-access") as Promise<{ allowlist: string[] }>,
-  });
-  const allowlist = data?.allowlist ?? [];
+  const { data: accessData, isLoading } = useListStaffAccess();
 
-  const save = useMutation({
-    mutationFn: (entries: string[]) =>
-      apiFetch("/settings/staff-access", {
-        method: "PUT",
-        body: JSON.stringify({ allowlist: entries }),
-      }) as Promise<{ allowlist: string[] }>,
-    onSuccess: (updated) => {
-      queryClient.setQueryData(STAFF_ACCESS_KEY, updated);
-      setNewEntry("");
-      toast({ title: "Staff access list updated" });
-    },
-    onError: (err: Error) => {
-      toast({ title: err.message, variant: "destructive" });
-    },
-  });
-
-  const addEntry = () => {
-    const entry = newEntry.trim().toLowerCase();
-    if (!entry) return;
-    if (allowlist.includes(entry)) {
-      toast({ title: "Already on the list", variant: "destructive" });
-      return;
+  const inviteStaff = useInviteStaff({
+    mutation: {
+      onSuccess: (res) => {
+        toast({ title: res.message });
+        setInviteEmail("");
+        queryClient.invalidateQueries({ queryKey: getListStaffAccessQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: getMutationErrorMessage(err), variant: "destructive" });
+      }
     }
-    save.mutate([...allowlist, entry]);
+  });
+
+  const cancelInvite = useCancelStaffInvitation({
+    mutation: {
+      onSuccess: (res) => {
+        toast({ title: res.message });
+        queryClient.invalidateQueries({ queryKey: getListStaffAccessQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: getMutationErrorMessage(err), variant: "destructive" });
+      }
+    }
+  });
+
+  const revokeUser = useRevokeStaffUser({
+    mutation: {
+      onSuccess: (res) => {
+        toast({ title: res.message });
+        queryClient.invalidateQueries({ queryKey: getListStaffAccessQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: getMutationErrorMessage(err), variant: "destructive" });
+      }
+    }
+  });
+
+  const updateRole = useUpdateStaffUserRole({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Role updated" });
+        queryClient.invalidateQueries({ queryKey: getListStaffAccessQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetAuthMeQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: getMutationErrorMessage(err), variant: "destructive" });
+      }
+    }
+  });
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+    inviteStaff.mutate({
+      data: {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        redirectPath: `${BASE}/sign-up`,
+      },
+    });
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-lg p-6 mb-6 animate-pulse">
+        <div className="h-6 w-32 bg-muted rounded mb-4"></div>
+        <div className="h-24 bg-muted rounded"></div>
+      </div>
+    );
+  }
+
+  const { active = [], pending = [], revoked = [], workspaceDomain = "mintprintworks.com" } = accessData || {};
 
   return (
     <div className="bg-card border border-border rounded-lg p-6 mb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <ShieldCheck className="w-4 h-4 text-primary" />
-        <h2 className="text-sm font-semibold text-foreground">Staff Access</h2>
+      <div className="flex items-center gap-2 mb-2">
+        <ShieldCheck className="w-5 h-5 text-primary" />
+        <h2 className="text-lg font-semibold text-foreground">Staff Access</h2>
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        Only these people can use the dashboard. Add a full email (<span className="font-mono text-xs">jo@shop.com</span>) or
-        a whole domain (<span className="font-mono text-xs">@shop.com</span>). Anyone else who signs up sees an
-        &ldquo;access pending&rdquo; screen.
+      <p className="text-sm text-muted-foreground mb-6">
+        Manage who has access to the Mint Bucks dashboard. Invitations must be sent to an <span className="font-mono text-xs">@{workspaceDomain}</span> email address.
       </p>
 
-      <div className="flex gap-2 mb-4">
-        <Input
-          placeholder="email@company.com or @company.com"
-          value={newEntry}
-          onChange={(e) => setNewEntry(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addEntry();
-            }
-          }}
-        />
-        <Button onClick={addEntry} disabled={save.isPending || !newEntry.trim()}>
-          {save.isPending ? "Saving…" : "Add"}
+      {/* Invite Form */}
+      <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3 mb-8 bg-muted/30 p-4 rounded-md border border-border/50">
+        <div className="flex-1">
+          <Input
+            placeholder={`colleague@${workspaceDomain}`}
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            disabled={inviteStaff.isPending}
+            className="bg-background"
+          />
+        </div>
+        <select
+          value={inviteRole}
+          onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+          disabled={inviteStaff.isPending}
+          className="h-9 px-3 py-1 bg-background border border-input rounded-md text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+        <Button type="submit" disabled={inviteStaff.isPending || !inviteEmail.trim()} className="gap-2">
+          <Mail className="w-4 h-4" />
+          {inviteStaff.isPending ? "Sending..." : "Send Invite"}
         </Button>
+      </form>
+
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-border mb-4">
+        {(["active", "pending", "revoked"] as const).map(tab => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`pb-2 text-sm font-medium capitalize transition-colors border-b-2 ${
+              activeTab === tab
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            {tab} ({tab === "active" ? active.length : tab === "pending" ? pending.length : revoked.length})
+          </button>
+        ))}
       </div>
 
-      {allowlist.length === 0 ? (
-        <p className="text-xs text-amber-600 flex items-center gap-1">
-          <AlertCircle className="w-3.5 h-3.5" /> No entries yet — your account was approved automatically as the first user.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {allowlist.map((entry) => (
-            <li
-              key={entry}
-              className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm"
-            >
-              <span className="font-mono text-xs">{entry}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${entry}`}
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => save.mutate(allowlist.filter((e) => e !== entry))}
-                disabled={save.isPending}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
+      {/* Active Tab */}
+      {activeTab === "active" && (
+        <div className="space-y-3">
+          {active.length === 0 ? (
+             <p className="text-sm text-muted-foreground italic">No active staff members.</p>
+          ) : (
+            active.map((user) => (
+              <div key={user.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-card">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-foreground">{user.name || "Unknown"}</span>
+                    {user.isCurrentUser && (
+                      <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded-sm font-semibold">You</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{user.email}</div>
+                  {user.lastActiveAt && (
+                    <div className="text-[10px] text-muted-foreground/60 mt-1">Last active: {new Date(user.lastActiveAt).toLocaleDateString()}</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={user.role}
+                    onChange={(e) => {
+                      updateRole.mutate({ userId: user.id, data: { role: e.target.value as "admin" | "member" } });
+                    }}
+                    disabled={updateRole.isPending || user.isCurrentUser}
+                    className="h-8 px-2 py-1 bg-background border border-input rounded-md text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    disabled={user.isCurrentUser || revokeUser.isPending}
+                    onClick={() => {
+                      if (window.confirm(
+                        `Revoke access for ${user.email}? This signs them out immediately. Their identity is kept so an admin can reactivate them later.`,
+                      )) {
+                        revokeUser.mutate({ userId: user.id });
+                      }
+                    }}
+                    title={user.isCurrentUser ? "You cannot revoke yourself" : "Revoke Access"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
+
+      {/* Pending Tab */}
+      {activeTab === "pending" && (
+        <div className="space-y-3">
+          {pending.length === 0 ? (
+             <p className="text-sm text-muted-foreground italic">No pending invitations.</p>
+          ) : (
+            pending.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-card">
+                <div>
+                  <div className="font-medium text-sm text-foreground flex items-center gap-2">
+                    {inv.email}
+                    <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded-sm font-semibold">{inv.role}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Invited: {new Date(inv.createdAt).toLocaleDateString()}</div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => cancelInvite.mutate({ invitationId: inv.id })}
+                  disabled={cancelInvite.isPending}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Revoked Tab */}
+      {activeTab === "revoked" && (
+        <div className="space-y-3">
+          {revoked.length === 0 ? (
+             <p className="text-sm text-muted-foreground italic">No revoked accounts.</p>
+          ) : (
+            revoked.map((user) => (
+              <div key={user.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/40 opacity-75">
+                <div>
+                  <div className="font-medium text-sm text-foreground line-through">{user.email}</div>
+                  <div className="text-[10px] uppercase tracking-wide bg-destructive/10 text-destructive px-1.5 py-0.5 rounded-sm font-semibold inline-block mt-1">Revoked</div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={() => inviteStaff.mutate({ data: { email: user.email, role: user.role } })}
+                  disabled={inviteStaff.isPending}
+                >
+                  <ArrowUpRight className="w-3 h-3" />
+                  Reactivate
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
@@ -237,6 +417,9 @@ export function Settings() {
     },
   });
 
+  const { data: authData } = useGetAuthMe();
+  const isAdmin = authData?.isAdmin;
+
   if (isLoading) {
     return (
       <div className="p-8 max-w-2xl mx-auto space-y-4">
@@ -256,8 +439,8 @@ export function Settings() {
         <p className="text-muted-foreground text-sm">Configure Printavo integration and automation</p>
       </div>
 
-      {/* Staff Access */}
-      <StaffAccessCard />
+      {/* Staff Access (Admins Only) */}
+      {isAdmin && <StaffAccessCard />}
 
       {/* Printavo Credentials */}
       <div className="bg-card border border-border rounded-lg p-6 mb-6">

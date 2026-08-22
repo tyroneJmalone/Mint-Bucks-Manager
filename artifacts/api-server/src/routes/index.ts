@@ -9,7 +9,8 @@ import printavoRouter from "./printavo";
 import rewardsRouter from "./rewards";
 import storageRouter from "./storage";
 import emailsRouter from "./emails";
-import { requireAuth, requireApprovedStaff, isApprovedStaff } from "../middlewares/requireAuth";
+import { GetAuthMeResponse } from "@workspace/api-zod";
+import { requireAuth, requireApprovedStaff, getStaffProfile } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
@@ -49,11 +50,14 @@ router.use((req, res, next) => {
 
 // Who am I, and am I approved staff? (Authenticated, but no approval needed.)
 router.get("/auth/me", async (req, res) => {
-  res.json({
+  const profile = await getStaffProfile(req.userId!);
+  res.json(GetAuthMeResponse.parse({
     userId: req.userId,
-    email: req.staffEmail ?? null,
-    approved: await isApprovedStaff(req.userId!),
-  });
+    email: profile.email ?? null,
+    approved: profile.approved,
+    role: profile.role,
+    isAdmin: profile.role === "admin",
+  }));
 });
 
 router.use(healthRouter);

@@ -24,6 +24,86 @@ export interface HealthStatus {
   status: string;
 }
 
+export type StaffRole = typeof StaffRole[keyof typeof StaffRole];
+
+
+export const StaffRole = {
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface AuthMe {
+  userId: string;
+  /** @nullable */
+  email: string | null;
+  approved: boolean;
+  role: StaffRole | null;
+  isAdmin: boolean;
+}
+
+export type StaffUserStatus = typeof StaffUserStatus[keyof typeof StaffUserStatus];
+
+
+export const StaffUserStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface StaffUser {
+  id: string;
+  email: string;
+  /** @nullable */
+  name: string | null;
+  role: StaffRole;
+  status: StaffUserStatus;
+  isCurrentUser: boolean;
+  /** @nullable */
+  lastActiveAt: string | null;
+}
+
+export interface StaffInvitation {
+  id: string;
+  email: string;
+  role: StaffRole;
+  createdAt: string;
+}
+
+export interface StaffAccessOverview {
+  workspaceDomain: string;
+  active: StaffUser[];
+  pending: StaffInvitation[];
+  revoked: StaffUser[];
+}
+
+export interface StaffInvitationInput {
+  email: string;
+  role: StaffRole;
+  /** @pattern ^/ */
+  redirectPath?: string;
+}
+
+export interface StaffRoleUpdate {
+  role: StaffRole;
+}
+
+export type StaffAccessActionResultAction = typeof StaffAccessActionResultAction[keyof typeof StaffAccessActionResultAction];
+
+
+export const StaffAccessActionResultAction = {
+  invited: 'invited',
+  reactivated: 'reactivated',
+  invitation_cancelled: 'invitation_cancelled',
+  access_revoked: 'access_revoked',
+} as const;
+
+export interface StaffAccessActionResult {
+  success: boolean;
+  action: StaffAccessActionResultAction;
+  message: string;
+  /** @minimum 0 */
+  sessionsRevoked?: number;
+}
+
 export interface Customer {
   id: number;
   name: string;

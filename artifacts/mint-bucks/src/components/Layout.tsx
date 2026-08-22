@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { LogOut } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
+import { useGetAuthMe } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import logoSrc from "@assets/MINT_Scripty_1782772632177.png";
 
@@ -35,6 +36,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
+  const { data: auth } = useGetAuthMe();
 
   return (
     <div className="flex h-screen bg-background">
@@ -73,13 +75,20 @@ export function Layout({ children }: LayoutProps) {
           <p className="hidden md:block text-sidebar-primary font-display text-base leading-none">Look fresh. Be happy.</p>
           <p className="hidden md:block text-sidebar-foreground/30 text-[10px] uppercase tracking-widest mt-1.5">Staff Portal</p>
           {user && (
-            <p
-              className="hidden md:block text-sidebar-foreground/60 text-xs mt-3 truncate"
-              data-testid="text-staff-email"
-              title={user.primaryEmailAddress?.emailAddress ?? undefined}
-            >
-              {user.primaryEmailAddress?.emailAddress ?? user.fullName}
-            </p>
+            <div className="flex flex-col items-center md:items-start mt-3">
+              <p
+                className="hidden md:block text-sidebar-foreground/60 text-xs w-full truncate"
+                data-testid="text-staff-email"
+                title={user.primaryEmailAddress?.emailAddress ?? undefined}
+              >
+                {user.primaryEmailAddress?.emailAddress ?? user.fullName}
+              </p>
+              {auth?.role && (
+                <span className="hidden md:inline-block mt-1 px-1.5 py-0.5 rounded bg-sidebar-accent/50 text-sidebar-foreground/70 text-[9px] uppercase tracking-widest font-semibold">
+                  {auth.role}
+                </span>
+              )}
+            </div>
           )}
           <button
             type="button"

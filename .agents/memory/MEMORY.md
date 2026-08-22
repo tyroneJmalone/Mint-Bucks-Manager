@@ -8,3 +8,4 @@
 - [Email send claim tables](email-claim-tables.md) — exactly-once automated emails: atomic claim + stale-pending sweep; balance = active OR partially_redeemed; templates via renderTemplate helpers.
 - [Sensitive env vars](sensitive-env-vars.md) — keys/tokens/encryption keys must be Replit Secrets (requestEnvVar secret), NEVER setEnvVars shared (writes git-tracked .replit → leaks).
 - [Dev/prod settings gap](dev-prod-settings-gap.md) — publish never wipes prod data; preview-edited settings don't carry over; prod DB is read-only to agent.
+- [Clerk staff-access platform setup](clerk-staff-access-platform.md) — Google providers, user stores, and deployment privacy are environment-specific platform controls outside app code.

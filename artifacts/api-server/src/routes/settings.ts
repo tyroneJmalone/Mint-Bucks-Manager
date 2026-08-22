@@ -1,8 +1,29 @@
 import { Router, type IRouter } from "express";
-import { getSetting, setSetting, getStaffAllowlist, setStaffAllowlist } from "../lib/settings";
+import { getSetting, setSetting } from "../lib/settings";
 import { normalizeEmailImage } from "../lib/objectImages";
-import { UpdateEmailTemplatesBody } from "@workspace/api-zod";
-import { invalidateApprovalCache } from "../middlewares/requireAuth";
+import {
+  CancelStaffInvitationParams,
+  CancelStaffInvitationResponse,
+  InviteStaffBody,
+  InviteStaffResponse,
+  ListStaffAccessResponse,
+  RevokeStaffUserParams,
+  RevokeStaffUserResponse,
+  UpdateEmailTemplatesBody,
+  UpdateStaffUserRoleBody,
+  UpdateStaffUserRoleParams,
+  UpdateStaffUserRoleResponse,
+} from "@workspace/api-zod";
+import { invalidateApprovalCache, requireAdmin } from "../middlewares/requireAuth";
+import {
+  StaffAccessError,
+  buildStaffInvitationRedirectUrl,
+  cancelStaffInvitation,
+  getStaffAccessOverview,
+  inviteOrReactivateStaff,
+  revokeStaffAccess,
+  updateStaffRole,
+} from "../lib/staffAccess";
 import { startPoller, stopPoller } from "../lib/poller";
 import { logger } from "../lib/logger";
 
@@ -136,49 +157,130 @@ router.put("/settings/email-templates", async (req, res): Promise<void> => {
   res.json(await readEmailTemplates());
 });
 
-// ---- Staff access allowlist -------------------------------------------------
+// ---- Staff invitations and roles -------------------------------------------
 
-router.get("/settings/staff-access", async (_req, res): Promise<void> => {
-  const entries = await getStaffAllowlist();
-  res.json({ allowlist: entries ?? [] });
+function sendStaffAccessError(res: Parameters<Parameters<IRouter["get"]>[1]>[1], err: unknown): void {
+  if (err instanceof StaffAccessError) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
+  throw err;
+}
+
+router.use("/settings/staff-access", requireAdmin);
+
+router.get("/settings/staff-access", async (req, res): Promise<void> => {
+  try {
+    const overview = await getStaffAccessOverview(req.userId!);
+    res.json(ListStaffAccessResponse.parse(overview));
+  } catch (err) {
+    sendStaffAccessError(res, err);
+  }
 });
 
-router.put("/settings/staff-access", async (req, res): Promise<void> => {
-  const { allowlist } = req.body as { allowlist?: unknown };
-  if (
-    !Array.isArray(allowlist) ||
-    !allowlist.every((e) => typeof e === "string")
-  ) {
-    res.status(400).json({ error: "allowlist must be an array of strings" });
+router.post("/settings/staff-access/invitations", async (req, res): Promise<void> => {
+  const parsed = InviteStaffBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
-
-  const normalized = allowlist.map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const invalid = normalized.filter(
-    (e) => !/^@[^\s@]+\.[^\s@]+$/.test(e) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
-  );
-  if (invalid.length > 0) {
-    res.status(400).json({
-      error: `Invalid entries: ${invalid.join(", ")}. Use full emails (jo@shop.com) or domains (@shop.com).`,
+  try {
+    const result = await inviteOrReactivateStaff({
+      actorUserId: req.userId!,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      redirectUrl: buildStaffInvitationRedirectUrl(parsed.data.redirectPath),
     });
+    invalidateApprovalCache();
+    req.log.info(
+      { invitedEmail: parsed.data.email, role: parsed.data.role, action: result.action },
+      "Staff invitation access updated",
+    );
+    res.status(201).json(InviteStaffResponse.parse({
+      success: true,
+      ...result,
+    }));
+  } catch (err) {
+    sendStaffAccessError(res, err);
+  }
+});
+
+router.delete("/settings/staff-access/invitations/:invitationId", async (req, res): Promise<void> => {
+  const params = CancelStaffInvitationParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
     return;
   }
-
-  // Guard against self-lockout: the saving admin must remain on the list
-  // (unless their account carries the explicit approval flag).
-  const selfEmail = req.staffEmail?.toLowerCase();
-  if (selfEmail && !normalized.some((e) => (e.startsWith("@") ? selfEmail.endsWith(e) : selfEmail === e))) {
-    res.status(400).json({
-      error: `You can't remove your own access (${selfEmail}). Keep your email or domain on the list.`,
+  try {
+    await cancelStaffInvitation({
+      actorUserId: req.userId!,
+      invitationId: params.data.invitationId,
     });
+    req.log.info({ invitationId: params.data.invitationId }, "Staff invitation cancelled");
+    res.json(CancelStaffInvitationResponse.parse({
+      success: true,
+      action: "invitation_cancelled",
+      message: "Invitation cancelled.",
+    }));
+  } catch (err) {
+    sendStaffAccessError(res, err);
+  }
+});
+
+router.patch("/settings/staff-access/users/:userId", async (req, res): Promise<void> => {
+  const params = UpdateStaffUserRoleParams.safeParse(req.params);
+  const body = UpdateStaffUserRoleBody.safeParse(req.body);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  try {
+    const updated = await updateStaffRole({
+      actorUserId: req.userId!,
+      targetUserId: params.data.userId,
+      role: body.data.role,
+    });
+    invalidateApprovalCache(params.data.userId);
+    req.log.info(
+      { userId: params.data.userId, role: body.data.role },
+      "Staff role updated",
+    );
+    res.json(UpdateStaffUserRoleResponse.parse(updated));
+  } catch (err) {
+    sendStaffAccessError(res, err);
+  }
+});
 
-  await setStaffAllowlist(normalized);
-  invalidateApprovalCache();
-  req.log.info({ allowlist: normalized }, "Staff allowlist updated");
-  const entries = await getStaffAllowlist();
-  res.json({ allowlist: entries ?? [] });
+router.delete("/settings/staff-access/users/:userId", async (req, res): Promise<void> => {
+  const params = RevokeStaffUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  try {
+    const sessionsRevoked = await revokeStaffAccess({
+      actorUserId: req.userId!,
+      targetUserId: params.data.userId,
+    });
+    invalidateApprovalCache(params.data.userId);
+    req.log.info(
+      { userId: params.data.userId, sessionsRevoked },
+      "Staff access revoked",
+    );
+    res.json(RevokeStaffUserResponse.parse({
+      success: true,
+      action: "access_revoked",
+      message: "Staff access and active sessions were revoked.",
+      sessionsRevoked,
+    }));
+  } catch (err) {
+    invalidateApprovalCache(params.data.userId);
+    sendStaffAccessError(res, err);
+  }
 });
 
 export default router;
